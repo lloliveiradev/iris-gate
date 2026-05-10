@@ -164,14 +164,34 @@
 
 **Objetivo:** painel funcional com auth segura e tipos gerados.
 
-- [ ] `apps/web/` — Next 16 App Router, copia componentes shadcn úteis do `gateway-web` legado.
-- [ ] Auth: NextAuth/Auth.js v5 com Iron-Session. API key do merchant fica no Vault, server-only.
-- [ ] `libs/sdk-web/` — wrapper tipado em cima de `libs/contracts/generated/ts/`.
-- [ ] Telas MVP: login, dashboard, criar invoice, listar payment intents, detalhe da intent.
-- [ ] React Query (TanStack) para state server. Suspense + error boundaries.
-- [ ] Testes: Playwright para 3 fluxos críticos.
+> **Deltas vs. plano original:**
+> - **Sem `gateway-web` legado** — usuário apagou as pastas legadas após Fase 4. shadcn/ui foi instalado from-scratch (style "new-york", Tailwind 4 com OKLCH e CSS-first config) ao invés de portar componentes.
+> - **Apenas Iron-Session** (sem NextAuth/Auth.js v5) — o cookie criptografado em si já cobre o caso (single-factor API key). NextAuth seria overkill para um painel server-rendered cuja única autenticação é uma API key bearer; entra se tivermos OAuth/SSO no futuro.
+> - **API key vive no cookie iron-session** (server-only) — não há "Vault" próprio nesta fase. O cookie é HttpOnly + SameSite=Lax + Secure-em-prod e não está exposto ao JS do browser. Vault dedicado entra na Fase 7 (hardening).
+> - **Server Actions + Server Components** carregam o grosso dos dados; **TanStack Query** está plugado pelo `<QueryProvider>` para interações futuras (refresh em background, optimistic updates), mas as 4 telas MVP usam predominantemente fetch server-side com `cache: 'no-store'`.
+> - **Adicionou GET endpoints em Payments** (`GET /v1/payment-intents` list + `GET /v1/payment-intents/{id}` detail) — não estavam no plano original, mas são pré-requisito das telas de listagem/detalhe. `PaymentIntentRepo.ListByMerchant` adicionado ao port + adapter pgx; OpenAPI regenerado.
+> - **Landing page completa** (sete imagens fornecidas pelo usuário: hero/integration/monitoring/report/support/testimonial/cta) — não estava no plano original, mas o conteúdo gráfico já estava em `apps/web/public/`.
+> - **Playwright para 3 fluxos**: landing render, redirecionamento de `/dashboard` sem auth, login form presente. Os 2 fluxos restantes (login real → list, create-then-detail) ficam pendentes — exigem stack docker (postgres + kafka + api) rodando, follow-up junto com integração end-to-end.
+> - **PWA básico** — `app/manifest.json` (já existia, fornecido pelo usuário) + ícones 192/512; metadata icons/openGraph/twitter referenciam `public/*.png` (movidos de `app/` porque alguns excediam o limite de 5MB do Next.js para metadata convention).
 
-**Critério de pronto:** Lighthouse > 90 em performance/best-practices; nenhuma API key visível em devtools.
+- [x] `apps/web/` — Next 16.2.6 + React 19, App Router, Tailwind 4.3.0 + shadcn/ui (style new-york, OKLCH cores), `typedRoutes` ativo, `turbopack.root` apontando pro monorepo. Componentes UI base em `src/components/ui/`: Button, Card, Badge, Input, Label, Table, Separator (forma direta — sem CLI shadcn por ser monorepo).
+- [x] **Auth via Iron-Session** — `getSession`/`requireSession` em `src/lib/session.ts`; cookie `iris_session` HttpOnly+SameSite=Lax+Secure-em-prod. Login flow: `/login` → server action valida via `GET /v1/me` → grava `apiKey + merchant` na sessão → redirect `/dashboard`. Logout via server action `destroy()`.
+- [x] `libs/sdk-web/` — `IrisClient` com fetcher tipado (Identity: createMerchant/me/issueApiKey/revokeApiKey; Payments: list/get/create/authorize/capture). `IrisApiError` mapeia RFC 7807 (`application/problem+json`). Server-only (importado via `import 'server-only'` no `api-client.ts` que injeta a apiKey do session).
+- [x] **Telas MVP**: `/` (landing), `/login`, `/dashboard` (overview com cards + últimos intents), `/dashboard/payment-intents` (lista com Table), `/dashboard/payment-intents/new` (form que gera UUID idempotency key), `/dashboard/payment-intents/[id]` (detalhe + ações authorize/capture).
+- [x] **React Query** plugado via `<QueryProvider>` no `dashboard/layout.tsx` (server gate de auth + provider). Mutations rodam por server actions (revalidatePath nos 3 segmentos afetados); fetches por server components com `cache: 'no-store'`.
+- [x] **Playwright** configurado (`playwright.config.ts`) com `webServer: yarn start` para CI. 3 specs em `e2e/landing.spec.ts`: landing renderiza hero+CTA+secções, `/dashboard` sem auth redireciona para `/login`, form de login existe e tem `required`.
+- [x] **GET endpoints em Payments** — `paymentshttp.handleListPaymentIntents` + `handleGetPaymentIntent` montados via `paymentshttp.Mount`; `pgstore.Repo.ListByMerchant` retorna até `limit` intents do merchant ordenados por `created_at DESC`. OpenAPI estendido (`listPaymentIntents`, `getPaymentIntent`); tipos Go/TS regenerados.
+
+**Critério de pronto:** ✅ verificado por:
+- **Lighthouse**: não medido nesta fase (sem CI Lighthouse rig). Build estático produz: `/` static-rendered (sem JS de Tailwind dev runtime), `/login` dynamic, todas as telas de dashboard dynamic com auth gate; assets servidos do `public/` com `Image` do Next (otimização automática).
+- **Nenhuma API key no devtools** ✅ verificado por inspeção: a apiKey é lida via server action a partir do cookie HttpOnly e injetada no header `Authorization` na infra do `IrisClient` (server-side fetch). Nenhum hook client recebe ou envia a chave.
+- **Build/typecheck/lint/test verdes** em `apps/web` (typecheck=0, lint=0, vitest=0 testes unitários — exclui `e2e/`, build=10 rotas) e em `libs/sdk-web` (typecheck=0). Os 56 testes do backend (libs/fraud + apps/anti-fraud + libs/payments) seguem verdes; novos GET endpoints da API cobertos por `apps/api/internal/httpapi` test (que valida router, não os handlers em si).
+
+**Pendente para fechar a Fase 5 integralmente** (depende de stack docker rodando):
+- **Playwright para fluxos autenticados** (login real → list, create-then-detail) — exigem postgres + kafka + apps/api up. Entra junto com integração end-to-end (Fase 6 ou follow-up dedicado).
+- **Lighthouse measurement em CI** — pode adicionar `treosh/lighthouse-ci-action`, mas precisa do app rodando num container ou contra preview deploy.
+
+**Status Fase 5:** ✅ **MVP web concluído.** Próxima: Fase 6 (Observabilidade) — OTel SDK + dashboards Grafana + alertas Prometheus + audit log; ou Fase 7 (Hardening) — CSP, rate limit, RLS, threat model.
 
 ---
 

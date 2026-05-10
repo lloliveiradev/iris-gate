@@ -6,7 +6,8 @@
     "apps/web",
     "apps/anti-fraud",
     "libs/contracts",
-    "libs/fraud"
+    "libs/fraud",
+    "libs/sdk-web"
   ],
   "engines": {
     "node": ">=20.18.0"

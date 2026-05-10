@@ -103,6 +103,11 @@ type Unauthorized = Problem
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
+// ListPaymentIntentsParams defines parameters for ListPaymentIntents.
+type ListPaymentIntentsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // CreatePaymentIntentParams defines parameters for CreatePaymentIntent.
 type CreatePaymentIntentParams struct {
 	// IdempotencyKey Chave idempotente fornecida pelo cliente. Repetir a mesma chave

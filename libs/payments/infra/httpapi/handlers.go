@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ type Deps struct {
 	CreatePaymentIntent *application.CreatePaymentIntentUseCase
 	AuthorizePayment    *application.AuthorizePaymentUseCase
 	CapturePayment      *application.CapturePaymentUseCase
+	Repo                application.PaymentIntentRepo
 
 	// AuthRequired/IdempotencyMW são plugados pelo composer (apps/api).
 	// Mantemos como middlewares opacos pra evitar dependência circular.
@@ -31,7 +33,9 @@ type Deps struct {
 
 // Mount registra rotas em `r`.
 //
-//   POST /v1/payment-intents               (auth + idempotency)
+//   GET  /v1/payment-intents               (auth)            — list
+//   POST /v1/payment-intents               (auth + idempotency) — create
+//   GET  /v1/payment-intents/{id}          (auth)            — detail
 //   POST /v1/payment-intents/{id}/authorize (auth)
 //   POST /v1/payment-intents/{id}/capture   (auth)
 //
@@ -50,8 +54,8 @@ func Mount(r chi.Router, d Deps) {
 		})
 	}
 
-	// /authorize e /capture são naturalmente idempotentes pelo status-check
-	// no use case — não precisam do middleware de idempotência.
+	// /authorize, /capture, GET list, GET detail — naturalmente idempotentes ou
+	// puramente leitura.
 	r.Group(func(r chi.Router) {
 		r.Use(d.AuthRequired)
 		if d.AuthorizePayment != nil {
@@ -60,7 +64,62 @@ func Mount(r chi.Router, d Deps) {
 		if d.CapturePayment != nil {
 			r.Post("/v1/payment-intents/{id}/capture", handleCapture(d.CapturePayment))
 		}
+		if d.Repo != nil {
+			r.Get("/v1/payment-intents", handleListPaymentIntents(d.Repo))
+			r.Get("/v1/payment-intents/{id}", handleGetPaymentIntent(d.Repo))
+		}
 	})
+}
+
+func handleListPaymentIntents(repo application.PaymentIntentRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		merchant, ok := identityhttp.MerchantFromContext(r.Context())
+		if !ok {
+			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant ausente")
+			return
+		}
+		limit := 50
+		if v := r.URL.Query().Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+				limit = n
+			}
+		}
+		items, err := repo.ListByMerchant(r.Context(), merchant.ID, limit)
+		if err != nil {
+			mapError(w, r, err)
+			return
+		}
+		out := make([]contracts.PaymentIntent, 0, len(items))
+		for _, p := range items {
+			out = append(out, toContract(p))
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+func handleGetPaymentIntent(repo application.PaymentIntentRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		merchant, ok := identityhttp.MerchantFromContext(r.Context())
+		if !ok {
+			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant ausente")
+			return
+		}
+		id, err := parseIDParam(r, "id")
+		if err != nil {
+			problem(w, r, http.StatusBadRequest, "invalid_id", err.Error())
+			return
+		}
+		pi, err := repo.GetByID(r.Context(), id)
+		if err != nil {
+			mapError(w, r, err)
+			return
+		}
+		if pi.MerchantID != merchant.ID {
+			problem(w, r, http.StatusNotFound, "not_found", "payment intent não encontrado")
+			return
+		}
+		writeJSON(w, http.StatusOK, toContract(pi))
+	}
 }
 
 func handleCreatePaymentIntent(uc *application.CreatePaymentIntentUseCase) http.HandlerFunc {

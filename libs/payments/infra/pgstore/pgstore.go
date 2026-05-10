@@ -119,6 +119,35 @@ func (r *Repo) GetByMerchantAndIdempotencyKey(_ context.Context, _ uuid.UUID, _ 
 	return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
 }
 
+// ListByMerchant retorna os intents do merchant, mais recentes primeiro.
+func (r *Repo) ListByMerchant(ctx context.Context, merchantID uuid.UUID, limit int) ([]domain.PaymentIntent, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	const q = `
+		SELECT id, merchant_id, amount_cents, currency, status, card_token, description,
+		       created_at, authorized_at, captured_at
+		FROM payment_intents
+		WHERE merchant_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`
+	rows, err := r.pool.Query(ctx, q, merchantID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.PaymentIntent
+	for rows.Next() {
+		p, scanErr := scanIntent(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func scanIntent(row pgx.Row) (domain.PaymentIntent, error) {
 	var p domain.PaymentIntent
 	var status, currency string

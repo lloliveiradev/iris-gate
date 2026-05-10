@@ -54,3 +54,6 @@ htmlcov/
 
 # graphify
 graphify-out/
+
+# Build artifacts
+apps/api/bin/

@@ -45,6 +45,21 @@ func (r *fakeRepo) GetByMerchantAndIdempotencyKey(_ context.Context, _ uuid.UUID
 	return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
 }
 
+func (r *fakeRepo) ListByMerchant(_ context.Context, merchantID uuid.UUID, limit int) ([]domain.PaymentIntent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]domain.PaymentIntent, 0)
+	for _, p := range r.intents {
+		if p.MerchantID == merchantID {
+			out = append(out, p)
+		}
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 type fixedClock struct{ t time.Time }
 
 func (c fixedClock) Now() time.Time { return c.t }

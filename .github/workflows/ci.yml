@@ -23,6 +23,7 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
+      sdk-web: ${{ steps.filter.outputs.sdk-web }}
       anti-fraud: ${{ steps.filter.outputs.anti-fraud }}
       fraud: ${{ steps.filter.outputs.fraud }}
       contracts: ${{ steps.filter.outputs.contracts }}
@@ -42,6 +43,9 @@ jobs:
               - 'apps/web/**'
               - 'libs/contracts/generated/ts/**'
               - 'libs/contracts/index.ts'
+              - 'libs/sdk-web/**'
+            sdk-web:
+              - 'libs/sdk-web/**'
             anti-fraud:
               - 'apps/anti-fraud/**'
               - 'libs/fraud/**'
@@ -101,6 +105,24 @@ jobs:
           working-directory: apps/api
           args: --timeout=5m
 
+  sdk-web:
+    needs: changes
+    if: needs.changes.outputs.sdk-web == 'true' || needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node-root == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: libs/sdk-web
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --immutable
+        working-directory: .
+      - run: yarn typecheck
+
   web:
     needs: changes
     if: needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node-root == 'true'
@@ -115,6 +137,7 @@ jobs:
       - run: yarn install --immutable
       - run: make app-web CMD=typecheck
       - run: make app-web CMD=lint
+      - run: make app-web CMD=test
       - run: make app-web CMD=build
 
   fraud-lib:

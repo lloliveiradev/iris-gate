@@ -95,6 +95,7 @@ func main() {
 		CreatePaymentIntent: paymentsapp.NewCreatePaymentIntentUseCase(paymentsRepo, paymentsClock, paymentsIDs),
 		AuthorizePayment:    paymentsapp.NewAuthorizePaymentUseCase(paymentsRepo, acq, paymentsClock, paymentsIDs),
 		CapturePayment:      paymentsapp.NewCapturePaymentUseCase(paymentsRepo, paymentsClock, paymentsIDs),
+		Repo:                paymentsRepo,
 		AuthRequired:        identityhttp.RequireAPIKey(identityDeps.Authenticate),
 		IdempotencyMW:       idempotency.Middleware(idempotencyStore, "create_payment_intent"),
 	}

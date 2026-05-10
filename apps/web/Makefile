@@ -40,6 +40,10 @@ lint: ## next lint (eslint flat config)
 typecheck: ## tsc --noEmit
 	$(YARN) run typecheck
 
+.PHONY: e2e
+e2e: ## playwright (precisa do app rodando ou faz spawn via webServer)
+	$(YARN) run e2e
+
 .PHONY: clean
 clean: ## Remove build artifacts
-	rm -rf .next dist coverage .turbo
+	rm -rf .next dist coverage .turbo playwright-report test-results

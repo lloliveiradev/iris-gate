@@ -18,6 +18,7 @@ type PaymentIntentRepo interface {
 	UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev OutboxMessage) error
 	GetByID(ctx context.Context, id uuid.UUID) (domain.PaymentIntent, error)
 	GetByMerchantAndIdempotencyKey(ctx context.Context, merchantID uuid.UUID, key string) (domain.PaymentIntent, error)
+	ListByMerchant(ctx context.Context, merchantID uuid.UUID, limit int) ([]domain.PaymentIntent, error)
 }
 
 // OutboxMessage descreve uma mensagem a ser publicada via relay worker.
