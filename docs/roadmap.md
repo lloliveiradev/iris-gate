@@ -127,15 +127,36 @@
 
 **Objetivo:** decisão de fraude assíncrona com Inbox + Specification Pattern modernizado.
 
-- [ ] `apps/anti-fraud/` — Nest 11.1 com `@nestjs/microservices` (Kafka transport) ou KafkaServer custom (mantém padrão do legado).
-- [ ] `libs/fraud/domain/` — RiskAssessment, Decision (Approve/Review/Reject), Score.
-- [ ] `libs/fraud/application/` — AssessRisk use-case + RuleRegistry (carrega de DB).
-- [ ] `libs/fraud/infra/` — repos Prisma, consumer Kafka com **Inbox**, producer com **Outbox**.
-- [ ] Migrar as 3 specifications do legado (suspicious-account, unusual-amount, frequent-high-value) com **score numérico** e **weights**.
-- [ ] DLQ topic `fraud.assessment.failed.dlq`.
-- [ ] Testes: cada Specification isolada + use-case com fakes.
+> **Deltas vs. plano original:**
+> - **KafkaJS direto** (não `@nestjs/microservices` Kafka transport) — controle explícito do loop `consumer.run` permite dedupe Inbox antes de qualquer side-effect; produção via `producer.send` casa com o padrão de `libs/payments/infra/kafkarelay` (segmentio/kafka-go).
+> - **`libs/fraud` em TypeScript** (yarn workspace `@iris-gate/fraud`) — alinha com a stack Nest do app consumidor e mantém domain/application puros. Diferente de `libs/identity` e `libs/payments`, que são Go (consumidores estão em `apps/api`).
+> - **Prisma 5.22 LTS** (não 7.x) — major-bump fica como follow-up; APIs do client mudam entre majors e queremos baseline estável.
+> - **`fraud.assessment.requested.v1` consumer-only** — o produtor ainda não existe (Payments hoje publica `payments.payment_intent.created.v1`). Wiring do producer entra junto com a integração end-to-end (Fase 5/6) ou via shim que traduz `payment_intent.created` → `assessment.requested` se necessário.
+> - **Modelo de score**: cada rule devolve `{matched, baseScore: 0..100}`; aggregator soma `weight × baseScore` (saturado em 100); thresholds `APPROVE<30`, `REVIEW<70`, `REJECT≥70`. Weights vêm de `FraudRule` no Postgres (fallback para `DEFAULT_RULES` quando a tabela está vazia).
+> - **Testes de Inbox/Outbox são unitários com fakes** — integração contra Kafka real fica como follow-up de Fase 6 (observability/integration suite); o crítico (dedupe + atomicidade tx) já é provado no use-case.
+> - **Schema Prisma diferente do legado**: `Account.ref` (string opaco) substitui `Account.id` numérico; tabelas `RiskAssessment`/`InvoiceAttempt`/`InboxMessage`/`OutboxMessage`/`FraudRule` substituem `Invoice`/`FraudHistory`. Anti-fraud não persiste mais cobranças — só decisões de risco.
 
-**Critério de pronto:** mensagem em `fraud.assessment.requested.v1` é processada exatamente uma vez (mesmo com redelivery), responde em `fraud.assessment.completed.v1`, ou vai pra DLQ com motivo.
+- [x] `apps/anti-fraud/` — Nest 11.1 com **kafkajs direto** (consumer + producer no mesmo client), composition root via `AppModule` → `PrismaModule` + `KafkaModule` + `FraudModule`. Migrações Prisma em `prisma/migrations/20260510_init/`.
+- [x] `libs/fraud/domain/` — `RiskAssessment` aggregate (status PENDING/COMPLETED/FAILED), `Decision` enum (APPROVE/REVIEW/REJECT), `Score` VO (range [0..100], `add` saturado, `fromWeighted`), `DecisionThresholds`, `FraudReasonCode` (3 códigos), errors sentinela.
+- [x] `libs/fraud/application/` — ports (`AccountRepo`, `InvoiceHistoryRepo`, `RiskAssessmentRepo`, `InboxStore`, `OutboxStore`, `EventPublisher`, `DLQPublisher`, `Clock`, `IDGen`, `RuleConfigStore`), `AssessRiskUseCase` com Inbox-first dedupe + atomic save (assessment + outbox), `buildRulesFromConfig` registry, fakes in-memory para testes.
+- [x] `libs/fraud/infra` *(via apps/anti-fraud/src/infra)* — adapters Prisma (`PrismaAccountRepo`, `PrismaInvoiceHistoryRepo`, `PrismaRiskAssessmentRepo`, `PrismaInboxStore`, `PrismaOutboxStore`, `PrismaRuleConfigStore`); `Inbox` via UNIQUE constraint em `InboxMessage.messageId`; `Outbox` escrito na mesma `$transaction` da `RiskAssessment`; `OutboxRelayService` poll-loop (intervalo + batch configuráveis) publicando no Kafka e marcando `publishedAt`.
+- [x] **3 specifications modernizadas com score+weight** — `SuspiciousAccountSpec` (binary 100), `UnusualAmountSpec` (escala não-linear baseada em desvio do avg), `FrequentHighValueSpec` (escala por overage do limite). Weights default: 1.0 / 0.6 / 0.5.
+- [x] DLQ topic `fraud.assessment.failed.dlq` — `KafkaDLQPublisher` invocado no `AssessmentConsumer` para payload sem `event-id`, JSON malformado, ou validação que falha (`PayloadValidationError`).
+- [x] Testes: 46 testes em `libs/fraud` (domain VOs, aggregate state-machine, cada Specification isolada com fakes, AssessRiskUseCase happy/dedupe/review/reject) + 9 em `apps/anti-fraud` (payload validation, healthz). **Total verde**: 55 testes.
+- [x] Yarn workspace `libs/fraud` adicionado ao root; CI ganhou job `fraud-lib` (typecheck+lint+test) e o filtro `anti-fraud` cobre `libs/fraud/**` + `libs/contracts/events/schemas/fraud/**`.
+- [x] AsyncAPI estendido (`fraud.assessment.requested.v1`, `fraud.assessment.completed.v1`, `fraud.assessment.failed.dlq`) + JSON Schema 2020-12 dos dois payloads em `libs/contracts/events/schemas/fraud/`.
+
+**Critério de pronto:** ✅ verificado por testes:
+- **Idempotência (Inbox)**: `TestAssessRiskUseCase › deduplicates redelivery of same messageId` em `assess-risk.use-case.spec.ts` — 2ª execução com mesmo `messageId` retorna `deduplicated: true`, score/decision iguais, sem novo registro em `assessments` nem em `outbox`. Em produção, ancorado na UNIQUE constraint `InboxMessage.messageId` (race losers caem no caminho de dedupe).
+- **Outbox atômico**: `persists assessment + outbox atomically` — completar `RiskAssessment` grava na mesma `$transaction` (`prisma.$transaction([upsert, create])`) o aggregate + a entrada do outbox; relay worker publica e marca `publishedAt`.
+- **DLQ**: `AssessmentConsumer` despacha pra `fraud.assessment.failed.dlq` em 3 cenários terminais (sem event-id, JSON inválido, schema inválido) com header `failure-reason`.
+- **Score model**: `score.spec.ts` valida saturação em 100 e `fromWeighted`; `thresholds.spec.ts` cobre fronteiras 30 e 70; `assess-risk.use-case.spec.ts` mostra clean→APPROVE, suspicious→REJECT, frequent→REVIEW/REJECT.
+
+**Pendente para fechar a Fase 4 integralmente** (depende de outras fases):
+- **Producer real de `fraud.assessment.requested.v1`** — entra quando Payments começar a despachar requests de assessment (provavelmente na Fase 5/6 com observabilidade ponta-a-ponta).
+- **Integration test contra Kafka real** — testcontainers para validar o loop completo (consumer + outbox-relay), follow-up de baixo risco já que o caminho crítico (use-case + dedupe) está coberto com fakes.
+
+**Status Fase 4:** ✅ **Backend concluído.** Próxima: Fase 5 (Web) ou Fase 6 (Observabilidade) — paralelizáveis.
 
 ---
 

@@ -1,0 +1,41 @@
+{
+  "$id": "https://iris-gate/events/fraud/assessment-completed.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FraudAssessmentCompleted (v1)",
+  "description": "Resultado da avaliação de risco para um PaymentIntent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "occurred_at",
+    "assessment_id",
+    "payment_intent_id",
+    "merchant_id",
+    "decision",
+    "score",
+    "reasons"
+  ],
+  "properties": {
+    "event_id":          { "type": "string", "format": "uuid" },
+    "occurred_at":       { "type": "string", "format": "date-time" },
+    "assessment_id":     { "type": "string", "format": "uuid" },
+    "payment_intent_id": { "type": "string", "format": "uuid" },
+    "merchant_id":       { "type": "string", "format": "uuid" },
+    "decision":          { "type": "string", "enum": ["APPROVE", "REVIEW", "REJECT"] },
+    "score":             { "type": "number", "minimum": 0, "maximum": 100 },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "weight", "score", "description"],
+        "properties": {
+          "code":        { "type": "string", "enum": ["SUSPICIOUS_ACCOUNT", "UNUSUAL_AMOUNT", "FREQUENT_HIGH_VALUE"] },
+          "weight":      { "type": "number", "minimum": 0, "maximum": 1 },
+          "score":       { "type": "number", "minimum": 0, "maximum": 100 },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -39,6 +39,18 @@ lint: ## eslint
 typecheck: ## tsc --noEmit
 	$(YARN) run typecheck
 
+.PHONY: prisma-generate
+prisma-generate: ## prisma generate (typed client)
+	$(YARN) run prisma:generate
+
+.PHONY: prisma-migrate
+prisma-migrate: ## prisma migrate dev (local)
+	$(YARN) run prisma:migrate:dev
+
+.PHONY: prisma-deploy
+prisma-deploy: ## prisma migrate deploy (CI/prod)
+	$(YARN) run prisma:migrate:deploy
+
 .PHONY: clean
 clean: ## Remove build
 	rm -rf dist coverage

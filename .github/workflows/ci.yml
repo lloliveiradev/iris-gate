@@ -24,6 +24,7 @@ jobs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
       anti-fraud: ${{ steps.filter.outputs.anti-fraud }}
+      fraud: ${{ steps.filter.outputs.fraud }}
       contracts: ${{ steps.filter.outputs.contracts }}
       node-root: ${{ steps.filter.outputs.node-root }}
     steps:
@@ -43,6 +44,10 @@ jobs:
               - 'libs/contracts/index.ts'
             anti-fraud:
               - 'apps/anti-fraud/**'
+              - 'libs/fraud/**'
+              - 'libs/contracts/events/schemas/fraud/**'
+            fraud:
+              - 'libs/fraud/**'
             contracts:
               - 'libs/contracts/http/**'
               - 'libs/contracts/events/**'
@@ -111,6 +116,26 @@ jobs:
       - run: make app-web CMD=typecheck
       - run: make app-web CMD=lint
       - run: make app-web CMD=build
+
+  fraud-lib:
+    needs: changes
+    if: needs.changes.outputs.fraud == 'true' || needs.changes.outputs.node-root == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: libs/fraud
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --immutable
+        working-directory: .
+      - run: yarn typecheck
+      - run: yarn lint
+      - run: yarn test
 
   anti-fraud:
     needs: changes

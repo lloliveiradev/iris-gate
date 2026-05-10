@@ -1,0 +1,78 @@
+// Iris Gate — Anti-fraud datastore.
+// Models cover: account flags, completed risk assessments, configurable rule
+// definitions, plus Inbox/Outbox messages for at-least-once Kafka semantics.
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  ref          String   @id
+  isSuspicious Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model InvoiceAttempt {
+  paymentIntentId String   @id
+  accountRef      String
+  amountCents     Int
+  occurredAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([accountRef, occurredAt])
+}
+
+model RiskAssessment {
+  id              String    @id
+  paymentIntentId String    @unique
+  merchantId      String
+  accountRef      String
+  amountCents     Int
+  currency        String    @db.Char(3)
+  status          String
+  decision        String?
+  score           Float     @default(0)
+  reasons         Json      @default("[]")
+  requestedAt     DateTime
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([accountRef, completedAt])
+}
+
+model FraudRule {
+  code      String   @id
+  weight    Float
+  enabled   Boolean  @default(true)
+  params    Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InboxMessage {
+  messageId    String    @id
+  topic        String
+  assessmentId String?
+  receivedAt   DateTime  @default(now())
+  processedAt  DateTime?
+}
+
+model OutboxMessage {
+  eventId     String    @id
+  eventType   String
+  topic       String
+  payload     Json
+  traceparent String?
+  occurredAt  DateTime
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([publishedAt])
+}

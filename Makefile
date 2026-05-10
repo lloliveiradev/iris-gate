@@ -11,7 +11,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # Galhos (cada um deve ter seu próprio Makefile)
-APPS  := apps/api apps/web apps/anti-fraud libs/identity libs/payments
+APPS  := apps/api apps/web apps/anti-fraud libs/identity libs/payments libs/fraud
 INFRA := infra/docker
 
 # Cores
