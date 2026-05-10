@@ -21,19 +21,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a new API key for a merchant
+         * @description Retorna o segredo em texto-claro **uma única vez** no campo `secret`.
+         *     Após esta resposta, apenas o `prefix` permanece consultável; o secret é
+         *     armazenado como hash Argon2id.
+         *
+         */
+        post: operations["issueApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/api-keys/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke an API key */
+        post: operations["revokeApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve merchant from API key (auth gate test)
+         * @description Endpoint protegido. Requer `Authorization: Bearer <api-key>` no formato
+         *     `irk_<prefix>.<secret>`. Retorna o merchant dono da chave.
+         *
+         */
+        get: operations["getCurrentMerchant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         CreateMerchantRequest: {
-            /** @description Razão social do merchant. */
             legal_name: string;
-            /** @description Documento oficial (CNPJ, somente dígitos). */
+            /** @description CNPJ, somente dígitos. */
             document: string;
-            /**
-             * Format: email
-             * @description E-mail principal de contato administrativo.
-             */
+            /** Format: email */
             contact_email: string;
         };
         Merchant: {
@@ -47,12 +105,36 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /**
-         * @description Ciclo de vida do cadastro do merchant.
-         * @enum {string}
-         */
+        /** @enum {string} */
         MerchantStatus: "pending" | "active" | "suspended";
-        /** @description Erro padronizado, formato RFC 7807. */
+        IssueApiKeyRequest: {
+            /** Format: uuid */
+            merchant_id: string;
+            /** @default [] */
+            scopes: string[];
+        };
+        IssueApiKeyResponse: {
+            api_key: components["schemas"]["ApiKey"];
+            /** @description Token completo `irk_<prefix>.<secret>`. Só aparece nesta resposta. */
+            secret: string;
+        };
+        ApiKey: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            merchant_id: string;
+            prefix: string;
+            status: components["schemas"]["ApiKeyStatus"];
+            scopes: string[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_used_at?: string;
+            /** Format: date-time */
+            revoked_at?: string;
+        };
+        /** @enum {string} */
+        ApiKeyStatus: "active" | "revoked";
         Problem: {
             /** Format: uri */
             type: string;
@@ -77,6 +159,33 @@ export interface components {
         };
         /** @description Conflito (ex.: documento já cadastrado). */
         Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Recurso não encontrado. */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description API key ausente, malformada ou inválida. */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description API key revogada ou sem permissão. */
+        Forbidden: {
             headers: {
                 [name: string]: unknown;
             };
@@ -116,6 +225,77 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    issueApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueApiKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description API key issued */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueApiKeyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    revokeApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description API key revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCurrentMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Merchant"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }

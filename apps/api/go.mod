@@ -1,14 +1,30 @@
 module github.com/iris-gate/iris-gate/apps/api
 
-go 1.24
+go 1.25.0
 
-// O módulo de contratos é resolvido localmente via go.work na raiz.
-// Versão placeholder + replace permitem build fora do workspace também.
+toolchain go1.25.10
+
+// Módulos locais resolvidos via go.work + replace (replace permite build fora do workspace).
 require (
 	github.com/go-chi/chi/v5 v5.2.1
-	github.com/google/uuid v1.6.0
-	github.com/iris-gate/iris-gate/libs/contracts/generated/go v0.0.0-00010101000000-000000000000
-	github.com/oapi-codegen/runtime v1.4.0
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/iris-gate/iris-gate/libs/contracts/generated/go v0.0.0-00010101000000-000000000000 // indirect
+	github.com/iris-gate/iris-gate/libs/identity v0.0.0-00010101000000-000000000000
+	github.com/jackc/pgx/v5 v5.9.2
+	github.com/oapi-codegen/runtime v1.4.0 // indirect
 )
 
-replace github.com/iris-gate/iris-gate/libs/contracts/generated/go => ../../libs/contracts/generated/go
+require (
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	golang.org/x/crypto v0.51.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
+)
+
+replace (
+	github.com/iris-gate/iris-gate/libs/contracts/generated/go => ../../libs/contracts/generated/go
+	github.com/iris-gate/iris-gate/libs/identity => ../../libs/identity
+)

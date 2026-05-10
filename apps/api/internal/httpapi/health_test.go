@@ -14,7 +14,7 @@ func TestHealthz(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 
-	httpapi.NewRouter().ServeHTTP(rec, req)
+	httpapi.NewRouter(httpapi.Mounters{}).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -30,7 +30,7 @@ func TestReadyz(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	rec := httptest.NewRecorder()
 
-	httpapi.NewRouter().ServeHTTP(rec, req)
+	httpapi.NewRouter(httpapi.Mounters{}).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)

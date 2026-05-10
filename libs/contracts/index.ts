@@ -9,6 +9,10 @@ export namespace Identity {
   export type CreateMerchantRequest = Schemas['CreateMerchantRequest'];
   export type Merchant = Schemas['Merchant'];
   export type MerchantStatus = Schemas['MerchantStatus'];
+  export type IssueApiKeyRequest = Schemas['IssueApiKeyRequest'];
+  export type IssueApiKeyResponse = Schemas['IssueApiKeyResponse'];
+  export type ApiKey = Schemas['ApiKey'];
+  export type ApiKeyStatus = Schemas['ApiKeyStatus'];
   export type Problem = Schemas['Problem'];
 
   export type Paths = IdentityRaw.paths;

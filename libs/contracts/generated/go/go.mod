@@ -1,6 +1,8 @@
 module github.com/iris-gate/iris-gate/libs/contracts/generated/go
 
-go 1.24.3
+go 1.25.0
+
+toolchain go1.25.10
 
 tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 

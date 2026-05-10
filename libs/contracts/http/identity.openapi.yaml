@@ -1,11 +1,10 @@
 openapi: 3.1.0
 info:
   title: Iris Gate — Identity API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Merchant identity, API keys, operators.
-    Real implementation lands in Phase 2 of the roadmap; this spec defines the
-    contract apps/api and apps/web bind to from day one.
+    Phase 2 do roadmap implementa CreateMerchant + IssueApiKey + AuthenticateApiKey + RevokeApiKey.
   license:
     name: MIT
 servers:
@@ -14,7 +13,6 @@ servers:
 
 tags:
   - name: identity
-    description: Merchant + API key management.
 
 paths:
   /v1/merchants:
@@ -40,7 +38,84 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
+  /v1/api-keys:
+    post:
+      operationId: issueApiKey
+      summary: Issue a new API key for a merchant
+      description: |
+        Retorna o segredo em texto-claro **uma única vez** no campo `secret`.
+        Após esta resposta, apenas o `prefix` permanece consultável; o secret é
+        armazenado como hash Argon2id.
+      tags: [identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueApiKeyRequest'
+      responses:
+        '201':
+          description: API key issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueApiKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/api-keys/{id}/revoke:
+    post:
+      operationId: revokeApiKey
+      summary: Revoke an API key
+      tags: [identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/me:
+    get:
+      operationId: getCurrentMerchant
+      summary: Resolve merchant from API key (auth gate test)
+      description: |
+        Endpoint protegido. Requer `Authorization: Bearer <api-key>` no formato
+        `irk_<prefix>.<secret>`. Retorna o merchant dono da chave.
+      tags: [identity]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Merchant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: irk_<prefix>.<secret>
+
   schemas:
     CreateMerchantRequest:
       type: object
@@ -51,17 +126,13 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: Razão social do merchant.
-          examples: [ACME Pagamentos LTDA]
         document:
           type: string
-          description: Documento oficial (CNPJ, somente dígitos).
           pattern: '^[0-9]{14}$'
-          examples: ['12345678000199']
+          description: 'CNPJ, somente dígitos.'
         contact_email:
           type: string
           format: email
-          description: E-mail principal de contato administrativo.
 
     Merchant:
       type: object
@@ -87,15 +158,68 @@ components:
 
     MerchantStatus:
       type: string
-      description: Ciclo de vida do cadastro do merchant.
-      enum:
-        - pending
-        - active
-        - suspended
+      enum: [pending, active, suspended]
+
+    IssueApiKeyRequest:
+      type: object
+      additionalProperties: false
+      required: [merchant_id]
+      properties:
+        merchant_id:
+          type: string
+          format: uuid
+        scopes:
+          type: array
+          items:
+            type: string
+          default: []
+
+    IssueApiKeyResponse:
+      type: object
+      additionalProperties: false
+      required: [api_key, secret]
+      properties:
+        api_key:
+          $ref: '#/components/schemas/ApiKey'
+        secret:
+          type: string
+          description: 'Token completo `irk_<prefix>.<secret>`. Só aparece nesta resposta.'
+
+    ApiKey:
+      type: object
+      additionalProperties: false
+      required: [id, merchant_id, prefix, status, scopes, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        prefix:
+          type: string
+        status:
+          $ref: '#/components/schemas/ApiKeyStatus'
+        scopes:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+
+    ApiKeyStatus:
+      type: string
+      enum: [active, revoked]
 
     Problem:
       type: object
-      description: Erro padronizado, formato RFC 7807.
       additionalProperties: true
       required: [type, title, status]
       properties:
@@ -116,13 +240,31 @@ components:
 
   responses:
     BadRequest:
-      description: Requisição inválida.
+      description: 'Requisição inválida.'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     Conflict:
       description: 'Conflito (ex.: documento já cadastrado).'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: 'Recurso não encontrado.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: 'API key ausente, malformada ou inválida.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: 'API key revogada ou sem permissão.'
       content:
         application/problem+json:
           schema:

@@ -11,37 +11,85 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for MerchantStatus.
 const (
-	Active    MerchantStatus = "active"
-	Pending   MerchantStatus = "pending"
-	Suspended MerchantStatus = "suspended"
+	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
-// Valid indicates whether the value is a known member of the MerchantStatus enum.
-func (e MerchantStatus) Valid() bool {
+// Defines values for ApiKeyStatus.
+const (
+	ApiKeyStatusActive  ApiKeyStatus = "active"
+	ApiKeyStatusRevoked ApiKeyStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the ApiKeyStatus enum.
+func (e ApiKeyStatus) Valid() bool {
 	switch e {
-	case Active:
+	case ApiKeyStatusActive:
 		return true
-	case Pending:
-		return true
-	case Suspended:
+	case ApiKeyStatusRevoked:
 		return true
 	default:
 		return false
 	}
 }
 
+// Defines values for MerchantStatus.
+const (
+	MerchantStatusActive    MerchantStatus = "active"
+	MerchantStatusPending   MerchantStatus = "pending"
+	MerchantStatusSuspended MerchantStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the MerchantStatus enum.
+func (e MerchantStatus) Valid() bool {
+	switch e {
+	case MerchantStatusActive:
+		return true
+	case MerchantStatusPending:
+		return true
+	case MerchantStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// ApiKey defines model for ApiKey.
+type ApiKey struct {
+	CreatedAt  time.Time          `json:"created_at"`
+	Id         openapi_types.UUID `json:"id"`
+	LastUsedAt *time.Time         `json:"last_used_at,omitempty"`
+	MerchantId openapi_types.UUID `json:"merchant_id"`
+	Prefix     string             `json:"prefix"`
+	RevokedAt  *time.Time         `json:"revoked_at,omitempty"`
+	Scopes     []string           `json:"scopes"`
+	Status     ApiKeyStatus       `json:"status"`
+}
+
+// ApiKeyStatus defines model for ApiKeyStatus.
+type ApiKeyStatus string
+
 // CreateMerchantRequest defines model for CreateMerchantRequest.
 type CreateMerchantRequest struct {
-	// ContactEmail E-mail principal de contato administrativo.
 	ContactEmail openapi_types.Email `json:"contact_email"`
 
-	// Document Documento oficial (CNPJ, somente dígitos).
-	Document string `json:"document"`
-
-	// LegalName Razão social do merchant.
+	// Document CNPJ, somente dígitos.
+	Document  string `json:"document"`
 	LegalName string `json:"legal_name"`
+}
+
+// IssueApiKeyRequest defines model for IssueApiKeyRequest.
+type IssueApiKeyRequest struct {
+	MerchantId openapi_types.UUID `json:"merchant_id"`
+	Scopes     *[]string          `json:"scopes,omitempty"`
+}
+
+// IssueApiKeyResponse defines model for IssueApiKeyResponse.
+type IssueApiKeyResponse struct {
+	ApiKey ApiKey `json:"api_key"`
+
+	// Secret Token completo `irk_<prefix>.<secret>`. Só aparece nesta resposta.
+	Secret string `json:"secret"`
 }
 
 // Merchant defines model for Merchant.
@@ -51,15 +99,13 @@ type Merchant struct {
 	Document     string              `json:"document"`
 	Id           openapi_types.UUID  `json:"id"`
 	LegalName    string              `json:"legal_name"`
-
-	// Status Ciclo de vida do cadastro do merchant.
-	Status MerchantStatus `json:"status"`
+	Status       MerchantStatus      `json:"status"`
 }
 
-// MerchantStatus Ciclo de vida do cadastro do merchant.
+// MerchantStatus defines model for MerchantStatus.
 type MerchantStatus string
 
-// Problem Erro padronizado, formato RFC 7807.
+// Problem defines model for Problem.
 type Problem struct {
 	Detail               *string                `json:"detail,omitempty"`
 	Instance             *string                `json:"instance,omitempty"`
@@ -69,11 +115,26 @@ type Problem struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
-// BadRequest Erro padronizado, formato RFC 7807.
+// BadRequest defines model for BadRequest.
 type BadRequest = Problem
 
-// Conflict Erro padronizado, formato RFC 7807.
+// Conflict defines model for Conflict.
 type Conflict = Problem
+
+// Forbidden defines model for Forbidden.
+type Forbidden = Problem
+
+// NotFound defines model for NotFound.
+type NotFound = Problem
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = Problem
+
+// bearerAuthContextKey is the context key for bearerAuth security scheme
+type bearerAuthContextKey string
+
+// IssueApiKeyJSONRequestBody defines body for IssueApiKey for application/json ContentType.
+type IssueApiKeyJSONRequestBody = IssueApiKeyRequest
 
 // CreateMerchantJSONRequestBody defines body for CreateMerchant for application/json ContentType.
 type CreateMerchantJSONRequestBody = CreateMerchantRequest

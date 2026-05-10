@@ -1,3 +1,7 @@
+// Package httpapi monta o router HTTP do apps/api.
+//
+// Cada bounded context registra suas próprias rotas via Mount(...) — apps/api
+// só compõe. Health probes vivem aqui pois são da delivery, não de domínio.
 package httpapi
 
 import (
@@ -6,9 +10,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	identityhttp "github.com/iris-gate/iris-gate/libs/identity/infra/httpapi"
 )
 
-func NewRouter() http.Handler {
+type Mounters struct {
+	Identity identityhttp.Deps
+}
+
+func NewRouter(m Mounters) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -18,7 +28,7 @@ func NewRouter() http.Handler {
 	r.Get("/healthz", Healthz)
 	r.Get("/readyz", Readyz)
 
-	r.Post("/v1/merchants", CreateMerchant)
+	identityhttp.Mount(r, m.Identity)
 
 	return r
 }

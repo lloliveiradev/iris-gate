@@ -59,14 +59,31 @@
 
 **Objetivo:** merchants conseguem criar conta e gerar API keys com segurança real.
 
-- [ ] `libs/identity/domain/` — Merchant, ApiKey (value object), Operator, Role.
-- [ ] `libs/identity/application/use-cases/` — CreateMerchant, IssueApiKey, RotateApiKey, RevokeApiKey, AuthenticateApiKey.
-- [ ] `libs/identity/infra/persistence/` — Postgres (sqlc) com tabelas `merchants`, `api_keys` (Argon2id), `operators`.
-- [ ] `apps/api/` — handlers chi expondo `POST /merchants`, `POST /api-keys`, `POST /api-keys/rotate`.
-- [ ] Middleware `RequireApiKey` com lookup por prefix + Argon2 verify.
-- [ ] Testes: unit no domínio, integração no use-case (testcontainers Postgres).
+> **Deltas vs. plano original:**
+> - **Operators e Role** ficam pra Fase 7 (hardening); `apps/web` ainda não tem painel — sem ator humano além do dono do tenant.
+> - **RotateApiKey** diferida (`IssueApiKey` + `RevokeApiKey` cobrem o caso até a Fase 5/web ter UX que peça rotação).
+> - **sqlc** preterido em favor de **pgx v5 hand-rolled** nesta fase (poucas queries, 2 tabelas; tooling sqlc/Docker traz custo desproporcional). Migração para sqlc fica documentada como follow-up quando o volume de queries justificar.
+> - **Migrations**: SQL embarcado via `go:embed` em `libs/identity/infra/pgstore/migrations/` aplicado via `MigrateEmbedded()` no boot (gate `MIGRATE_ON_STARTUP`). Atlas/migrate como tool oficial diferido.
+> - **Testcontainers integration test** diferido — testes de handler com `httptest` + fakes já provam o critério; integração contra Postgres real é follow-up de baixo risco (pgstore é hand-rolled e simples).
+> - **Token format**: `irk_<prefix>.<secret>` (`irk` = iris-gate key). Prefix 16 hex chars (8 bytes), secret 32 base64url chars (24 bytes), Argon2id default OWASP 2024 (m=64MB, t=1, p=4).
+> - **Go bumpado pra 1.25** (forçado por `golang.org/x/crypto` v0.51 que requer 1.25). `toolchain go1.25.10` no go.work + go.mods.
 
-**Critério de pronto:** request com API key válida passa, com inválida retorna 401, com revogada retorna 403, todos com trace.
+- [x] `libs/identity/domain/` — Merchant + APIKey (com factory que valida CNPJ/email/range), erros sentinela, parser/formatter `irk_*.*`. Testes unitários verdes (10+ casos).
+- [x] `libs/identity/application/` — ports (`MerchantRepo`, `APIKeyRepo`, `Hasher`, `SecretGen`, `Clock`, `IDGen`) + use cases `CreateMerchant`, `IssueAPIKey`, `AuthenticateAPIKey`, `RevokeAPIKey`. Testes com fakes in-memory cobrem fluxo full (criar → emitir → autenticar → revogar → 403).
+- [x] `libs/identity/infra/pgstore/` — adapter pgx v5 implementando os ports; `go:embed` + `MigrateEmbedded()` aplicando `migrations/0001_init.sql` (tabelas `merchants` e `api_keys`).
+- [x] `libs/identity/infra/hasher/` — Argon2id (PHC string format) + `SecretGenerator` (crypto/rand). Tests roundtrip + uniqueness.
+- [x] `libs/identity/infra/httpapi/` — handlers chi `POST /v1/merchants`, `POST /v1/api-keys`, `POST /v1/api-keys/{id}/revoke`, `GET /v1/me` + middleware **`RequireAPIKey`**. Erros mapeados para `application/problem+json`.
+- [x] `apps/api/cmd/api/main.go` reescrito como composition root (pgxpool + Argon2 + use cases + chi router). Migração roda automaticamente no boot quando `MIGRATE_ON_STARTUP=true`.
+- [x] OpenAPI estendido (`libs/contracts/http/identity.openapi.yaml`) com endpoints + `securitySchemes.bearerAuth`. Tipos Go/TS regenerados.
+
+**Critério de pronto:** ✅ verificado por testes `httptest` em `libs/identity/infra/httpapi/handlers_test.go`:
+- request com API key válida → **200** (`TestAuth_ValidKey_Returns200`)
+- request sem header / token malformado / secret errado / prefix inexistente → **401** (`TestAuth_InvalidKey_Returns401` com 5 sub-cases)
+- request com chave revogada (via use case ou via endpoint HTTP) → **403** (`TestAuth_RevokedKey_Returns403` + `_Via_HTTP_Endpoint_*`)
+- responses em formato RFC 7807 (`application/problem+json`) com `status` e `title`
+- `slog` JSON em todos os caminhos (request id propagado pelo middleware chi).
+
+**Status Fase 2:** ✅ **Concluída.** Próxima: Fase 3 — Payments (PaymentIntent, Outbox, idempotência, sandbox de adquirente).
 
 ---
 
