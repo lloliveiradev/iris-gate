@@ -1,0 +1,8 @@
+go 1.24.3
+
+toolchain go1.24.3
+
+use (
+	./apps/api
+	./libs/contracts/generated/go
+)

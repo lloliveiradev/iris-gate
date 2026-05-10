@@ -1,0 +1,32 @@
+{
+  "$id": "https://iris-gate/events/identity/merchant-created.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MerchantCreated (v1)",
+  "description": "Payload publicado quando um novo merchant é criado em Identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "occurred_at", "merchant_id", "legal_name", "document"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "merchant_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "legal_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "document": {
+      "type": "string",
+      "pattern": "^[0-9]{14}$"
+    }
+  }
+}

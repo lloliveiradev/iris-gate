@@ -1,0 +1,110 @@
+name: iris-gate
+
+services:
+  postgres:
+    image: postgres:18.3-alpine
+    container_name: iris-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iris}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iris}
+      POSTGRES_DB: ${POSTGRES_DB:-iris}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iris} -d ${POSTGRES_DB:-iris}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [iris]
+
+  kafka:
+    image: apache/kafka:latest
+    container_name: iris-kafka
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    environment:
+      # KRaft (no Zookeeper) — single-node combined controller+broker
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-iris-local-cluster-0001}
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks: [iris]
+
+  karapace:
+    image: ghcr.io/aiven-open/karapace:latest
+    container_name: iris-karapace
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${KARAPACE_PORT:-8081}:8081"
+    environment:
+      KARAPACE_BOOTSTRAP_URI: kafka:9092
+      KARAPACE_PORT: 8081
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace
+      KARAPACE_COMPATIBILITY: BACKWARD
+      KARAPACE_CLIENT_ID: karapace
+      KARAPACE_GROUP_ID: karapace-registry
+      KARAPACE_MASTER_ELIGIBILITY: "true"
+      KARAPACE_TOPIC_NAME: _schemas
+      KARAPACE_LOG_LEVEL: WARNING
+    command: ["karapace", "/opt/karapace/registry.config.json"]
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cat > /opt/karapace/registry.config.json <<EOF
+        {
+          "bootstrap_uri": "kafka:9092",
+          "host": "0.0.0.0",
+          "port": 8081,
+          "advertised_hostname": "karapace",
+          "compatibility": "BACKWARD",
+          "client_id": "karapace",
+          "group_id": "karapace-registry",
+          "master_eligibility": true,
+          "topic_name": "_schemas",
+          "log_level": "WARNING"
+        }
+        EOF
+        exec karapace /opt/karapace/registry.config.json
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/_health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [iris]
+
+volumes:
+  postgres-data:
+  kafka-data:
+
+networks:
+  iris:
+    driver: bridge

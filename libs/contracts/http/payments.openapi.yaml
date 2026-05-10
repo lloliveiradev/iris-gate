@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info:
+  title: Iris Gate — Payments API
+  version: 0.1.0
+  description: |
+    Payment intents, capture, refund. Skeleton-only nesta fase;
+    a especificação real entra na Fase 3 do roadmap.
+servers:
+  - url: http://localhost:8080
+    description: dev
+
+tags:
+  - name: payments
+
+paths: {}
+
+components:
+  schemas: {}

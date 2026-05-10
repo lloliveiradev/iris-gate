@@ -1,0 +1,59 @@
+# lefthook — git hooks runner (https://github.com/evilmartians/lefthook)
+#
+# Instalar:  make install-hooks   (ou: lefthook install)
+# Bypass:    git commit --no-verify   (use SOMENTE em emergência justificável)
+
+pre-commit:
+  parallel: true
+  commands:
+    gofumpt:
+      glob: "*.go"
+      run: |
+        if ! command -v gofumpt >/dev/null 2>&1; then
+          echo "✗ gofumpt não instalado. Rode: go install mvdan.cc/gofumpt@latest" >&2
+          exit 1
+        fi
+        gofumpt -l -w {staged_files}
+        git add {staged_files}
+
+    go-vet:
+      glob: "apps/api/**/*.go"
+      run: cd apps/api && go vet ./...
+
+    prettier:
+      glob: "*.{ts,tsx,js,jsx,json,yml,yaml,md,css}"
+      exclude:
+        - "libs/contracts/generated/**"
+        - "**/*.generated.*"
+      run: |
+        if ! command -v yarn >/dev/null 2>&1; then
+          echo "✗ yarn não instalado. corepack enable" >&2
+          exit 1
+        fi
+        yarn dlx prettier@3 --write {staged_files}
+        git add {staged_files}
+
+    gitleaks:
+      run: |
+        if ! command -v gitleaks >/dev/null 2>&1; then
+          echo "⚠ gitleaks não instalado — pulando. Instale: brew install gitleaks" >&2
+          exit 0
+        fi
+        gitleaks protect --staged --redact --verbose
+
+commit-msg:
+  commands:
+    # Conventional Commits leve — "type(scope): subject" ou "type: subject"
+    conventional:
+      run: |
+        msg=$(head -n1 "{1}")
+        # Permite merges/reverts/comentários sem validação
+        case "$msg" in
+          "Merge "*|"Revert "*|"#"*) exit 0 ;;
+        esac
+        if ! echo "$msg" | grep -qE '^(feat|fix|chore|docs|refactor|test|build|ci|perf|style|revert)(\([a-z0-9_-]+\))?!?: .{3,}'; then
+          echo "✗ commit message não segue Conventional Commits."
+          echo "  Esperado: type(scope): subject   (type ∈ feat|fix|chore|docs|refactor|test|build|ci|perf|style|revert)"
+          echo "  Recebido: $msg"
+          exit 1
+        fi

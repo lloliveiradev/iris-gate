@@ -1,0 +1,48 @@
+asyncapi: 2.6.0
+info:
+  title: Iris Gate — Domain Events
+  version: 0.1.0
+  description: |
+    Catálogo de eventos de domínio publicados em Kafka.
+    Tópicos seguem `<contexto>.<agregado>.<evento>.v<n>`.
+    Breaking change exige `vN+1` + janela de dual-publish (ver ADR-0003).
+
+defaultContentType: application/json
+
+servers:
+  local:
+    url: localhost:9092
+    protocol: kafka
+    description: Apache Kafka (KRaft) local — ver infra/docker.
+
+channels:
+  identity.merchant.created.v1:
+    description: Disparado quando um merchant é criado.
+    publish:
+      operationId: publishMerchantCreatedV1
+      message:
+        $ref: '#/components/messages/MerchantCreatedV1'
+
+components:
+  messages:
+    MerchantCreatedV1:
+      name: MerchantCreatedV1
+      title: Merchant Created (v1)
+      contentType: application/json
+      headers:
+        type: object
+        required: [traceparent, event-id, idempotency-key, published-at]
+        properties:
+          traceparent:
+            type: string
+            description: W3C Trace Context.
+          event-id:
+            type: string
+            format: uuid
+          idempotency-key:
+            type: string
+          published-at:
+            type: string
+            format: date-time
+      payload:
+        $ref: 'schemas/identity/merchant-created.v1.json'

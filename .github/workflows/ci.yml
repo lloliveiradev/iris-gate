@@ -1,0 +1,140 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24"
+  NODE_VERSION: "20"
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      anti-fraud: ${{ steps.filter.outputs.anti-fraud }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      node-root: ${{ steps.filter.outputs.node-root }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'go.work'
+              - 'libs/**/*.go'
+              - 'libs/contracts/generated/go/**'
+            web:
+              - 'apps/web/**'
+              - 'libs/contracts/generated/ts/**'
+              - 'libs/contracts/index.ts'
+            anti-fraud:
+              - 'apps/anti-fraud/**'
+            contracts:
+              - 'libs/contracts/http/**'
+              - 'libs/contracts/events/**'
+              - 'libs/contracts/codegen/**'
+              - 'libs/contracts/Makefile'
+              - 'libs/contracts/package.json'
+              - 'libs/contracts/generated/go/go.mod'
+            node-root:
+              - 'package.json'
+              - 'yarn.lock'
+              - '.yarnrc.yml'
+
+  # Garante que generated/ está em sync com as specs (gate anti-drift, ADR-0003).
+  contracts:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node-root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --immutable
+      - run: make gen-contracts-check
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: apps/api/go.sum
+      - run: make vet
+      - run: make test
+      - run: make build
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: apps/api
+          args: --timeout=5m
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node-root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --immutable
+      - run: make app-web CMD=typecheck
+      - run: make app-web CMD=lint
+      - run: make app-web CMD=build
+
+  anti-fraud:
+    needs: changes
+    if: needs.changes.outputs.anti-fraud == 'true' || needs.changes.outputs.node-root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --immutable
+      - run: make app-anti-fraud CMD=typecheck
+      - run: make app-anti-fraud CMD=lint
+      - run: make app-anti-fraud CMD=test
+      - run: make app-anti-fraud CMD=build
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

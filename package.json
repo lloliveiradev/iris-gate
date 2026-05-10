@@ -1,0 +1,13 @@
+{
+  "name": "iris-gate",
+  "private": true,
+  "packageManager": "yarn@4.5.3",
+  "workspaces": [
+    "apps/web",
+    "apps/anti-fraud",
+    "libs/contracts"
+  ],
+  "engines": {
+    "node": ">=20.18.0"
+  }
+}

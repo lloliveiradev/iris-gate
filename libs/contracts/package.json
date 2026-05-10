@@ -1,0 +1,21 @@
+{
+  "name": "@iris-gate/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Contratos HTTP/eventos do iris-gate (single source of truth). Tipos TS são gerados — ver libs/contracts/Makefile.",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./identity": "./generated/ts/identity.d.ts"
+  },
+  "scripts": {
+    "gen": "openapi-typescript http/identity.openapi.yaml -o generated/ts/identity.d.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.4.4",
+    "typescript": "5.7.2"
+  }
+}

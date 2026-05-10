@@ -1,0 +1,129 @@
+openapi: 3.1.0
+info:
+  title: Iris Gate — Identity API
+  version: 0.1.0
+  description: |
+    Merchant identity, API keys, operators.
+    Real implementation lands in Phase 2 of the roadmap; this spec defines the
+    contract apps/api and apps/web bind to from day one.
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:8080
+    description: dev
+
+tags:
+  - name: identity
+    description: Merchant + API key management.
+
+paths:
+  /v1/merchants:
+    post:
+      operationId: createMerchant
+      summary: Create a new merchant
+      tags: [identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMerchantRequest'
+      responses:
+        '201':
+          description: Merchant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Merchant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  schemas:
+    CreateMerchantRequest:
+      type: object
+      additionalProperties: false
+      required: [legal_name, document, contact_email]
+      properties:
+        legal_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Razão social do merchant.
+          examples: [ACME Pagamentos LTDA]
+        document:
+          type: string
+          description: Documento oficial (CNPJ, somente dígitos).
+          pattern: '^[0-9]{14}$'
+          examples: ['12345678000199']
+        contact_email:
+          type: string
+          format: email
+          description: E-mail principal de contato administrativo.
+
+    Merchant:
+      type: object
+      additionalProperties: false
+      required: [id, legal_name, document, contact_email, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        legal_name:
+          type: string
+        document:
+          type: string
+          pattern: '^[0-9]{14}$'
+        contact_email:
+          type: string
+          format: email
+        status:
+          $ref: '#/components/schemas/MerchantStatus'
+        created_at:
+          type: string
+          format: date-time
+
+    MerchantStatus:
+      type: string
+      description: Ciclo de vida do cadastro do merchant.
+      enum:
+        - pending
+        - active
+        - suspended
+
+    Problem:
+      type: object
+      description: Erro padronizado, formato RFC 7807.
+      additionalProperties: true
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+
+  responses:
+    BadRequest:
+      description: Requisição inválida.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: 'Conflito (ex.: documento já cadastrado).'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
