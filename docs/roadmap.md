@@ -91,35 +91,35 @@
 
 **Objetivo:** criar PaymentIntent, autorizar via 1 adquirente real (sandbox), publicar evento.
 
-> **Deltas vs. plano original (slice MVP):**
-> - **Acquirer real (Stone) diferido** — `FakeAcquirer` no MVP (sempre approves). Real entra em PR subsequente quando houver credenciais sandbox.
-> - **Outbox + relay worker**: tabela `outbox_messages` + `CreateWithOutbox` em transação ✅. Relay worker (push pra Kafka) **stub** — método `PullUnpublished()` pronto, loop de publish entra junto com o adquirente real.
-> - **Idempotency middleware**: `libs/payments/infra/idempotency` (em vez de `libs/platform/idempotency`) — fica perto do contexto que usa primeiro; promove pra `libs/platform/` quando outro contexto pedir.
-> - **AuthorizePayment / CapturePayment / Refund** diferidos — entram com o acquirer real (sem ele, autorizar é só mudar status).
+> **Deltas vs. plano original:**
+> - **Acquirer**: em vez de hardcoded Stone, entregue um `HTTPAcquirer` **genérico configurável** (BaseURL + Bearer token) — pronto pra apontar pra Stone/Cielo/Adyen sandbox quando creds chegarem. Default em dev/CI: `FakeAcquirer` (sempre approves) selecionado quando `ACQUIRER_URL` vazio.
+> - **Idempotency middleware**: vive em `libs/payments/infra/idempotency` (em vez de `libs/platform/idempotency`) — fica perto do primeiro consumidor; promove pra `libs/platform/` quando outro contexto pedir.
+> - **Refund** diferido — entra junto com adquirente sandbox real (estorno depende de comportamento específico do gateway).
 > - **Web tokenization** diferida — entra na **Fase 5** (Web), que é quando há UI pra tokenizar.
 
-- [x] `libs/payments/domain/` — `Money` (VO com validação ISO-4217), `PaymentIntent` (status enum + factory que valida), errors sentinela, evento `PaymentIntentCreatedV1`.
-- [x] `libs/payments/application/` — ports (`PaymentIntentRepo` com `CreateWithOutbox`, `Acquirer`, `Clock`, `IDGen`) + use case `CreatePaymentIntent` (cria + serializa evento + escreve outbox em uma chamada). Authorize/Capture diferidos.
-- [x] `libs/payments/infra/pgstore/` — adapter pgx v5; transação `CreateWithOutbox` (intent + outbox atômico); `IdempotencyStore` (Postgres-backed); `MigrateEmbedded` aplicando `0002_payments.sql` (tabelas `payment_intents`, `outbox_messages`, `idempotency_records`).
-- [x] `libs/payments/infra/acquirer/fake.go` — `FakeAcquirer` (sempre approves) — placeholder até Stone sandbox.
-- [x] `libs/payments/infra/idempotency/` — middleware HTTP (Stripe-style: lookup → execute → save; mesma key + body diferente = 409). Tests cobrem replay + conflict + missing header.
-- [x] `libs/payments/infra/httpapi/` — handler `POST /v1/payment-intents` protegido por `RequireAPIKey` + idempotency middleware via composição. Mapping DTO ↔ domain.
-- [x] OpenAPI estendido (`libs/contracts/http/payments.openapi.yaml`) com Money, CreatePaymentIntentRequest, PaymentIntent, header `Idempotency-Key`. Tipos Go/TS regenerados.
-- [x] `apps/api/cmd/api/main.go` monta payments no composition root (pgxpool partilhado com Identity, idempotency middleware, fake acquirer).
+- [x] `libs/payments/domain/` — `Money` (VO com validação ISO-4217), `PaymentIntent` (status enum + factory + transições `MarkAuthorized`/`MarkCaptured`/`MarkFailed` com guards), errors sentinela, eventos `PaymentIntentCreatedV1` / `PaymentIntentAuthorizedV1` / `PaymentIntentCapturedV1`.
+- [x] `libs/payments/application/` — ports (`PaymentIntentRepo` com `CreateWithOutbox`+`UpdateWithOutbox`, `Acquirer`, `Clock`, `IDGen`) + use cases `CreatePaymentIntent`, `AuthorizePayment` (idempotente — short-circuit se já authorized), `CapturePayment` (idempotente — short-circuit se já captured).
+- [x] `libs/payments/infra/pgstore/` — adapter pgx v5; transações `CreateWithOutbox` e `UpdateWithOutbox` (intent + outbox atômicos); `IdempotencyStore` Postgres-backed; método `PullUnpublished`+`MarkPublished` para o relay worker; `MigrateEmbedded` aplicando `0002_payments.sql` (tabelas `payment_intents`, `outbox_messages`, `idempotency_records`).
+- [x] `libs/payments/infra/acquirer/` — `FakeAcquirer` (dev/CI) + **`HTTPAcquirer`** (genérico configurável; testes httptest cobrem approve/reject/non-2xx). Apontar pra Stone sandbox = ajustar `ACQUIRER_URL` + `ACQUIRER_TOKEN` em env.
+- [x] `libs/payments/infra/idempotency/` — middleware HTTP (Stripe-style). Tests cobrem replay + conflict + missing header + handler-call-count.
+- [x] `libs/payments/infra/kafkarelay/` — **relay worker** Kafka (segmentio/kafka-go). Loop polling outbox → publish (com headers W3C Trace + event-id + event-type) → mark `published_at`. Falhas transitórias retry no próximo tick. Tests com fake source + publisher cobrem caminho feliz e retry.
+- [x] `libs/payments/infra/httpapi/` — handlers chi `POST /v1/payment-intents` (com idempotency middleware), `POST /v1/payment-intents/{id}/authorize`, `POST /v1/payment-intents/{id}/capture`. Todos protegidos por `RequireAPIKey`.
+- [x] OpenAPI estendido (`libs/contracts/http/payments.openapi.yaml v0.1.0`): Money, CreatePaymentIntentRequest, PaymentIntent, header `Idempotency-Key`, endpoints authorize/capture com `409` em transição inválida. Tipos Go/TS regenerados.
+- [x] AsyncAPI estendido com schemas JSON dos 3 eventos de Payments (created/authorized/captured) + `CommonHeaders` factored.
+- [x] `apps/api/cmd/api/main.go` composition root completo: pgxpool partilhado, migrações dos dois contextos, identity + payments wiring, **goroutine do relay worker** (graceful shutdown via `signal.NotifyContext`), seleção `HTTPAcquirer` vs `FakeAcquirer` por env.
 
-**Critério de pronto:** ✅ **parcialmente verificado** (slice MVP):
-- Idempotência funciona end-to-end: 2 requests com mesma `Idempotency-Key` + body idêntico → mesma resposta, handler executa 1×, header `Idempotent-Replay: true` na 2ª. Verificado em `middleware_test.go`.
-- Body diferente com mesma key → 409.
-- Outbox atômico: criar intent escreve linha em `outbox_messages` na mesma tx (verificado por unit test com fake repo).
-- Auth obrigatório: requests sem `Authorization: Bearer ...` → 401 (já provado pela Fase 2).
+**Critério de pronto (backend slice):** ✅ **fechado.**
+- Idempotência: 2 requests com mesma key + body → mesma resposta, handler executa 1×, header `Idempotent-Replay: true`. Body diferente com mesma key → 409.
+- Outbox atômico: criar/autorizar/capturar intent escreve evento na mesma tx; relay worker publica no Kafka e marca `published_at`. Tests cobrem caminho feliz + retry transitório.
+- Authorize/Capture: state-machine forçada — `pending → authorized → captured`; transições inválidas → `409`. Idempotência via short-circuit nos use cases.
+- Auth obrigatório nos 3 endpoints (herdado da Fase 2).
 
-**Pendente para fechar critério integral** (web tokeniza → backend cria → publica → captura no painel):
-- Stone sandbox adapter substituindo `FakeAcquirer`.
-- Relay worker Kafka (loop `PullUnpublished` + publish + mark `published_at`).
-- Authorize/Capture endpoints.
-- Web tokenization na Fase 5.
+**Pendente para fechar a Fase 3 integralmente** (depende de Fase 5 e creds externas):
+- **Web tokenization** — entra na **Fase 5** (UI tokeniza com SDK do adquirente, envia `card_token` aqui).
+- **Adquirente real** — `HTTPAcquirer` está pronto; basta `ACQUIRER_URL` apontando pro Stone/Cielo sandbox quando creds chegarem.
+- **Refund** — endpoint diferido pro mesmo PR do adquirente real.
 
-**Status Fase 3:** 🟡 **Slice MVP concluída.** Próxima parada: continuar com Fase 4 (Anti-fraud) em paralelo, ou completar Stone + relay worker. Decisão fica com o time.
+**Status Fase 3:** ✅ **Backend concluído.** Tudo o que pode ser testado sem UI/sandbox-real está verde. Próxima: Fase 4 (Anti-fraud) ou Fase 5 (Web) — paralelizáveis.
 
 ---
 

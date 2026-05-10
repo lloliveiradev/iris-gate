@@ -20,6 +20,7 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/idempotency"
+	"github.com/iris-gate/iris-gate/libs/payments/infra/kafkarelay"
 )
 
 type DBTX interface {
@@ -41,6 +42,37 @@ func (r *Repo) CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev 
 		}
 		return insertOutbox(ctx, tx, ev)
 	})
+}
+
+// UpdateWithOutbox atualiza status (+ timestamps) do intent e escreve o
+// evento de transição na outbox **na mesma tx**.
+func (r *Repo) UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev application.OutboxMessage) error {
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		const q = `
+			UPDATE payment_intents
+			SET status = $2, authorized_at = $3, captured_at = $4
+			WHERE id = $1
+		`
+		tag, err := tx.Exec(ctx, q, p.ID, string(p.Status), p.AuthorizedAt, p.CapturedAt)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return domain.ErrPaymentIntentNotFound
+		}
+		return insertOutbox(ctx, tx, ev)
+	})
+}
+
+// MarkPublished é chamado pelo relay worker depois que o evento foi
+// confirmado pelo broker.
+func (r *Repo) MarkPublished(ctx context.Context, ids []uuid.UUID, at time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	const q = `UPDATE outbox_messages SET published_at = $2 WHERE id = ANY($1)`
+	_, err := r.pool.Exec(ctx, q, ids, at)
+	return err
 }
 
 func insertPaymentIntent(ctx context.Context, db DBTX, p domain.PaymentIntent) error {
@@ -109,12 +141,11 @@ func scanIntent(row pgx.Row) (domain.PaymentIntent, error) {
 
 // ---------- Outbox: relay worker (stub) ----------
 
-// PullUnpublished devolve até `limit` mensagens não publicadas em ordem
-// FIFO. Relay worker real (push pra Kafka) entra em PR subsequente; por ora
-// o método está pronto pra ser plugado.
-func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]application.OutboxMessage, error) {
+// PullUnpublished devolve até `limit` mensagens não publicadas em ordem FIFO.
+// Implementa kafkarelay.Source.
+func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]kafkarelay.PendingMessage, error) {
 	const q = `
-		SELECT topic, msg_key, payload, headers
+		SELECT id, topic, msg_key, payload, headers
 		FROM outbox_messages
 		WHERE published_at IS NULL
 		ORDER BY created_at ASC
@@ -125,15 +156,15 @@ func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]application.Ou
 		return nil, err
 	}
 	defer rows.Close()
-	var out []application.OutboxMessage
+	var out []kafkarelay.PendingMessage
 	for rows.Next() {
-		var msg application.OutboxMessage
+		var pm kafkarelay.PendingMessage
 		var headers map[string]string
-		if err := rows.Scan(&msg.Topic, &msg.Key, &msg.Payload, &headers); err != nil {
+		if err := rows.Scan(&pm.ID, &pm.Topic, &pm.Key, &pm.Payload, &headers); err != nil {
 			return nil, err
 		}
-		msg.Headers = headers
-		out = append(out, msg)
+		pm.Headers = headers
+		out = append(out, pm)
 	}
 	return out, rows.Err()
 }

@@ -23,6 +23,27 @@ channels:
       message:
         $ref: '#/components/messages/MerchantCreatedV1'
 
+  payments.payment_intent.created.v1:
+    description: Disparado quando um PaymentIntent é criado (status=pending).
+    publish:
+      operationId: publishPaymentIntentCreatedV1
+      message:
+        $ref: '#/components/messages/PaymentIntentCreatedV1'
+
+  payments.payment_intent.authorized.v1:
+    description: Disparado após o adquirente aprovar a autorização.
+    publish:
+      operationId: publishPaymentIntentAuthorizedV1
+      message:
+        $ref: '#/components/messages/PaymentIntentAuthorizedV1'
+
+  payments.payment_intent.captured.v1:
+    description: Disparado quando uma autorização é capturada.
+    publish:
+      operationId: publishPaymentIntentCapturedV1
+      message:
+        $ref: '#/components/messages/PaymentIntentCapturedV1'
+
 components:
   messages:
     MerchantCreatedV1:
@@ -30,19 +51,51 @@ components:
       title: Merchant Created (v1)
       contentType: application/json
       headers:
-        type: object
-        required: [traceparent, event-id, idempotency-key, published-at]
-        properties:
-          traceparent:
-            type: string
-            description: W3C Trace Context.
-          event-id:
-            type: string
-            format: uuid
-          idempotency-key:
-            type: string
-          published-at:
-            type: string
-            format: date-time
+        $ref: '#/components/schemas/CommonHeaders'
       payload:
         $ref: 'schemas/identity/merchant-created.v1.json'
+
+    PaymentIntentCreatedV1:
+      name: PaymentIntentCreatedV1
+      title: Payment Intent Created (v1)
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CommonHeaders'
+      payload:
+        $ref: 'schemas/payments/payment-intent-created.v1.json'
+
+    PaymentIntentAuthorizedV1:
+      name: PaymentIntentAuthorizedV1
+      title: Payment Intent Authorized (v1)
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CommonHeaders'
+      payload:
+        $ref: 'schemas/payments/payment-intent-authorized.v1.json'
+
+    PaymentIntentCapturedV1:
+      name: PaymentIntentCapturedV1
+      title: Payment Intent Captured (v1)
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CommonHeaders'
+      payload:
+        $ref: 'schemas/payments/payment-intent-captured.v1.json'
+
+  schemas:
+    CommonHeaders:
+      type: object
+      required: [event-id, event-type, published-at]
+      properties:
+        traceparent:
+          type: string
+          description: W3C Trace Context.
+        event-id:
+          type: string
+          format: uuid
+        event-type:
+          type: string
+          description: Tópico/nome canônico do evento.
+        published-at:
+          type: string
+          format: date-time

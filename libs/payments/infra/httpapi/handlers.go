@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	contracts "github.com/iris-gate/iris-gate/libs/contracts/generated/go/payments"
@@ -19,27 +20,46 @@ import (
 // Deps agrupa o que os handlers consomem.
 type Deps struct {
 	CreatePaymentIntent *application.CreatePaymentIntentUseCase
+	AuthorizePayment    *application.AuthorizePaymentUseCase
+	CapturePayment      *application.CapturePaymentUseCase
 
 	// AuthRequired/IdempotencyMW são plugados pelo composer (apps/api).
 	// Mantemos como middlewares opacos pra evitar dependência circular.
-	AuthRequired   func(http.Handler) http.Handler
-	IdempotencyMW  func(http.Handler) http.Handler
+	AuthRequired  func(http.Handler) http.Handler
+	IdempotencyMW func(http.Handler) http.Handler
 }
 
 // Mount registra rotas em `r`.
 //
-//   POST /v1/payment-intents   (auth + idempotency)
+//   POST /v1/payment-intents               (auth + idempotency)
+//   POST /v1/payment-intents/{id}/authorize (auth)
+//   POST /v1/payment-intents/{id}/capture   (auth)
 //
-// No-op se algum dep obrigatório for nil — útil em testes que só querem
-// montar o resto do router sem trazer Payments junto.
+// No-op se CreatePaymentIntent / AuthRequired estiverem nil.
 func Mount(r chi.Router, d Deps) {
-	if d.CreatePaymentIntent == nil || d.AuthRequired == nil || d.IdempotencyMW == nil {
+	if d.CreatePaymentIntent == nil || d.AuthRequired == nil {
 		return
 	}
+
+	// POST /v1/payment-intents — exige idempotency middleware.
+	if d.IdempotencyMW != nil {
+		r.Group(func(r chi.Router) {
+			r.Use(d.AuthRequired)
+			r.Use(d.IdempotencyMW)
+			r.Post("/v1/payment-intents", handleCreatePaymentIntent(d.CreatePaymentIntent))
+		})
+	}
+
+	// /authorize e /capture são naturalmente idempotentes pelo status-check
+	// no use case — não precisam do middleware de idempotência.
 	r.Group(func(r chi.Router) {
 		r.Use(d.AuthRequired)
-		r.Use(d.IdempotencyMW)
-		r.Post("/v1/payment-intents", handleCreatePaymentIntent(d.CreatePaymentIntent))
+		if d.AuthorizePayment != nil {
+			r.Post("/v1/payment-intents/{id}/authorize", handleAuthorize(d.AuthorizePayment))
+		}
+		if d.CapturePayment != nil {
+			r.Post("/v1/payment-intents/{id}/capture", handleCapture(d.CapturePayment))
+		}
 	})
 }
 
@@ -80,6 +100,42 @@ func handleCreatePaymentIntent(uc *application.CreatePaymentIntentUseCase) http.
 		}
 		writeJSON(w, http.StatusCreated, toContract(pi))
 	}
+}
+
+func handleAuthorize(uc *application.AuthorizePaymentUseCase) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseIDParam(r, "id")
+		if err != nil {
+			problem(w, r, http.StatusBadRequest, "invalid_id", err.Error())
+			return
+		}
+		pi, err := uc.Execute(r.Context(), id)
+		if err != nil {
+			mapError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toContract(pi))
+	}
+}
+
+func handleCapture(uc *application.CapturePaymentUseCase) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseIDParam(r, "id")
+		if err != nil {
+			problem(w, r, http.StatusBadRequest, "invalid_id", err.Error())
+			return
+		}
+		pi, err := uc.Execute(r.Context(), id)
+		if err != nil {
+			mapError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toContract(pi))
+	}
+}
+
+func parseIDParam(r *http.Request, name string) (uuid.UUID, error) {
+	return uuid.Parse(chi.URLParam(r, name))
 }
 
 // ---------- DTO mapping ----------

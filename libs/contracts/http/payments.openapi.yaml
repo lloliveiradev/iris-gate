@@ -57,6 +57,70 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /v1/payment-intents/{id}/authorize:
+    post:
+      operationId: authorizePaymentIntent
+      summary: Authorize a payment intent via the configured acquirer
+      tags: [payments]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Authorized (or rejected — see status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 'Estado inválido para authorize (ex.: já capturado).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /v1/payment-intents/{id}/capture:
+    post:
+      operationId: capturePaymentIntent
+      summary: Capture an authorized payment intent
+      tags: [payments]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Captured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 'Estado inválido para capture (precisa estar authorized).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -158,6 +222,12 @@ components:
           format: uri
 
   responses:
+    NotFound:
+      description: 'Recurso não encontrado.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     BadRequest:
       description: 'Requisição inválida.'
       content:

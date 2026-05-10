@@ -94,6 +94,9 @@ type Problem struct {
 // BadRequest defines model for BadRequest.
 type BadRequest = Problem
 
+// NotFound defines model for NotFound.
+type NotFound = Problem
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Problem
 

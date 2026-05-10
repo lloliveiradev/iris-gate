@@ -17,3 +17,24 @@ type PaymentIntentCreatedV1 struct {
 	Currency        string    `json:"currency"`
 	Status          string    `json:"status"`
 }
+
+// PaymentIntentAuthorizedV1 disparado quando o adquirente aprova.
+type PaymentIntentAuthorizedV1 struct {
+	EventID         uuid.UUID `json:"event_id"`
+	OccurredAt      time.Time `json:"occurred_at"`
+	PaymentIntentID uuid.UUID `json:"payment_intent_id"`
+	MerchantID      uuid.UUID `json:"merchant_id"`
+	AcquirerRef     string    `json:"acquirer_ref"`
+	AmountCents     int64     `json:"amount_cents"`
+	Currency        string    `json:"currency"`
+}
+
+// PaymentIntentCapturedV1 disparado no settlement.
+type PaymentIntentCapturedV1 struct {
+	EventID         uuid.UUID `json:"event_id"`
+	OccurredAt      time.Time `json:"occurred_at"`
+	PaymentIntentID uuid.UUID `json:"payment_intent_id"`
+	MerchantID      uuid.UUID `json:"merchant_id"`
+	AmountCents     int64     `json:"amount_cents"`
+	Currency        string    `json:"currency"`
+}

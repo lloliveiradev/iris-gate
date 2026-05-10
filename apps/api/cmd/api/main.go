@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,8 +22,10 @@ import (
 	identitypg "github.com/iris-gate/iris-gate/libs/identity/infra/pgstore"
 
 	paymentsapp "github.com/iris-gate/iris-gate/libs/payments/application"
+	"github.com/iris-gate/iris-gate/libs/payments/infra/acquirer"
 	paymentshttp "github.com/iris-gate/iris-gate/libs/payments/infra/httpapi"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/idempotency"
+	"github.com/iris-gate/iris-gate/libs/payments/infra/kafkarelay"
 	paymentspg "github.com/iris-gate/iris-gate/libs/payments/infra/pgstore"
 )
 
@@ -76,10 +79,38 @@ func main() {
 	// Payments wiring (Phase 3).
 	paymentsRepo := paymentspg.New(pool)
 	idempotencyStore := paymentspg.NewIdempotencyStore(pool)
+
+	var acq paymentsapp.Acquirer
+	if cfg.AcquirerURL != "" {
+		acq = acquirer.NewHTTP(cfg.AcquirerURL, cfg.AcquirerToken)
+		slog.Info("acquirer", "kind", "http", "base", cfg.AcquirerURL)
+	} else {
+		acq = acquirer.NewFake()
+		slog.Info("acquirer", "kind", "fake")
+	}
+
+	paymentsClock := paymentsapp.SystemClock{}
+	paymentsIDs := paymentsapp.UUIDGen{}
 	paymentsDeps := paymentshttp.Deps{
-		CreatePaymentIntent: paymentsapp.NewCreatePaymentIntentUseCase(paymentsRepo, paymentsapp.SystemClock{}, paymentsapp.UUIDGen{}),
+		CreatePaymentIntent: paymentsapp.NewCreatePaymentIntentUseCase(paymentsRepo, paymentsClock, paymentsIDs),
+		AuthorizePayment:    paymentsapp.NewAuthorizePaymentUseCase(paymentsRepo, acq, paymentsClock, paymentsIDs),
+		CapturePayment:      paymentsapp.NewCapturePaymentUseCase(paymentsRepo, paymentsClock, paymentsIDs),
 		AuthRequired:        identityhttp.RequireAPIKey(identityDeps.Authenticate),
 		IdempotencyMW:       idempotency.Middleware(idempotencyStore, "create_payment_intent"),
+	}
+
+	// Outbox relay worker.
+	if cfg.RelayEnabled {
+		brokers := strings.Split(cfg.KafkaBroker, ",")
+		writer := kafkarelay.NewKafkaWriter(brokers)
+		defer writer.Close()
+		relay := kafkarelay.New(paymentsRepo, writer, kafkarelay.Config{})
+		go func() {
+			if err := relay.Run(rootCtx); err != nil && !errors.Is(err, context.Canceled) {
+				slog.Error("kafka relay stopped", "err", err)
+			}
+		}()
+		slog.Info("kafka relay started", "brokers", cfg.KafkaBroker)
 	}
 
 	srv := &http.Server{

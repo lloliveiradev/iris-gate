@@ -56,3 +56,41 @@ func NewPaymentIntent(id, merchantID uuid.UUID, amount Money, cardToken, descrip
 		CreatedAt:   now,
 	}, nil
 }
+
+// MarkAuthorized transiciona pending → authorized.
+// Idempotente quando já está authorized — não retorna erro pra evitar
+// que o caller precise distinguir "primeira chamada" vs "retry".
+//
+// Outras transições (captured, canceled, failed) → ErrInvalidStatusTransition.
+func (p *PaymentIntent) MarkAuthorized(at time.Time) error {
+	switch p.Status {
+	case PaymentIntentPending, PaymentIntentAuthorized:
+		p.Status = PaymentIntentAuthorized
+		p.AuthorizedAt = &at
+		return nil
+	default:
+		return fmt.Errorf("%w: cannot authorize from %s", ErrInvalidStatusTransition, p.Status)
+	}
+}
+
+// MarkCaptured transiciona authorized → captured.
+// Idempotente quando já está captured.
+func (p *PaymentIntent) MarkCaptured(at time.Time) error {
+	switch p.Status {
+	case PaymentIntentAuthorized, PaymentIntentCaptured:
+		p.Status = PaymentIntentCaptured
+		p.CapturedAt = &at
+		return nil
+	default:
+		return fmt.Errorf("%w: cannot capture from %s", ErrInvalidStatusTransition, p.Status)
+	}
+}
+
+// MarkFailed registra rejeição do adquirente.
+func (p *PaymentIntent) MarkFailed() error {
+	if p.Status != PaymentIntentPending {
+		return fmt.Errorf("%w: cannot fail from %s", ErrInvalidStatusTransition, p.Status)
+	}
+	p.Status = PaymentIntentFailed
+	return nil
+}

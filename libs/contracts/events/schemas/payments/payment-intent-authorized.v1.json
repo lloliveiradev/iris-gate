@@ -1,0 +1,18 @@
+{
+  "$id": "https://iris-gate/events/payments/payment-intent-authorized.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentIntentAuthorized (v1)",
+  "description": "Disparado após o adquirente aprovar a autorização.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "occurred_at", "payment_intent_id", "merchant_id", "acquirer_ref", "amount_cents", "currency"],
+  "properties": {
+    "event_id":          { "type": "string", "format": "uuid" },
+    "occurred_at":       { "type": "string", "format": "date-time" },
+    "payment_intent_id": { "type": "string", "format": "uuid" },
+    "merchant_id":       { "type": "string", "format": "uuid" },
+    "acquirer_ref":      { "type": "string" },
+    "amount_cents":      { "type": "integer", "minimum": 1 },
+    "currency":          { "type": "string", "pattern": "^[A-Z]{3}$" }
+  }
+}

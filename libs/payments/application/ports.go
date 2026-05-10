@@ -11,10 +11,11 @@ import (
 
 // PaymentIntentRepo persiste e lê PaymentIntents.
 //
-// CreateWithOutbox persiste o intent + escreve o evento na outbox **na mesma
-// transação** — invariante crítica do padrão Outbox (ADR-0002).
+// Operações que mudam estado **devem** escrever o evento na outbox na mesma
+// transação — invariante crítica do padrão Outbox (ADR-0002).
 type PaymentIntentRepo interface {
 	CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev OutboxMessage) error
+	UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev OutboxMessage) error
 	GetByID(ctx context.Context, id uuid.UUID) (domain.PaymentIntent, error)
 	GetByMerchantAndIdempotencyKey(ctx context.Context, merchantID uuid.UUID, key string) (domain.PaymentIntent, error)
 }

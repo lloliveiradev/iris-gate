@@ -1,0 +1,18 @@
+{
+  "$id": "https://iris-gate/events/payments/payment-intent-created.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentIntentCreated (v1)",
+  "description": "Disparado quando um PaymentIntent é criado (status=pending).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "occurred_at", "payment_intent_id", "merchant_id", "amount_cents", "currency", "status"],
+  "properties": {
+    "event_id":          { "type": "string", "format": "uuid" },
+    "occurred_at":       { "type": "string", "format": "date-time" },
+    "payment_intent_id": { "type": "string", "format": "uuid" },
+    "merchant_id":       { "type": "string", "format": "uuid" },
+    "amount_cents":      { "type": "integer", "minimum": 1 },
+    "currency":          { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "status":            { "type": "string", "enum": ["pending"] }
+  }
+}

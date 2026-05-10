@@ -1,0 +1,17 @@
+{
+  "$id": "https://iris-gate/events/payments/payment-intent-captured.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentIntentCaptured (v1)",
+  "description": "Disparado quando uma autorização é capturada (settlement).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "occurred_at", "payment_intent_id", "merchant_id", "amount_cents", "currency"],
+  "properties": {
+    "event_id":          { "type": "string", "format": "uuid" },
+    "occurred_at":       { "type": "string", "format": "date-time" },
+    "payment_intent_id": { "type": "string", "format": "uuid" },
+    "merchant_id":       { "type": "string", "format": "uuid" },
+    "amount_cents":      { "type": "integer", "minimum": 1 },
+    "currency":          { "type": "string", "pattern": "^[A-Z]{3}$" }
+  }
+}
