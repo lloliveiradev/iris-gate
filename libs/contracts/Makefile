@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # Specs com paths reais (skeletons sem `paths` são pulados automaticamente).
-HTTP_SPECS := http/identity.openapi.yaml
+HTTP_SPECS := http/identity.openapi.yaml http/payments.openapi.yaml
 
 C_RST := \033[0m
 C_BLD := \033[1m
@@ -24,10 +24,13 @@ gen: gen-go gen-ts ## Gera tipos Go + TS
 
 .PHONY: gen-go
 gen-go: ## Gera tipos Go (oapi-codegen) — registrado como tool em generated/go/go.mod
-	@mkdir -p generated/go/identity
+	@mkdir -p generated/go/identity generated/go/payments
 	go -C generated/go tool oapi-codegen \
 		--config ../../codegen/identity.go.yaml \
 		../../http/identity.openapi.yaml
+	go -C generated/go tool oapi-codegen \
+		--config ../../codegen/payments.go.yaml \
+		../../http/payments.openapi.yaml
 	go -C generated/go mod tidy
 
 .PHONY: gen-ts

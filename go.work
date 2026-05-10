@@ -6,4 +6,5 @@ use (
 	./apps/api
 	./libs/contracts/generated/go
 	./libs/identity
+	./libs/payments
 )

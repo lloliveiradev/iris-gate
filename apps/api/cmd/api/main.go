@@ -15,10 +15,15 @@ import (
 	"github.com/iris-gate/iris-gate/apps/api/internal/config"
 	"github.com/iris-gate/iris-gate/apps/api/internal/httpapi"
 
-	"github.com/iris-gate/iris-gate/libs/identity/application"
+	identityapp "github.com/iris-gate/iris-gate/libs/identity/application"
+	identityhasher "github.com/iris-gate/iris-gate/libs/identity/infra/hasher"
 	identityhttp "github.com/iris-gate/iris-gate/libs/identity/infra/httpapi"
-	"github.com/iris-gate/iris-gate/libs/identity/infra/hasher"
-	"github.com/iris-gate/iris-gate/libs/identity/infra/pgstore"
+	identitypg "github.com/iris-gate/iris-gate/libs/identity/infra/pgstore"
+
+	paymentsapp "github.com/iris-gate/iris-gate/libs/payments/application"
+	paymentshttp "github.com/iris-gate/iris-gate/libs/payments/infra/httpapi"
+	"github.com/iris-gate/iris-gate/libs/payments/infra/idempotency"
+	paymentspg "github.com/iris-gate/iris-gate/libs/payments/infra/pgstore"
 )
 
 func main() {
@@ -42,30 +47,44 @@ func main() {
 	defer pool.Close()
 
 	if cfg.MigrateOnStartup {
-		if err := pgstore.MigrateEmbedded(rootCtx, pool); err != nil {
-			slog.Error("migrate", "err", err)
+		if err := identitypg.MigrateEmbedded(rootCtx, pool); err != nil {
+			slog.Error("migrate identity", "err", err)
+			os.Exit(1)
+		}
+		if err := paymentspg.MigrateEmbedded(rootCtx, pool); err != nil {
+			slog.Error("migrate payments", "err", err)
 			os.Exit(1)
 		}
 		slog.Info("migrations applied")
 	}
 
-	repo := pgstore.New(pool)
-	merchants, keys := repo.Repos()
-	h := hasher.NewDefault()
-	clock := application.SystemClock{}
-	ids := application.UUIDGen{}
-	secrets := hasher.SecretGenerator{}
+	// Identity wiring (Phase 2).
+	identityRepo := identitypg.New(pool)
+	merchants, keys := identityRepo.Repos()
+	hasher := identityhasher.NewDefault()
+	identityClock := identityapp.SystemClock{}
+	identityIDs := identityapp.UUIDGen{}
+	secrets := identityhasher.SecretGenerator{}
 
-	deps := identityhttp.Deps{
-		CreateMerchant: application.NewCreateMerchantUseCase(merchants, clock, ids),
-		IssueAPIKey:    application.NewIssueAPIKeyUseCase(merchants, keys, h, secrets, clock, ids),
-		RevokeAPIKey:   application.NewRevokeAPIKeyUseCase(keys, clock),
-		Authenticate:   application.NewAuthenticateAPIKeyUseCase(keys, merchants, h, clock),
+	identityDeps := identityhttp.Deps{
+		CreateMerchant: identityapp.NewCreateMerchantUseCase(merchants, identityClock, identityIDs),
+		IssueAPIKey:    identityapp.NewIssueAPIKeyUseCase(merchants, keys, hasher, secrets, identityClock, identityIDs),
+		RevokeAPIKey:   identityapp.NewRevokeAPIKeyUseCase(keys, identityClock),
+		Authenticate:   identityapp.NewAuthenticateAPIKeyUseCase(keys, merchants, hasher, identityClock),
+	}
+
+	// Payments wiring (Phase 3).
+	paymentsRepo := paymentspg.New(pool)
+	idempotencyStore := paymentspg.NewIdempotencyStore(pool)
+	paymentsDeps := paymentshttp.Deps{
+		CreatePaymentIntent: paymentsapp.NewCreatePaymentIntentUseCase(paymentsRepo, paymentsapp.SystemClock{}, paymentsapp.UUIDGen{}),
+		AuthRequired:        identityhttp.RequireAPIKey(identityDeps.Authenticate),
+		IdempotencyMW:       idempotency.Middleware(idempotencyStore, "create_payment_intent"),
 	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpapi.NewRouter(httpapi.Mounters{Identity: deps}),
+		Handler:           httpapi.NewRouter(httpapi.Mounters{Identity: identityDeps, Payments: paymentsDeps}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -37,6 +37,11 @@ type Deps struct {
 //
 // Hardening (require admin) entra na Fase 7.
 func Mount(r chi.Router, d Deps) {
+	// No-op se nenhum use case foi cabeado (apps/api podem testar healthz
+	// sem precisar trazer Identity junto).
+	if d.CreateMerchant == nil && d.IssueAPIKey == nil && d.RevokeAPIKey == nil && d.Authenticate == nil {
+		return
+	}
 	r.Post("/v1/merchants", handleCreateMerchant(d.CreateMerchant))
 	r.Post("/v1/api-keys", handleIssueAPIKey(d.IssueAPIKey))
 	r.Post("/v1/api-keys/{id}/revoke", handleRevokeAPIKey(d.RevokeAPIKey))

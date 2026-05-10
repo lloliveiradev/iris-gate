@@ -6,10 +6,11 @@ toolchain go1.25.10
 
 // Módulos locais resolvidos via go.work + replace (replace permite build fora do workspace).
 require (
-	github.com/go-chi/chi/v5 v5.2.1
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/iris-gate/iris-gate/libs/contracts/generated/go v0.0.0-00010101000000-000000000000 // indirect
 	github.com/iris-gate/iris-gate/libs/identity v0.0.0-00010101000000-000000000000
+	github.com/iris-gate/iris-gate/libs/payments v0.0.0-00010101000000-000000000000
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/oapi-codegen/runtime v1.4.0 // indirect
 )
@@ -27,4 +28,5 @@ require (
 replace (
 	github.com/iris-gate/iris-gate/libs/contracts/generated/go => ../../libs/contracts/generated/go
 	github.com/iris-gate/iris-gate/libs/identity => ../../libs/identity
+	github.com/iris-gate/iris-gate/libs/payments => ../../libs/payments
 )

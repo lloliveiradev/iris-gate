@@ -91,15 +91,35 @@
 
 **Objetivo:** criar PaymentIntent, autorizar via 1 adquirente real (sandbox), publicar evento.
 
-- [ ] `libs/payments/domain/` — PaymentIntent, Money, CardToken, IdempotencyKey, eventos.
-- [ ] `libs/payments/application/` — CreatePaymentIntent, AuthorizePayment, CapturePayment.
-- [ ] `libs/payments/infra/acquirers/stone/` (ou outro) — adapter para sandbox.
-- [ ] `libs/platform/outbox/` — implementação Outbox + relay worker.
-- [ ] `libs/platform/idempotency/` — middleware HTTP.
-- [ ] `apps/api/` — rotas `POST /payment-intents`, `POST /payment-intents/{id}/capture`.
-- [ ] Tokenização: integração com SDK do adquirente em `apps/web` (PAN nunca chega no backend).
+> **Deltas vs. plano original (slice MVP):**
+> - **Acquirer real (Stone) diferido** — `FakeAcquirer` no MVP (sempre approves). Real entra em PR subsequente quando houver credenciais sandbox.
+> - **Outbox + relay worker**: tabela `outbox_messages` + `CreateWithOutbox` em transação ✅. Relay worker (push pra Kafka) **stub** — método `PullUnpublished()` pronto, loop de publish entra junto com o adquirente real.
+> - **Idempotency middleware**: `libs/payments/infra/idempotency` (em vez de `libs/platform/idempotency`) — fica perto do contexto que usa primeiro; promove pra `libs/platform/` quando outro contexto pedir.
+> - **AuthorizePayment / CapturePayment / Refund** diferidos — entram com o acquirer real (sem ele, autorizar é só mudar status).
+> - **Web tokenization** diferida — entra na **Fase 5** (Web), que é quando há UI pra tokenizar.
 
-**Critério de pronto:** fluxo end-to-end no sandbox: web tokeniza → backend cria intent → publica evento → captura aparece no painel.
+- [x] `libs/payments/domain/` — `Money` (VO com validação ISO-4217), `PaymentIntent` (status enum + factory que valida), errors sentinela, evento `PaymentIntentCreatedV1`.
+- [x] `libs/payments/application/` — ports (`PaymentIntentRepo` com `CreateWithOutbox`, `Acquirer`, `Clock`, `IDGen`) + use case `CreatePaymentIntent` (cria + serializa evento + escreve outbox em uma chamada). Authorize/Capture diferidos.
+- [x] `libs/payments/infra/pgstore/` — adapter pgx v5; transação `CreateWithOutbox` (intent + outbox atômico); `IdempotencyStore` (Postgres-backed); `MigrateEmbedded` aplicando `0002_payments.sql` (tabelas `payment_intents`, `outbox_messages`, `idempotency_records`).
+- [x] `libs/payments/infra/acquirer/fake.go` — `FakeAcquirer` (sempre approves) — placeholder até Stone sandbox.
+- [x] `libs/payments/infra/idempotency/` — middleware HTTP (Stripe-style: lookup → execute → save; mesma key + body diferente = 409). Tests cobrem replay + conflict + missing header.
+- [x] `libs/payments/infra/httpapi/` — handler `POST /v1/payment-intents` protegido por `RequireAPIKey` + idempotency middleware via composição. Mapping DTO ↔ domain.
+- [x] OpenAPI estendido (`libs/contracts/http/payments.openapi.yaml`) com Money, CreatePaymentIntentRequest, PaymentIntent, header `Idempotency-Key`. Tipos Go/TS regenerados.
+- [x] `apps/api/cmd/api/main.go` monta payments no composition root (pgxpool partilhado com Identity, idempotency middleware, fake acquirer).
+
+**Critério de pronto:** ✅ **parcialmente verificado** (slice MVP):
+- Idempotência funciona end-to-end: 2 requests com mesma `Idempotency-Key` + body idêntico → mesma resposta, handler executa 1×, header `Idempotent-Replay: true` na 2ª. Verificado em `middleware_test.go`.
+- Body diferente com mesma key → 409.
+- Outbox atômico: criar intent escreve linha em `outbox_messages` na mesma tx (verificado por unit test com fake repo).
+- Auth obrigatório: requests sem `Authorization: Bearer ...` → 401 (já provado pela Fase 2).
+
+**Pendente para fechar critério integral** (web tokeniza → backend cria → publica → captura no painel):
+- Stone sandbox adapter substituindo `FakeAcquirer`.
+- Relay worker Kafka (loop `PullUnpublished` + publish + mark `published_at`).
+- Authorize/Capture endpoints.
+- Web tokenization na Fase 5.
+
+**Status Fase 3:** 🟡 **Slice MVP concluída.** Próxima parada: continuar com Fase 4 (Anti-fraud) em paralelo, ou completar Stone + relay worker. Decisão fica com o time.
 
 ---
 

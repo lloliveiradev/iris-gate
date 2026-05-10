@@ -3,8 +3,10 @@ info:
   title: Iris Gate — Payments API
   version: 0.1.0
   description: |
-    Payment intents, capture, refund. Skeleton-only nesta fase;
-    a especificação real entra na Fase 3 do roadmap.
+    Payment intents. Phase 3 do roadmap implementa CreatePaymentIntent;
+    Authorize/Capture/Refund entram em PRs subsequentes (Stone sandbox
+    integration).
+
 servers:
   - url: http://localhost:8080
     description: dev
@@ -12,7 +14,159 @@ servers:
 tags:
   - name: payments
 
-paths: {}
+paths:
+  /v1/payment-intents:
+    post:
+      operationId: createPaymentIntent
+      summary: Create a new payment intent
+      tags: [payments]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: |
+            Chave idempotente fornecida pelo cliente. Repetir a mesma chave
+            (com o mesmo body) devolve a resposta original sem efeito colateral.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentIntentRequest'
+      responses:
+        '201':
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 'Idempotency conflict (mesma chave, body diferente).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 
 components:
-  schemas: {}
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: irk_<prefix>.<secret>
+
+  schemas:
+    Money:
+      type: object
+      additionalProperties: false
+      required: [amount_cents, currency]
+      description: |
+        Valor monetário em menor unidade (centavos para BRL/USD/etc).
+        `currency` segue ISO-4217 alpha-3.
+      properties:
+        amount_cents:
+          type: integer
+          format: int64
+          minimum: 1
+          examples: [12990]
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Z]{3}$'
+          examples: [BRL]
+
+    CreatePaymentIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, card_token]
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        card_token:
+          type: string
+          description: 'Token retornado pela tokenização do adquirente. PAN nunca trafega aqui.'
+          minLength: 8
+          maxLength: 256
+        description:
+          type: string
+          maxLength: 200
+
+    PaymentIntent:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - merchant_id
+        - amount
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        amount:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/PaymentIntentStatus'
+        card_token:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        authorized_at:
+          type: string
+          format: date-time
+        captured_at:
+          type: string
+          format: date-time
+
+    PaymentIntentStatus:
+      type: string
+      enum: [pending, authorized, captured, refunded, canceled, failed]
+
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+
+  responses:
+    BadRequest:
+      description: 'Requisição inválida.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: 'API key ausente ou inválida.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
