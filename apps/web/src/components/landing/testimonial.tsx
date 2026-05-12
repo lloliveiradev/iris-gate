@@ -13,6 +13,7 @@ export function Testimonial() {
               width={800}
               height={800}
               className="h-full w-full object-cover"
+              loading="eager"
             />
           </div>
           <figure className="flex flex-col justify-center gap-6">

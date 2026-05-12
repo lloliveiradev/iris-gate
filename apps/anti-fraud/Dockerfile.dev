@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1.7
+#
+# Dev image — runs nest start --watch with source mounted as volume.
+# Build context must be the repo root so yarn workspaces resolve correctly.
+# Production image (multi-stage distroless-ish) lands in Phase 7.
+
+FROM node:20-alpine
+
+# Prisma needs OpenSSL 3 at runtime (matches binaryTargets in schema.prisma).
+RUN apk add --no-cache openssl bash
+
+# Yarn Berry via corepack (single source of truth — root .yarnrc.yml controls the version).
+RUN corepack enable
+
+WORKDIR /repo
+
+# --- Layer 1: workspace manifests + lockfile (Yarn 4 needs ALL workspaces to validate lockfile) ---
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY apps/anti-fraud/package.json apps/anti-fraud/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY libs/fraud/package.json libs/fraud/package.json
+COPY libs/contracts/package.json libs/contracts/package.json
+COPY libs/sdk-web/package.json libs/sdk-web/package.json
+
+# --- Layer 2: copy Prisma schema (anti-fraud postinstall needs it for `prisma generate`) ---
+COPY apps/anti-fraud/prisma apps/anti-fraud/prisma
+
+# --- Layer 3: install deps (postinstall runs prisma generate → needs schema above) ---
+ENV YARN_ENABLE_GLOBAL_CACHE=false
+RUN yarn install --immutable
+
+# --- Layer 4: copy fraud lib source + build it (predev hook in anti-fraud expects dist/) ---
+COPY libs/fraud libs/fraud
+RUN yarn workspace @iris-gate/fraud build
+
+# --- Layer 5: copy remaining anti-fraud source ---
+COPY apps/anti-fraud apps/anti-fraud
+WORKDIR /repo/apps/anti-fraud
+
+EXPOSE 3001
+
+# Default to dev watch mode. The predev hook re-builds libs/fraud (fast tsc incremental).
+CMD ["yarn", "run", "dev"]

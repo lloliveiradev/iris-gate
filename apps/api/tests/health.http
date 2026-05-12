@@ -1,0 +1,53 @@
+### =============================================================
+### Health endpoints — full coverage HTTP test suite
+### Covers liveness and readiness probes exposed by
+### apps/api/internal/httpapi/health.go (mounted at the root router
+### in apps/api/internal/httpapi/router.go).
+### =============================================================
+
+### Variables
+@base_url = http://localhost:8080
+
+### =============================================================
+### 1. HEALTHZ (liveness)
+### Endpoint: GET /healthz
+### Returns 200 + JSON {status:"ok"} unconditionally — the process
+### is up. Should never require auth and never touch downstreams.
+### =============================================================
+
+### 1.1 GET healthz (success)
+GET {{ base_url }}/healthz
+
+### 1.2 HEAD healthz (sanity — chi returns the same status without body)
+HEAD {{ base_url }}/healthz
+
+### 1.3 Healthz must not require auth (no Authorization header)
+GET {{ base_url }}/healthz
+
+### 1.4 Healthz ignores bogus auth (expect 200, header silently ignored)
+GET {{ base_url }}/healthz
+Authorization: Bearer not-a-real-token
+
+### =============================================================
+### 2. READYZ (readiness)
+### Endpoint: GET /readyz
+### Returns 200 when the process is ready to take traffic. Same
+### shape as healthz today (Phase 2). When downstream checks land
+### (Phase 6 observability), expect 503 here while degraded.
+### =============================================================
+
+### 2.1 GET readyz (success)
+GET {{ base_url }}/readyz
+
+### 2.2 HEAD readyz
+HEAD {{ base_url }}/readyz
+
+### =============================================================
+### 3. METHOD / ROUTE ERRORS
+### =============================================================
+
+### 3.1 POST /healthz (expect 405 — only GET routed)
+POST {{ base_url }}/healthz
+
+### 3.2 Unknown route (expect 404)
+GET {{ base_url }}/does-not-exist

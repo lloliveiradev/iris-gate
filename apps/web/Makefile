@@ -1,4 +1,4 @@
-# apps/web — Next 15 (App Router, React 19)
+# apps/web — Next 16 (App Router, React 19)
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -6,6 +6,10 @@ SHELL := /usr/bin/env bash
 
 # Usa o yarn raiz (workspaces). Se rodar de fora, ainda funciona.
 YARN := yarn
+
+# Telemetria off para economizar RAM/SSD; turbopack default off por causar
+# alta pressão de memória → swap em máquinas com ≤16GB.
+export NEXT_TELEMETRY_DISABLED := 1
 
 C_RST := \033[0m
 C_BLD := \033[1m
@@ -17,8 +21,12 @@ help: ## Mostra esta ajuda
 		/^[a-zA-Z_0-9-]+:.*?##/ { printf "  $(C_CYN)%-12s$(C_RST) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: dev
-dev: ## next dev (Turbopack, :3000)
+dev: ## next dev com webpack (default — menor consumo de RAM, :3000)
 	$(YARN) run dev
+
+.PHONY: dev-turbopack
+dev-turbopack: ## next dev com turbopack (mais rápido, mais RAM — usa só se sobrar memória)
+	$(YARN) run dev:turbopack
 
 .PHONY: build
 build: ## next build

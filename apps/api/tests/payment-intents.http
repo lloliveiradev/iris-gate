@@ -1,0 +1,398 @@
+### =============================================================
+### Payment Intents — full coverage HTTP test suite
+### Covers every endpoint, validation rule, idempotency scenario
+### and state-machine transition exposed by
+### libs/payments/infra/httpapi/handlers.go +
+### libs/payments/infra/idempotency/middleware.go.
+###
+### Endpoints under test:
+###   POST /v1/payment-intents                  (auth + Idempotency-Key)
+###   GET  /v1/payment-intents                  (auth, list)
+###   GET  /v1/payment-intents/{id}             (auth, detail)
+###   POST /v1/payment-intents/{id}/authorize   (auth)
+###   POST /v1/payment-intents/{id}/capture     (auth)
+###
+### State machine: pending → authorized → captured
+### Invalid transitions → 409 (mapped from domain.ErrInvalidTransition).
+### Idempotent-Replay header is set on cached responses.
+### Cross-tenant access yields 404 (tenant isolation silently masks).
+###
+### Prerequisite: identity.http must be run first (sections 1.1–1.2)
+### to seed merchant_id + api_key_token referenced below.
+### =============================================================
+
+### Variables
+@base_url = http://localhost:8080
+@nonexistent_id = 00000000-0000-0000-0000-000000000000
+@malformed_uuid = not-a-uuid
+
+### Chained from identity.http bootstrap (run identity.http first)
+@api_key_token = {{ issueApiKey.response.body.secret }}
+
+### Idempotency keys — stable per scenario so we can replay deliberately
+@idem_key_happy = key-happy-001
+@idem_key_replay = key-replay-002
+@idem_key_conflict = key-conflict-003
+
+### Chained from this file
+@intent_id = {{ createIntent.response.body.id }}
+@intent_id_for_capture = {{ createIntentForCapture.response.body.id }}
+
+### =============================================================
+### 1. AUTHENTICATION SANITY
+### Identity issues the bearer; here we just confirm every Payments
+### route returns 401 when the token is missing.
+### =============================================================
+
+### 1.1 POST /v1/payment-intents without auth (expect 401)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Idempotency-Key: anything
+
+{
+    "amount": {"amount_cents": 1000, "currency": "BRL"}
+}
+
+### 1.2 GET /v1/payment-intents without auth (expect 401)
+GET {{ base_url }}/v1/payment-intents
+
+### 1.3 GET detail without auth (expect 401)
+GET {{ base_url }}/v1/payment-intents/{{ nonexistent_id }}
+
+### 1.4 POST /authorize without auth (expect 401)
+POST {{ base_url }}/v1/payment-intents/{{ nonexistent_id }}/authorize
+
+### 1.5 POST /capture without auth (expect 401)
+POST {{ base_url }}/v1/payment-intents/{{ nonexistent_id }}/capture
+
+### =============================================================
+### 2. CREATE PAYMENT INTENT — happy path
+### POST /v1/payment-intents
+### Returns 201 + PaymentIntent with status="pending".
+### =============================================================
+
+### 2.1 Create with minimum fields (success — pending)
+# @name createIntent
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ idem_key_happy }}
+
+{
+    "amount": {"amount_cents": 1990, "currency": "BRL"},
+    "card_token": "tok_test_visa_4242",
+    "description": "First test intent"
+}
+
+### 2.2 Create with description omitted (success)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "amount": {"amount_cents": 5000, "currency": "BRL"},
+    "card_token": "tok_test_master_5555"
+}
+
+### =============================================================
+### 3. CREATE — idempotency middleware
+### Header Idempotency-Key required by libs/payments/infra/idempotency.
+### - Missing → 400 missing_idempotency_key
+### - Same key + same body → cached 201 + header Idempotent-Replay:true
+### - Same key + different body → 409 idempotency_conflict
+### =============================================================
+
+### 3.1 Create without Idempotency-Key (expect 400 missing_idempotency_key)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+
+{
+    "amount": {"amount_cents": 100, "currency": "BRL"},
+    "card_token": "tok_x"
+}
+
+### 3.2 Create with key (first call — fresh 201)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ idem_key_replay }}
+
+{
+    "amount": {"amount_cents": 2500, "currency": "BRL"},
+    "card_token": "tok_replay"
+}
+
+### 3.3 Replay same key + same body (expect 201 + Idempotent-Replay: true)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ idem_key_replay }}
+
+{
+    "amount": {"amount_cents": 2500, "currency": "BRL"},
+    "card_token": "tok_replay"
+}
+
+### 3.4 Same key + DIFFERENT body (expect 409 idempotency_conflict)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ idem_key_replay }}
+
+{
+    "amount": {"amount_cents": 9999, "currency": "BRL"},
+    "card_token": "tok_other"
+}
+
+### 3.5 Idempotency key reused after error response — fresh attempt allowed
+# 4xx responses are NOT persisted by the middleware (only 2xx are saved),
+# so a key that previously returned 400 can be used again successfully.
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ idem_key_conflict }}
+
+{
+    "amount": {"amount_cents": 0, "currency": "BRL"},
+    "card_token": "tok_will_fail"
+}
+
+### 3.6 Same key, valid body (expect 201 — the failed attempt above did not lock the key)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ idem_key_conflict }}
+
+{
+    "amount": {"amount_cents": 100, "currency": "BRL"},
+    "card_token": "tok_ok"
+}
+
+### =============================================================
+### 4. CREATE — domain validation surface
+### Body decoded via contracts.CreatePaymentIntentRequest; amount
+### goes through domain.NewMoney which enforces ISO-4217 + sign.
+### =============================================================
+
+### 4.1 Malformed JSON (expect 400 invalid_body)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{not-json}
+
+### 4.2 Negative amount (expect 400 invalid_amount)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "amount": {"amount_cents": -100, "currency": "BRL"},
+    "card_token": "tok_x"
+}
+
+### 4.3 Zero amount (expect 400 invalid_amount — domain rejects ≤ 0)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "amount": {"amount_cents": 0, "currency": "BRL"},
+    "card_token": "tok_x"
+}
+
+### 4.4 Unknown currency (expect 400 invalid_amount — not in ISO-4217)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "amount": {"amount_cents": 1000, "currency": "XYZ"},
+    "card_token": "tok_x"
+}
+
+### 4.5 Currency in lower case (expect 400 — domain expects upper-case)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "amount": {"amount_cents": 1000, "currency": "brl"},
+    "card_token": "tok_x"
+}
+
+### 4.6 Missing card_token (expect 400 — required by contract)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "amount": {"amount_cents": 1000, "currency": "BRL"}
+}
+
+### 4.7 Missing amount (expect 400)
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "card_token": "tok_x"
+}
+
+### =============================================================
+### 5. LIST PAYMENT INTENTS
+### GET /v1/payment-intents
+### Returns the merchant's intents in created_at DESC order.
+### Pagination via ?limit= (handler uses strconv on query param).
+### =============================================================
+
+### 5.1 Default list (success — should include the intents created in §2 and §3)
+# @name listIntents
+GET {{ base_url }}/v1/payment-intents
+Authorization: Bearer {{ api_key_token }}
+
+### 5.2 With small limit (success — capped to the value)
+GET {{ base_url }}/v1/payment-intents?limit=2
+Authorization: Bearer {{ api_key_token }}
+
+### 5.3 With limit=0 (handler treats as "use default")
+GET {{ base_url }}/v1/payment-intents?limit=0
+Authorization: Bearer {{ api_key_token }}
+
+### 5.4 With limit=999999 (handler clamps to repo default cap)
+GET {{ base_url }}/v1/payment-intents?limit=999999
+Authorization: Bearer {{ api_key_token }}
+
+### 5.5 With negative limit (expect 200 — treated as default; handler is lenient)
+GET {{ base_url }}/v1/payment-intents?limit=-1
+Authorization: Bearer {{ api_key_token }}
+
+### 5.6 With non-numeric limit (expect 200 — handler ignores parse failures)
+GET {{ base_url }}/v1/payment-intents?limit=abc
+Authorization: Bearer {{ api_key_token }}
+
+### =============================================================
+### 6. GET PAYMENT INTENT BY ID
+### GET /v1/payment-intents/{id}
+### Tenant-isolated: if the intent exists but belongs to another
+### merchant, the handler returns 404 (silent masking — never 403).
+### =============================================================
+
+### 6.1 GET existing intent (success)
+GET {{ base_url }}/v1/payment-intents/{{ intent_id }}
+Authorization: Bearer {{ api_key_token }}
+
+### 6.2 GET non-existent UUID (expect 404 not_found)
+GET {{ base_url }}/v1/payment-intents/{{ nonexistent_id }}
+Authorization: Bearer {{ api_key_token }}
+
+### 6.3 GET malformed UUID in path (expect 400 invalid_id)
+GET {{ base_url }}/v1/payment-intents/{{ malformed_uuid }}
+Authorization: Bearer {{ api_key_token }}
+
+### =============================================================
+### 7. AUTHORIZE — state machine pending → authorized
+### POST /v1/payment-intents/{id}/authorize
+### Idempotent: short-circuits if status is already "authorized".
+### Invalid transition (e.g. captured → authorize) → 409.
+### =============================================================
+
+### 7.1 Authorize a pending intent (success — status flips to authorized)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id }}/authorize
+Authorization: Bearer {{ api_key_token }}
+
+### 7.2 Authorize the same intent again (expect 200 — idempotent short-circuit)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id }}/authorize
+Authorization: Bearer {{ api_key_token }}
+
+### 7.3 Authorize non-existent id (expect 404)
+POST {{ base_url }}/v1/payment-intents/{{ nonexistent_id }}/authorize
+Authorization: Bearer {{ api_key_token }}
+
+### 7.4 Authorize with malformed id (expect 400 invalid_id)
+POST {{ base_url }}/v1/payment-intents/{{ malformed_uuid }}/authorize
+Authorization: Bearer {{ api_key_token }}
+
+### =============================================================
+### 8. CAPTURE — state machine authorized → captured
+### POST /v1/payment-intents/{id}/capture
+### Requires status="authorized". pending → capture short-circuits
+### into a 409 invalid_transition.
+### =============================================================
+
+### 8.1 Create a second intent to walk the full state machine
+# @name createIntentForCapture
+POST {{ base_url }}/v1/payment-intents
+Content-Type: application/json
+Authorization: Bearer {{ api_key_token }}
+Idempotency-Key: {{ $guid }}
+
+{
+    "amount": {"amount_cents": 7777, "currency": "BRL"},
+    "card_token": "tok_capture_flow",
+    "description": "Full-cycle intent for capture test"
+}
+
+### 8.2 Try to capture a pending intent (expect 409 invalid_transition)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id_for_capture }}/capture
+Authorization: Bearer {{ api_key_token }}
+
+### 8.3 Authorize it first (success)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id_for_capture }}/authorize
+Authorization: Bearer {{ api_key_token }}
+
+### 8.4 Capture it (success — status flips to captured)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id_for_capture }}/capture
+Authorization: Bearer {{ api_key_token }}
+
+### 8.5 Capture it again (expect 200 — idempotent short-circuit on captured)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id_for_capture }}/capture
+Authorization: Bearer {{ api_key_token }}
+
+### 8.6 Try to authorize a captured intent (expect 409 invalid_transition)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id_for_capture }}/authorize
+Authorization: Bearer {{ api_key_token }}
+
+### 8.7 Capture non-existent id (expect 404)
+POST {{ base_url }}/v1/payment-intents/{{ nonexistent_id }}/capture
+Authorization: Bearer {{ api_key_token }}
+
+### 8.8 Capture with malformed id (expect 400 invalid_id)
+POST {{ base_url }}/v1/payment-intents/{{ malformed_uuid }}/capture
+Authorization: Bearer {{ api_key_token }}
+
+### =============================================================
+### 9. AUTH / METHOD ERRORS
+### =============================================================
+
+### 9.1 Bogus token on list (expect 401 invalid_credentials)
+GET {{ base_url }}/v1/payment-intents
+Authorization: Bearer irk_aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+### 9.2 OPTIONS on list (chi default OPTIONS handler — should not require auth)
+OPTIONS {{ base_url }}/v1/payment-intents
+
+### 9.3 HEAD on list (expect 200 — chi auto-maps GET routes to HEAD)
+HEAD {{ base_url }}/v1/payment-intents
+Authorization: Bearer {{ api_key_token }}
+
+### 9.4 PUT on /v1/payment-intents (expect 405 — only GET + POST routed)
+PUT {{ base_url }}/v1/payment-intents
+Authorization: Bearer {{ api_key_token }}
+
+### 9.5 DELETE on a payment intent (expect 405 — destructive ops not exposed)
+DELETE {{ base_url }}/v1/payment-intents/{{ intent_id }}
+Authorization: Bearer {{ api_key_token }}
+
+### 9.6 POST on detail without /authorize|/capture (expect 405)
+POST {{ base_url }}/v1/payment-intents/{{ intent_id }}
+Authorization: Bearer {{ api_key_token }}

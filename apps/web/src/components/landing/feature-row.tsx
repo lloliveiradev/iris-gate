@@ -58,6 +58,7 @@ export function FeatureRow({
               width={1200}
               height={780}
               className="h-auto w-full"
+              loading="eager"
             />
           </div>
         </div>

@@ -1,10 +1,17 @@
 name: iris-gate
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:18.3-alpine
     container_name: iris-postgres
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-iris}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iris}
@@ -26,6 +33,7 @@ services:
     image: apache/kafka:latest
     container_name: iris-kafka
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "${KAFKA_PORT:-9092}:9092"
     environment:
@@ -44,6 +52,8 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 536870912
       CLUSTER_ID: ${KAFKA_CLUSTER_ID:-iris-local-cluster-0001}
     volumes:
       - kafka-data:/var/lib/kafka/data
@@ -55,9 +65,10 @@ services:
     networks: [iris]
 
   karapace:
-    image: ghcr.io/aiven-open/karapace:latest
+    image: ghcr.io/aiven-open/karapace:6.1.4
     container_name: iris-karapace
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       kafka:
         condition: service_healthy
@@ -74,7 +85,7 @@ services:
       KARAPACE_MASTER_ELIGIBILITY: "true"
       KARAPACE_TOPIC_NAME: _schemas
       KARAPACE_LOG_LEVEL: WARNING
-    command: ["karapace", "/opt/karapace/registry.config.json"]
+      KARAPACE_KARAPACE_REGISTRY: "true"
     entrypoint:
       - /bin/sh
       - -c
@@ -93,12 +104,44 @@ services:
           "log_level": "WARNING"
         }
         EOF
-        exec karapace /opt/karapace/registry.config.json
+        exec python3 -m karapace /opt/karapace/registry.config.json
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/_health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+    networks: [iris]
+
+  anti-fraud:
+    build:
+      # Context is the monorepo root so yarn workspaces resolve correctly.
+      context: ../..
+      dockerfile: apps/anti-fraud/Dockerfile.dev
+    container_name: iris-anti-fraud
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${ANTI_FRAUD_PORT:-3001}:3001"
+    environment:
+      # Internal hostnames — kafkajs metadata advertises kafka:9092 inside the network.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iris}:${POSTGRES_PASSWORD:-iris}@postgres:5432/${ANTI_FRAUD_DB:-antifraud}?schema=public
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: anti-fraud
+      KAFKA_GROUP_ID: anti-fraud
+      KAFKAJS_NO_PARTITIONER_WARNING: "1"
+      PORT: 3001
+      NODE_ENV: development
+    volumes:
+      # Hot-reload: mount only the watch surface; node_modules + dist stay baked.
+      - ../../apps/anti-fraud/src:/repo/apps/anti-fraud/src
+      - ../../apps/anti-fraud/prisma:/repo/apps/anti-fraud/prisma
+      - ../../apps/anti-fraud/nest-cli.json:/repo/apps/anti-fraud/nest-cli.json
+      - ../../apps/anti-fraud/tsconfig.json:/repo/apps/anti-fraud/tsconfig.json
     networks: [iris]
 
 volumes:

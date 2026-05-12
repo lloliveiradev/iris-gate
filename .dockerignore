@@ -1,0 +1,36 @@
+# Avoid sending heavy host directories into the Docker build context.
+# Keep workspace manifests + source — the Dockerfile installs deps fresh.
+
+**/node_modules
+**/dist
+**/build
+**/.next
+**/.turbo
+**/coverage
+**/*.log
+**/.DS_Store
+
+# yarn cache + install state — installer recreates them inside the image
+.yarn/cache
+.yarn/install-state.gz
+.yarn/unplugged
+.yarn/build-state.yml
+
+# generated artifacts
+apps/api/bin
+apps/web/next-env.d.ts
+**/*.tsbuildinfo
+
+# editor / VCS
+.git
+.idea
+.vscode
+
+# dev outputs unrelated to anti-fraud build
+graphify-out
+docs/superpowers
+
+# host env files — container gets env via compose
+**/.env
+**/.env.local
+**/.env.*.local
