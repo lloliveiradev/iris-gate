@@ -57,3 +57,6 @@ graphify-out/
 
 # Build artifacts
 apps/api/bin/
+
+# Next.js auto-generated TS shim (path differs between `next dev` and `next build`)
+apps/web/next-env.d.ts
