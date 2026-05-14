@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { SiteFooter } from '@/components/site/site-footer';
 import { SiteHeader } from '@/components/site/site-header';
 import { Cta } from '@/components/landing/cta';
@@ -5,7 +6,9 @@ import { FeatureRow } from '@/components/landing/feature-row';
 import { Hero } from '@/components/landing/hero';
 import { Testimonial } from '@/components/landing/testimonial';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const t = await getTranslations('landing.features');
+
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
@@ -14,53 +17,59 @@ export default function HomePage() {
 
         <FeatureRow
           id="integration"
-          eyebrow="Integration"
-          title="Contract-first SDK that breaks builds, not production."
-          body="Every endpoint and event is defined in OpenAPI / AsyncAPI. The TypeScript SDK is generated from the same source — rename a field on the backend and your frontend type-check fails before merge."
+          eyebrow={t('integration.eyebrow')}
+          title={t('integration.title')}
+          body={t('integration.body')}
           bullets={[
-            'OpenAPI 3.1 + AsyncAPI 2.6 published with the gateway',
-            'Idempotency-Key on every mutation by default',
-            'Typed clients for Web, Node and Go consumers',
+            t('integration.bullets.openapi'),
+            t('integration.bullets.idempotency'),
+            t('integration.bullets.clients'),
           ]}
           image="/integration.png"
-          imageAlt="Code editor showing the IrisGate TypeScript SDK"
+          imageAlt={t('integration.image_alt')}
         />
 
         <FeatureRow
           id="monitoring"
-          eyebrow="Anti-fraud"
-          title="Real-time risk scoring with rules you can read and tune."
-          body="Suspicious accounts, unusual amounts and frequent high-value bursts are scored asynchronously through Kafka with at-least-once Inbox semantics. Decisions stream back as fraud.assessment.completed.v1 events you can route anywhere."
+          eyebrow={t('monitoring.eyebrow')}
+          title={t('monitoring.title')}
+          body={t.rich('monitoring.body', {
+            code: (chunks) => (
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">
+                {chunks}
+              </code>
+            ),
+          })}
           bullets={[
-            'Score-and-weight rules registered in Postgres (no code redeploy)',
-            'Inbox dedupe + Outbox publishing for end-to-end exactly-once',
-            'DLQ topic isolates terminal failures without blocking the stream',
+            t('monitoring.bullets.rules'),
+            t('monitoring.bullets.exactly_once'),
+            t('monitoring.bullets.dlq'),
           ]}
           image="/monitoring.png"
-          imageAlt="Risk monitoring dashboard"
+          imageAlt={t('monitoring.image_alt')}
           reverse
         />
 
         <FeatureRow
           id="reporting"
-          eyebrow="Reporting"
-          title="Audit trails and reconciliation that your finance team trusts."
-          body="Every payment intent, authorization, capture and refund is persisted with a full event history. Export reconciled balances or stream them to your ledger."
+          eyebrow={t('reporting.eyebrow')}
+          title={t('reporting.title')}
+          body={t('reporting.body')}
           bullets={[
-            'Append-only event store with reproducible state',
-            'CSV / JSON exports with idempotent re-runs',
-            'Webhook delivery with HMAC and exponential retry',
+            t('reporting.bullets.event_store'),
+            t('reporting.bullets.exports'),
+            t('reporting.bullets.webhooks'),
           ]}
           image="/report.png"
-          imageAlt="Reconciliation report"
+          imageAlt={t('reporting.image_alt')}
         />
 
         <FeatureRow
-          eyebrow="Support"
-          title="Engineers on call, not a contact form."
-          body="Founder-led support during onboarding. Production incidents get a Slack channel with the engineers who wrote the code, not a tier-1 queue."
+          eyebrow={t('support.eyebrow')}
+          title={t('support.title')}
+          body={t('support.body')}
           image="/support.png"
-          imageAlt="Customer support team"
+          imageAlt={t('support.image_alt')}
           reverse
         />
 

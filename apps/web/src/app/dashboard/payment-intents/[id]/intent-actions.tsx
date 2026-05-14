@@ -1,6 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
+import { CircleDollarSign, Loader2, ShieldCheck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { type ActionState, authorizeAction, captureAction } from './actions';
 
@@ -13,6 +15,8 @@ export function IntentActions({
   id: string;
   status: string;
 }) {
+  const t = useTranslations('dashboard.payment_intents.actions');
+  const tDetail = useTranslations('dashboard.payment_intents_detail.transitions');
   const [authState, authAction, authPending] = useActionState(authorizeAction, initial);
   const [capState, capAction, capPending] = useActionState(captureAction, initial);
 
@@ -20,18 +24,33 @@ export function IntentActions({
   const canCapture = status === 'authorized';
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3">
         <form action={authAction}>
           <input type="hidden" name="id" value={id} />
-          <Button type="submit" disabled={!canAuthorize || authPending}>
-            {authPending ? 'Autorizando…' : 'Autorizar'}
+          <Button type="submit" size="lg" disabled={!canAuthorize || authPending}>
+            {authPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="size-4" />
+            )}
+            {authPending ? t('authorize_pending') : t('authorize')}
           </Button>
         </form>
         <form action={capAction}>
           <input type="hidden" name="id" value={id} />
-          <Button type="submit" variant="secondary" disabled={!canCapture || capPending}>
-            {capPending ? 'Capturando…' : 'Capturar'}
+          <Button
+            type="submit"
+            size="lg"
+            variant="secondary"
+            disabled={!canCapture || capPending}
+          >
+            {capPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <CircleDollarSign className="size-4" />
+            )}
+            {capPending ? t('capture_pending') : t('capture')}
           </Button>
         </form>
       </div>
@@ -44,7 +63,7 @@ export function IntentActions({
         </p>
       )}
       {!canAuthorize && !canCapture && (
-        <p className="text-xs text-muted-foreground">Status atual não permite mais transições.</p>
+        <p className="text-xs text-muted-foreground">{tDetail('no_more')}</p>
       )}
     </div>
   );

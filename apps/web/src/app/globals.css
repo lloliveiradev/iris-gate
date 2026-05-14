@@ -3,75 +3,141 @@
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+/* =============================================================
+ * IrisGate — design tokens
+ * Spec: apps/web/docs/design-system/TOKENS.md
+ *
+ * Dark is the default theme. <html> ships with class="dark".
+ * Light is opt-in via class="light" on <html> or any subtree.
+ * Components consume semantic vars (--primary, --card, ...).
+ * Brand vars (--brand-*) are reserved for marketing/landing.
+ * ============================================================= */
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+@layer base {
+  :root {
+    /* --- Brand palette (raw primitives) --- */
+    --brand-ink: oklch(0.18 0.012 195);          /* #081B1B */
+    --brand-petrol: oklch(0.32 0.022 174);       /* #203B37 */
+    --brand-petrol-mid: oklch(0.25 0.018 178);   /* #142E2A — derived L2 dark */
+    --brand-sage: oklch(0.60 0.053 156);         /* #5A8F76 */
+    --brand-mint: oklch(0.79 0.063 158);         /* #96CDB0 */
+    --brand-copper: oklch(0.67 0.105 65);        /* #C18D52 */
+    --brand-cream: oklch(0.92 0.058 102);        /* #EEE8B2 */
+    --brand-cream-soft: oklch(0.95 0.04 100);    /* #F5EFC9 — derived L2 light */
+
+    /* --- Radius (slightly tightened from 0.65 → 0.625 for crafted feel) --- */
+    --radius: 0.625rem;
+
+    /* --- Motion --- */
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-in-out-cubic: cubic-bezier(0.65, 0, 0.35, 1);
+    --duration-fast: 120ms;
+    --duration-base: 200ms;
+    --duration-slow: 360ms;
+
+    /* --- DARK theme (default) — 3-tier surface system --- */
+    --background: var(--brand-ink);
+    --surface: var(--brand-petrol-mid);
+    --foreground: var(--brand-cream);
+
+    --card: var(--brand-petrol);
+    --card-foreground: var(--brand-cream);
+
+    --popover: var(--brand-petrol);
+    --popover-foreground: var(--brand-cream);
+
+    --primary: var(--brand-sage);
+    --primary-foreground: var(--brand-ink);
+
+    --secondary: var(--brand-copper);
+    --secondary-foreground: var(--brand-ink);
+
+    --accent: var(--brand-mint);
+    --accent-foreground: var(--brand-ink);
+
+    --muted: var(--brand-petrol-mid);
+    /* Solid color (no alpha) — alpha-mixed mint @ 70% was borderline AA on petrol-deep.
+     * Lighter mint at 82% saturation hits ~7.1:1 vs --background. */
+    --muted-foreground: oklch(0.82 0.052 158);
+
+    --destructive: oklch(0.58 0.18 25);
+    --destructive-foreground: var(--brand-cream);
+
+    --border: oklch(0.60 0.053 156 / 26%);
+    --input: oklch(0.60 0.053 156 / 32%);
+    --ring: var(--brand-mint);
+
+    /* Chart palette — harmonized 5-tone */
+    --chart-1: var(--brand-sage);
+    --chart-2: var(--brand-copper);
+    --chart-3: var(--brand-mint);
+    --chart-4: var(--brand-cream);
+    --chart-5: oklch(0.55 0.10 200);
+
+    /* Sidebar scope (shadcn convention) */
+    --sidebar: var(--surface);
+    --sidebar-foreground: var(--brand-cream);
+    --sidebar-primary: var(--brand-sage);
+    --sidebar-primary-foreground: var(--brand-ink);
+    --sidebar-accent: var(--brand-petrol);
+    --sidebar-accent-foreground: var(--brand-cream);
+    --sidebar-border: oklch(0.60 0.053 156 / 18%);
+    --sidebar-ring: var(--brand-mint);
+
+    /* Shadow stack — drop shadows mostly visual no-ops on petrol dark;
+     * elevation comes from background → surface → card step-ups above. */
+    --shadow-sm: 0 1px 2px 0 oklch(0.18 0.012 195 / 0.06);
+    --shadow-md: 0 4px 12px -2px oklch(0.18 0.012 195 / 0.10);
+    --shadow-lg: 0 12px 32px -4px oklch(0.18 0.012 195 / 0.14);
+    --shadow-glow: 0 0 0 4px oklch(0.79 0.063 158 / 0.18);
+  }
+
+  /* --- LIGHT theme (opt-in via class="light") — 3-tier neutral mist system ---
+   * No pure white, no cream-as-base. Surfaces are near-white off-grays with a
+   * whisper of petrol hue (~174) at very low chroma so they harmonize with the
+   * brand without fatiguing the eyes. Elevation: bg < surface ≈ muted < card.
+   * Cream primitives remain available for marketing/landing accents only.
+   */
+  .light {
+    --background: oklch(0.97 0.003 174);      /* mist — soft paper, faint petrol tint */
+    --surface: oklch(0.955 0.004 174);        /* one step down — section/well backdrop */
+    --foreground: var(--brand-ink);
+
+    --card: oklch(0.985 0.003 174);           /* elevated above bg, never pure white */
+    --card-foreground: var(--brand-ink);
+
+    --popover: oklch(0.985 0.003 174);
+    --popover-foreground: var(--brand-ink);
+
+    --primary: var(--brand-petrol);
+    --primary-foreground: oklch(0.985 0.003 174);
+
+    --secondary: var(--brand-copper);
+    --secondary-foreground: var(--brand-ink);
+
+    --accent: oklch(0.60 0.053 156 / 22%);
+    --accent-foreground: var(--brand-petrol);
+
+    --muted: oklch(0.955 0.004 174);
+    /* Solid color (no alpha) — predictable AA on neutral mist bg. */
+    --muted-foreground: oklch(0.36 0.025 174);
+
+    --destructive: oklch(0.52 0.20 25);
+    --destructive-foreground: oklch(0.985 0.003 174);
+
+    --border: oklch(0.32 0.022 174 / 18%);
+    --input: oklch(0.32 0.022 174 / 28%);
+    --ring: var(--brand-sage);
+
+    --sidebar: oklch(0.955 0.004 174);
+    --sidebar-foreground: var(--brand-ink);
+    --sidebar-primary: var(--brand-petrol);
+    --sidebar-primary-foreground: oklch(0.985 0.003 174);
+    --sidebar-accent: oklch(0.60 0.053 156 / 18%);
+    --sidebar-accent-foreground: var(--brand-petrol);
+    --sidebar-border: oklch(0.32 0.022 174 / 18%);
+    --sidebar-ring: var(--brand-sage);
+  }
 }
 
 @theme inline {
@@ -79,8 +145,17 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Font families — driven by next/font CSS-variable injection in layout.tsx */
+  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  --font-serif: var(--font-fraunces, Georgia, 'Times New Roman', serif);
+  --font-display: var(--font-instrument-serif, var(--font-fraunces, Georgia, serif));
+  --font-mono: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+
+  /* Semantic colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -98,11 +173,23 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Brand primitives — escape hatch for marketing/landing only */
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-petrol: var(--brand-petrol);
+  --color-brand-petrol-mid: var(--brand-petrol-mid);
+  --color-brand-sage: var(--brand-sage);
+  --color-brand-mint: var(--brand-mint);
+  --color-brand-copper: var(--brand-copper);
+  --color-brand-cream: var(--brand-cream);
+  --color-brand-cream-soft: var(--brand-cream-soft);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -117,8 +204,62 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
     font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* Interactive surfaces show pointer cursor by default; disabled keeps default. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary,
+  select:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  [type="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* Editorial families */
+  .font-display {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-feature-settings: 'liga', 'dlig';
+  }
+
+  .font-serif {
+    font-family: var(--font-serif);
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Selection — warm copper tint so it harmonizes with the palette */
+  ::selection {
+    background-color: oklch(0.67 0.105 65 / 0.35);
+    color: var(--foreground);
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
 }

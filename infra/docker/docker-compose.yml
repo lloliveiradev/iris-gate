@@ -35,7 +35,13 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "${KAFKA_PORT:-9092}:9092"
+      # Host port maps to the PLAINTEXT_HOST listener (container 29092). The
+      # internal PLAINTEXT listener (container 9092) is for in-network clients
+      # only and is NOT published; it advertises kafka:9092 which is only
+      # resolvable inside the docker network. Host clients reach Kafka via
+      # localhost:${KAFKA_PORT}, which lands on PLAINTEXT_HOST (advertised as
+      # localhost:${KAFKA_PORT}) so subsequent metadata round-trips work.
+      - "${KAFKA_PORT:-9092}:29092"
     environment:
       # KRaft (no Zookeeper) — single-node combined controller+broker
       KAFKA_NODE_ID: 1
@@ -62,6 +68,43 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    networks: [iris]
+
+  # One-shot topic provisioner. Runs after kafka is healthy, creates every
+  # contract-owned topic with --if-not-exists (idempotent), then exits.
+  # Auto-create is disabled on the broker, so this is the canonical place to
+  # add new topics — add a line below when you ship a new event contract.
+  kafka-init:
+    image: apache/kafka:latest
+    container_name: iris-kafka-init
+    logging: *default-logging
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        BROKER=kafka:9092
+        create() {
+          /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server "$$BROKER" \
+            --create --if-not-exists \
+            --topic "$$1" \
+            --partitions "$${2:-3}" \
+            --replication-factor 1
+        }
+        # payments domain
+        create payments.payment_intent.created.v1 3
+        create payments.payment_intent.authorized.v1 3
+        create payments.payment_intent.captured.v1 3
+        # fraud domain
+        create fraud.assessment.requested.v1 3
+        create fraud.assessment.completed.v1 3
+        create fraud.assessment.failed.dlq 1
+        echo "kafka-init: all topics provisioned"
     networks: [iris]
 
   karapace:
@@ -125,6 +168,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     ports:
       - "${ANTI_FRAUD_PORT:-3001}:3001"
     environment:

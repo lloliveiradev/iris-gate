@@ -1,0 +1,323 @@
+{
+  "common": {
+    "actions": {
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "delete": "Eliminar",
+      "create": "Crear",
+      "view": "Ver",
+      "back": "Volver",
+      "loading": "Cargando…",
+      "submit": "Enviar",
+      "sign_in": "Iniciar sesión",
+      "sign_out": "Cerrar sesión",
+      "get_started": "Empezar"
+    },
+    "fields": {
+      "amount": "Monto",
+      "currency": "Moneda",
+      "status": "Estado",
+      "created_at": "Creado el",
+      "updated_at": "Actualizado el",
+      "description": "Descripción",
+      "id": "ID"
+    }
+  },
+  "site": {
+    "header": {
+      "nav": {
+        "integration": "Integración",
+        "monitoring": "Monitoreo",
+        "reporting": "Reportes",
+        "customers": "Clientes"
+      },
+      "sign_in": "Iniciar sesión",
+      "get_started": "Empezar"
+    },
+    "footer": {
+      "tagline": "Infraestructura de pagos contract-first para merchants brasileños.",
+      "columns": {
+        "product": {
+          "title": "Producto",
+          "items": {
+            "payments": "Pagos",
+            "anti_fraud": "Antifraude",
+            "reporting": "Reportes",
+            "webhooks": "Webhooks"
+          }
+        },
+        "developers": {
+          "title": "Desarrolladores",
+          "items": {
+            "api_reference": "Referencia de la API",
+            "status": "Estado",
+            "changelog": "Changelog"
+          }
+        },
+        "company": {
+          "title": "Empresa",
+          "items": {
+            "about": "Acerca de",
+            "security": "Seguridad",
+            "contact": "Contacto"
+          }
+        }
+      },
+      "copyright": "© {year} IrisGate.",
+      "built_for": "Construido para el milestone Phase 5 del roadmap de iris-gate."
+    }
+  },
+  "landing": {
+    "hero": {
+      "badge": "Ahora en private beta",
+      "title_pre": "Pagos",
+      "title_mid": "que corren en producción,",
+      "title_post": "no en diapositivas.",
+      "body": "IrisGate entrega payment intents idempotentes, antifraude en tiempo real y un SDK <code>contract-first</code> para que el gateway no se desvíe nunca de tu backend.",
+      "cta_primary": "Empezar a integrar",
+      "cta_secondary": "Ver cómo encaja",
+      "trust": {
+        "pci": "Alineado a PCI-DSS",
+        "idempotency": "Idempotencia en toda mutación",
+        "contracts": "OpenAPI + AsyncAPI como fuente de verdad"
+      },
+      "image_alt": "Vista previa del panel de IrisGate"
+    },
+    "features": {
+      "integration": {
+        "eyebrow": "Integración",
+        "title": "SDK contract-first que rompe builds, no producción.",
+        "body": "Cada endpoint y evento está definido en OpenAPI / AsyncAPI. El SDK TypeScript se genera desde la misma fuente — renombras un campo en el backend y el type-check del frontend falla antes del merge.",
+        "bullets": {
+          "openapi": "OpenAPI 3.1 + AsyncAPI 2.6 publicados con el gateway",
+          "idempotency": "Idempotency-Key en toda mutación por defecto",
+          "clients": "Clients tipados para Web, Node y Go"
+        },
+        "image_alt": "Editor mostrando el SDK TypeScript de IrisGate"
+      },
+      "monitoring": {
+        "eyebrow": "Antifraude",
+        "title": "Risk scoring en tiempo real con reglas que puedes leer y ajustar.",
+        "body": "Cuentas sospechosas, montos inusuales y ráfagas de alto valor se puntúan de forma asíncrona vía Kafka con semántica de Inbox at-least-once. Las decisiones vuelven como eventos <code>fraud.assessment.completed.v1</code> que enrutas donde quieras.",
+        "bullets": {
+          "rules": "Reglas score-and-weight registradas en Postgres (sin redeploy)",
+          "exactly_once": "Inbox dedupe + Outbox publishing para exactly-once de punta a punta",
+          "dlq": "El tópico DLQ aísla fallas terminales sin bloquear el stream"
+        },
+        "image_alt": "Panel de monitoreo de riesgo"
+      },
+      "reporting": {
+        "eyebrow": "Reportes",
+        "title": "Auditoría y conciliación en las que tu equipo de finanzas confía.",
+        "body": "Cada payment intent, autorización, captura y reembolso se persiste con historial de eventos completo. Exporta saldos conciliados o haz stream a tu libro mayor.",
+        "bullets": {
+          "event_store": "Event store append-only con estado reproducible",
+          "exports": "Exports CSV / JSON con re-runs idempotentes",
+          "webhooks": "Entrega de webhook con HMAC y retry exponencial"
+        },
+        "image_alt": "Reporte de conciliación"
+      },
+      "support": {
+        "eyebrow": "Soporte",
+        "title": "Ingenieros de guardia, no un formulario de contacto.",
+        "body": "Soporte liderado por los fundadores durante el onboarding. Los incidentes de producción se atienden en un canal de Slack con los ingenieros que escribieron el código, no en una cola tier-1.",
+        "image_alt": "Equipo de soporte al cliente"
+      }
+    },
+    "testimonial": {
+      "quote": "Reemplazamos tres servicios legados por IrisGate en seis semanas. Solo con la autorización idempotente y el SDK contract-first ya pagamos la migración.",
+      "author_name": "Camila Reis",
+      "author_role": "Head of Payments · Lumen Marketplace",
+      "image_alt": "Cliente usando IrisGate",
+      "stats": {
+        "uptime": {
+          "value": "99,99%",
+          "label": "Uptime de auth"
+        },
+        "latency": {
+          "value": "74ms",
+          "label": "Latencia p95"
+        },
+        "drift": {
+          "value": "0",
+          "label": "Incidentes de drift"
+        }
+      }
+    },
+    "cta": {
+      "title": "Lanza una integración de pagos este sprint, no el próximo trimestre.",
+      "body": "IrisGate viene con SDKs first-party, adquirentes sandbox y un pipeline antifraude que auditas de punta a punta. Obtén una key en minutos.",
+      "primary": "Crea tu merchant",
+      "secondary": "Lee la guía de integración",
+      "image_alt": "Empieza con IrisGate"
+    }
+  },
+  "login": {
+    "brand_panel": {
+      "console_badge": "Consola del merchant",
+      "headline_pre": "Pagos",
+      "headline_mid": "que corren en producción,",
+      "headline_post": "no en diapositivas.",
+      "body": "Autoriza, captura y concilia payment intents idempotentes con un SDK contract-first y antifraude en tiempo real.",
+      "bullets": {
+        "latency": "p95 < 80ms en autorización",
+        "compliance": "Alineado a PCI-DSS · API keys con scope",
+        "idempotency": "Idempotency-Key en toda mutación"
+      },
+      "copyright": "© {year} IrisGate · Construido para el milestone Phase 5."
+    },
+    "form": {
+      "eyebrow": "Acceso restringido",
+      "title": "Iniciar sesión en la consola",
+      "description": "Usa la API key emitida en <code>/v1/api-keys</code>. Tu key queda en una cookie cifrada — nunca vuelve al navegador.",
+      "api_key_label": "API key",
+      "api_key_placeholder": "irk_xxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "hint": "El prefijo <code>irk_</code> identifica keys del entorno sandbox; <code>irl_</code> son live.",
+      "submit": "Iniciar sesión en la consola",
+      "submit_pending": "Validando…",
+      "footer_no_key": "¿Aún no tienes API key?",
+      "footer_back_link": "Volver al inicio",
+      "footer_back_suffix": "para solicitar acceso al private beta."
+    },
+    "errors": {
+      "missing": "Ingresa tu API key.",
+      "prefix": "La API key debe comenzar con 'irk_'.",
+      "invalid": "API key inválida o revocada.",
+      "unknown": "No fue posible validar la API key."
+    }
+  },
+  "dashboard": {
+    "sidebar": {
+      "nav": {
+        "overview": "Panel general",
+        "payment_intents": "Payment intents",
+        "new_intent": "Nuevo intent"
+      },
+      "sign_out": "Cerrar sesión"
+    },
+    "overview": {
+      "welcome": "Bienvenido, <strong>{merchantName}</strong>",
+      "title": "Panel general",
+      "new_cta": "Nuevo intent",
+      "cards": {
+        "recent_intents": "Intents recientes",
+        "recent_intents_hint": "últimos {count}",
+        "volume": "Volumen autorizado/capturado",
+        "volume_hint": "{captured, plural, one {# capturado} other {# capturados}}",
+        "flagged": "Eventos sospechosos",
+        "flagged_hint": "failed + canceled"
+      },
+      "recent": {
+        "title": "Últimos intents",
+        "description": "Actualizado en tiempo real al recargar.",
+        "view_all": "Ver todos"
+      },
+      "empty": {
+        "title": "Aún no hay payment intents. Crea el primero para ver los datos aquí.",
+        "cta": "Crear payment intent"
+      }
+    },
+    "payment_intents": {
+      "title": "Payment intents",
+      "eyebrow": "Historial de transacciones",
+      "description": "Listado de los últimos {count, plural, one {# intent} other {# intents}} del merchant.",
+      "new_cta": "Nuevo intent",
+      "card_title": "Historial",
+      "card_description": "Más recientes primero · haz clic en una fila para ver detalles.",
+      "empty": "Aún no hay intents.",
+      "columns": {
+        "id": "ID",
+        "amount": "Monto",
+        "status": "Estado",
+        "created": "Creado",
+        "actions": "Acciones"
+      },
+      "statuses": {
+        "pending": "pendiente",
+        "authorized": "autorizado",
+        "captured": "capturado",
+        "refunded": "reembolsado",
+        "canceled": "cancelado",
+        "failed": "fallido"
+      },
+      "actions": {
+        "details": "Detalles",
+        "authorize": "Autorizar",
+        "authorize_pending": "Autorizando…",
+        "capture": "Capturar",
+        "capture_pending": "Capturando…",
+        "copy_id": "Copiar ID"
+      }
+    },
+    "payment_intents_detail": {
+      "metadata_title": "Payment intent",
+      "back": "Volver al listado",
+      "eyebrow": "Payment intent",
+      "summary": {
+        "title": "Resumen",
+        "description": "Estado actual y timestamps de las transiciones.",
+        "fields": {
+          "amount": "Monto",
+          "currency": "Moneda",
+          "created_at": "Creado el",
+          "authorized_at": "Autorizado el",
+          "captured_at": "Capturado el",
+          "card_token": "Card token",
+          "description": "Descripción"
+        }
+      },
+      "transitions": {
+        "title": "Transiciones",
+        "description": "authorize → capture. Idempotente: hacer clic dos veces en la misma acción no duplica la transacción.",
+        "no_more": "El estado actual no permite más transiciones."
+      },
+      "errors": {
+        "missing_id": "id ausente.",
+        "unknown": "No se pudo ejecutar la acción."
+      }
+    },
+    "payment_intents_new": {
+      "metadata_title": "Nuevo payment intent",
+      "back": "Volver al historial",
+      "eyebrow": "Nueva transacción",
+      "title": "Nuevo payment intent",
+      "subtitle": "La idempotency key se genera automáticamente — enviar dos veces no duplica el intent.",
+      "card_title": "Detalles",
+      "card_description": "Todos los campos son obligatorios excepto descripción.",
+      "fields": {
+        "amount": {
+          "label": "Monto",
+          "placeholder": "129.90",
+          "hint": "En la unidad mayor. Se convierte a centavos antes de enviar."
+        },
+        "currency": {
+          "label": "Moneda"
+        },
+        "card_token": {
+          "label": "Card token",
+          "placeholder": "tok_test_xxxxxxxxxxxxxxxx",
+          "hint": "Token devuelto por la tokenización del adquirente. El PAN nunca se envía desde la consola."
+        },
+        "description": {
+          "label": "Descripción (opcional)"
+        }
+      },
+      "submit": "Crear payment intent",
+      "submit_pending": "Creando…",
+      "errors": {
+        "amount_invalid": "Monto inválido.",
+        "currency_invalid": "La moneda debe seguir ISO-4217 (ej.: 'BRL').",
+        "card_token_short": "card_token debe tener al menos 8 caracteres.",
+        "unknown": "No se pudo crear el payment intent."
+      }
+    }
+  },
+  "errors": {
+    "unauthenticated": "Sesión expirada. Inicia sesión de nuevo.",
+    "unknown": "Algo salió mal. Inténtalo de nuevo."
+  },
+  "locale_switcher": {
+    "label": "Idioma",
+    "current": "Idioma actual: {locale}"
+  }
+}

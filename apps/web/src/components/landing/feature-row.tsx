@@ -1,11 +1,13 @@
 import Image from 'next/image';
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface FeatureRowProps {
   id?: string;
   eyebrow: string;
   title: string;
-  body: string;
+  /** Accepts rich nodes so callers can use `t.rich(...)` for inline markup. */
+  body: ReactNode;
   bullets?: string[];
   image: string;
   imageAlt: string;
@@ -34,16 +36,18 @@ export function FeatureRow({
           <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
             {eyebrow}
           </p>
-          <h2 className="text-balance text-3xl font-semibold tracking-tight md:text-4xl">
+          <h2 className="text-balance font-serif text-3xl font-normal tracking-tight text-foreground md:text-4xl">
             {title}
           </h2>
           <p className="text-pretty text-base text-muted-foreground md:text-lg">{body}</p>
           {bullets && bullets.length > 0 && (
-            <ul className="mt-2 flex flex-col gap-2 text-sm">
+            <ul className="mt-2 flex flex-col gap-3 text-sm">
               {bullets.map((b) => (
-                <li key={b} className="flex items-start gap-2">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                  <span>{b}</span>
+                <li key={b} className="flex items-start gap-3">
+                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-secondary/15 ring-1 ring-secondary/30">
+                    <span className="size-1.5 rounded-full bg-secondary" />
+                  </span>
+                  <span className="text-foreground/90">{b}</span>
                 </li>
               ))}
             </ul>

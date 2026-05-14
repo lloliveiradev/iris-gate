@@ -1,7 +1,10 @@
 import Image from 'next/image';
+import { getTranslations } from 'next-intl/server';
 import { Card, CardContent } from '@/components/ui/card';
 
-export function Testimonial() {
+export async function Testimonial() {
+  const t = await getTranslations('landing.testimonial');
+
   return (
     <section id="testimonials" className="container mx-auto px-6 py-20 md:py-24">
       <Card className="overflow-hidden border-none bg-gradient-to-br from-primary/5 via-accent/40 to-background shadow-xl">
@@ -9,7 +12,7 @@ export function Testimonial() {
           <div className="overflow-hidden rounded-xl">
             <Image
               src="/testimonial.png"
-              alt="Customer using IrisGate"
+              alt={t('image_alt')}
               width={800}
               height={800}
               className="h-full w-full object-cover"
@@ -18,19 +21,16 @@ export function Testimonial() {
           </div>
           <figure className="flex flex-col justify-center gap-6">
             <blockquote className="text-balance text-2xl font-medium leading-relaxed md:text-3xl">
-              “We replaced three legacy services with IrisGate in six weeks. Idempotent
-              authorization and the contract-first SDK alone paid for the migration.”
+              “{t('quote')}”
             </blockquote>
             <figcaption>
-              <div className="font-semibold">Camila Reis</div>
-              <div className="text-sm text-muted-foreground">
-                Head of Payments · Lumen Marketplace
-              </div>
+              <div className="font-semibold">{t('author_name')}</div>
+              <div className="text-sm text-muted-foreground">{t('author_role')}</div>
             </figcaption>
             <dl className="grid grid-cols-3 gap-6 border-t pt-6">
-              <Stat value="99.99%" label="Auth uptime" />
-              <Stat value="74ms" label="p95 latency" />
-              <Stat value="0" label="Drift incidents" />
+              <Stat value={t('stats.uptime.value')} label={t('stats.uptime.label')} />
+              <Stat value={t('stats.latency.value')} label={t('stats.latency.label')} />
+              <Stat value={t('stats.drift.value')} label={t('stats.drift.label')} />
             </dl>
           </figure>
         </CardContent>

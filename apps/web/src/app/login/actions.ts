@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { IrisApiError, IrisClient } from '@iris-gate/sdk-web';
 import { env } from '@/lib/env';
 import { getSession } from '@/lib/session';
@@ -14,12 +15,13 @@ export async function loginAction(
   _prev: LoginFormState | undefined,
   formData: FormData,
 ): Promise<LoginFormState> {
+  const t = await getTranslations('login.errors');
   const apiKey = String(formData.get('apiKey') ?? '').trim();
   if (!apiKey) {
-    return { ok: false, error: 'Informe sua API key.' };
+    return { ok: false, error: t('missing') };
   }
   if (!apiKey.startsWith('irk_')) {
-    return { ok: false, error: "API key deve começar com 'irk_'." };
+    return { ok: false, error: t('prefix') };
   }
 
   const client = new IrisClient({ baseUrl: env.apiBaseUrl, apiKey });
@@ -36,11 +38,11 @@ export async function loginAction(
   } catch (err) {
     if (err instanceof IrisApiError) {
       if (err.status === 401 || err.status === 403) {
-        return { ok: false, error: 'API key inválida ou revogada.' };
+        return { ok: false, error: t('invalid') };
       }
       return { ok: false, error: err.message };
     }
-    return { ok: false, error: 'Não foi possível validar a API key.' };
+    return { ok: false, error: t('unknown') };
   }
 
   redirect('/dashboard');

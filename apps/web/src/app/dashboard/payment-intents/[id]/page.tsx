@@ -1,13 +1,18 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { IrisApiError } from '@iris-gate/sdk-web';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { authenticatedClient } from '@/lib/api-client';
-import { formatDateTime, formatMoney, statusVariant } from '@/lib/format';
+import {
+  formatDateTimeServer,
+  formatMoneyServer,
+  statusVariant,
+} from '@/lib/format';
 import { IntentActions } from './intent-actions';
 
 interface PageProps {
@@ -17,6 +22,9 @@ interface PageProps {
 export default async function PaymentIntentDetailPage({ params }: PageProps) {
   const { id } = await params;
   const client = await authenticatedClient();
+  const locale = await getLocale();
+  const t = await getTranslations('dashboard.payment_intents_detail');
+  const tStatus = await getTranslations('dashboard.payment_intents.statuses');
 
   let intent;
   try {
@@ -26,39 +34,69 @@ export default async function PaymentIntentDetailPage({ params }: PageProps) {
     throw err;
   }
 
+  const statusLabel = translateStatus(tStatus, intent.status);
+
   return (
     <div className="container max-w-3xl space-y-6 px-6 py-8">
       <Button asChild variant="ghost" size="sm" className="w-fit">
         <Link href="/dashboard/payment-intents">
           <ChevronLeft className="size-4" />
-          Voltar para a listagem
+          {t('back')}
         </Link>
       </Button>
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Payment intent</p>
-          <h1 className="font-mono text-xl font-semibold">{intent.id}</h1>
+      <header className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium uppercase tracking-wider text-secondary">
+              {t('eyebrow')}
+            </p>
+            <p className="break-all font-mono text-sm text-muted-foreground">{intent.id}</p>
+          </div>
+          <Badge variant={statusVariant(intent.status)} dot className="text-sm">
+            {statusLabel}
+          </Badge>
         </div>
-        <Badge variant={statusVariant(intent.status)} className="text-sm">
-          {intent.status}
-        </Badge>
+        <h1 className="font-mono text-5xl font-semibold tabular-nums tracking-tight text-foreground">
+          {formatMoneyServer(locale, intent.amount.amount_cents, intent.amount.currency)}
+        </h1>
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle>Resumo</CardTitle>
-          <CardDescription>Estado atual e timestamps das transições.</CardDescription>
+          <CardTitle>{t('summary.title')}</CardTitle>
+          <CardDescription>{t('summary.description')}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Valor" value={formatMoney(intent.amount.amount_cents, intent.amount.currency)} />
-          <Field label="Moeda" value={intent.amount.currency} />
-          <Field label="Criado em" value={formatDateTime(intent.created_at)} />
-          <Field label="Autorizado em" value={formatDateTime(intent.authorized_at)} />
-          <Field label="Capturado em" value={formatDateTime(intent.captured_at)} />
-          <Field label="Card token" value={intent.card_token ?? '—'} mono />
+          <Field
+            label={t('summary.fields.amount')}
+            value={formatMoneyServer(locale, intent.amount.amount_cents, intent.amount.currency)}
+            mono
+          />
+          <Field label={t('summary.fields.currency')} value={intent.amount.currency} mono />
+          <Field
+            label={t('summary.fields.created_at')}
+            value={formatDateTimeServer(locale, intent.created_at)}
+          />
+          <Field
+            label={t('summary.fields.authorized_at')}
+            value={formatDateTimeServer(locale, intent.authorized_at)}
+          />
+          <Field
+            label={t('summary.fields.captured_at')}
+            value={formatDateTimeServer(locale, intent.captured_at)}
+          />
+          <Field
+            label={t('summary.fields.card_token')}
+            value={intent.card_token ?? '—'}
+            mono
+          />
           {intent.description && (
-            <Field label="Descrição" value={intent.description} className="sm:col-span-2" />
+            <Field
+              label={t('summary.fields.description')}
+              value={intent.description}
+              className="sm:col-span-2"
+            />
           )}
         </CardContent>
       </Card>
@@ -67,10 +105,8 @@ export default async function PaymentIntentDetailPage({ params }: PageProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Transições</CardTitle>
-          <CardDescription>
-            authorize → capture. Idempotente: clicar duas vezes na mesma ação não duplica a transação.
-          </CardDescription>
+          <CardTitle>{t('transitions.title')}</CardTitle>
+          <CardDescription>{t('transitions.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <IntentActions id={intent.id} status={intent.status} />
@@ -78,6 +114,25 @@ export default async function PaymentIntentDetailPage({ params }: PageProps) {
       </Card>
     </div>
   );
+}
+
+const KNOWN_STATUSES = [
+  'pending',
+  'authorized',
+  'captured',
+  'refunded',
+  'canceled',
+  'failed',
+] as const;
+type KnownStatus = (typeof KNOWN_STATUSES)[number];
+
+function translateStatus(
+  t: (key: KnownStatus) => string,
+  status: string,
+): string {
+  return (KNOWN_STATUSES as readonly string[]).includes(status)
+    ? t(status as KnownStatus)
+    : status;
 }
 
 function Field({
@@ -93,8 +148,18 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <dt className="text-xs uppercase tracking-wider text-muted-foreground">{label}</dt>
-      <dd className={mono ? 'mt-1 break-all font-mono text-sm' : 'mt-1 text-sm'}>{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </dt>
+      <dd
+        className={
+          mono
+            ? 'mt-1 break-all font-mono text-sm tabular-nums text-foreground'
+            : 'mt-1 text-sm text-foreground'
+        }
+      >
+        {value}
+      </dd>
     </div>
   );
 }
