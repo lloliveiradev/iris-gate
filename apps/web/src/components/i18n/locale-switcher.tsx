@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Languages } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,33 +11,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { localeLabels, locales, LOCALE_COOKIE, type Locale } from '@/i18n/config';
+import { usePathname, useRouter } from '@/i18n/routing';
+import { localeLabels, locales, type Locale } from '@/i18n/config';
 
 /**
- * Side-effect-only helper. Lives outside the component so React Compiler's
- * immutability lint doesn't flag the `document.cookie` write as state-mutation
- * inside a render.
- */
-function writeLocaleCookie(next: Locale) {
-  document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
-}
-
-/**
- * Cookie-based locale switcher (V1 — URL stays put).
- * On select, writes the NEXT_LOCALE cookie and triggers a server refresh so
- * server components re-render with the new locale's messages.
+ * URL-segment locale switcher. On select, replaces the locale segment in the
+ * current pathname and pushes the new URL. next-intl persists the choice via
+ * the NEXT_LOCALE cookie during middleware processing.
  */
 export function LocaleSwitcher() {
   const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams();
   const active = useLocale() as Locale;
   const t = useTranslations('locale_switcher');
   const [pending, startTransition] = useTransition();
 
   function setLocale(next: Locale) {
     if (next === active) return;
-    writeLocaleCookie(next);
     startTransition(() => {
-      router.refresh();
+      // params are forwarded so dynamic segments like /payment-intents/[id] survive the swap.
+      router.replace(
+        // @ts-expect-error -- generic Pathname narrowing on dynamic params
+        { pathname, params },
+        { locale: next },
+      );
     });
   }
 

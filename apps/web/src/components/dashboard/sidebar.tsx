@@ -1,12 +1,12 @@
 import Image from 'next/image';
-import Link from 'next/link';
 import type { Route } from 'next';
 import { LayoutDashboard, ListChecks, PlusCircle } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { LocaleSwitcher } from '@/components/i18n/locale-switcher';
-import { logoutAction } from '@/app/login/actions';
+import { logoutAction } from '@/app/[locale]/login/actions';
 
 interface SidebarProps {
   merchantName: string;

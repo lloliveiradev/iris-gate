@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { IrisApiError } from '@iris-gate/sdk-web';
 import { authenticatedClient } from '@/lib/api-client';
 
@@ -54,5 +54,6 @@ export async function createPaymentIntentAction(
     return { ok: false, error: t('unknown') };
   }
 
-  redirect(`/dashboard/payment-intents/${intentId}`);
+  const locale = await getLocale();
+  redirect(`/${locale}/dashboard/payment-intents/${intentId}`);
 }

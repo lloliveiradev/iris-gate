@@ -3,21 +3,25 @@
 import { Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { DEFAULT_THEME, THEME_COOKIE, type Theme } from '@/lib/theme';
 
-type Theme = 'dark' | 'light';
-
-const STORAGE_KEY = 'iris-theme';
+function writeThemeCookie(next: Theme) {
+  document.cookie = `${THEME_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+}
 
 export function ThemeToggle() {
   // `null` while we wait for hydration — avoids server/client mismatch.
-  // The actual <html> class is already correct (ThemeScript ran pre-paint),
+  // The actual <html> class is correct (server SSR + ThemeScript pre-paint),
   // we just need to read it once on the client.
   const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
-    const current = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    // Hydration sync from DOM (already set by pre-paint ThemeScript). Reading
-    // document during render would cause SSR mismatch, so we read here.
+    const current: Theme = document.documentElement.classList.contains('light')
+      ? 'light'
+      : 'dark';
+    // Hydration sync from DOM (already set by the cookie-driven SSR class or
+    // the pre-paint ThemeScript). Reading document during render would cause
+    // SSR mismatch, so we read here.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(current);
   }, []);
@@ -27,10 +31,11 @@ export function ThemeToggle() {
     const root = document.documentElement;
     root.classList.remove('dark', 'light');
     root.classList.add(next);
+    writeThemeCookie(next);
     try {
-      localStorage.setItem(STORAGE_KEY, next);
+      localStorage.setItem(THEME_COOKIE, next);
     } catch {
-      /* localStorage blocked — toggle remains in-memory until reload */
+      /* localStorage blocked — cookie alone is enough */
     }
     setTheme(next);
   }
@@ -63,3 +68,7 @@ export function ThemeToggle() {
     </Button>
   );
 }
+
+// Keep DEFAULT_THEME referenced so the import stays even if the toggle is
+// extended later — also helps codemods detect intent.
+export { DEFAULT_THEME };

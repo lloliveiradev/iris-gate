@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import type { Column } from '@tanstack/react-table';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,8 @@ export function DataTableColumnHeader<TData, TValue>({
   align = 'left',
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
+  const t = useTranslations('data_table.columns');
+
   if (!column.getCanSort()) {
     return (
       <div
@@ -37,7 +40,6 @@ export function DataTableColumnHeader<TData, TValue>({
     <button
       type="button"
       onClick={() => {
-        // toggle asc -> desc -> clear
         if (sorted === false) column.toggleSorting(false);
         else if (sorted === 'asc') column.toggleSorting(true);
         else column.clearSorting();
@@ -48,7 +50,7 @@ export function DataTableColumnHeader<TData, TValue>({
         align === 'center' && 'mx-auto',
         className,
       )}
-      aria-label={`Ordenar por ${title}`}
+      aria-label={t('sort_by', { title })}
     >
       <span>{title}</span>
       {sorted === 'asc' ? (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
   Check,
   CircleDollarSign,
@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { DataTableRowActions } from '@/components/data-table/row-actions';
+import { Link } from '@/i18n/routing';
 import {
   useAuthorizePaymentIntent,
   useCapturePaymentIntent,
@@ -26,6 +27,8 @@ interface PaymentIntentRowActionsProps {
 }
 
 export function PaymentIntentRowActions({ intent }: PaymentIntentRowActionsProps) {
+  const t = useTranslations('dashboard.payment_intents');
+  const tActions = useTranslations('dashboard.payment_intents.actions');
   const authorize = useAuthorizePaymentIntent();
   const capture = useCapturePaymentIntent();
   const [copied, setCopied] = useState(false);
@@ -54,11 +57,11 @@ export function PaymentIntentRowActions({ intent }: PaymentIntentRowActionsProps
   };
 
   return (
-    <DataTableRowActions label="Ações da intent">
+    <DataTableRowActions label={t('row_actions_label')}>
       <DropdownMenuItem asChild>
         <Link href={`/dashboard/payment-intents/${intent.id}`} className="gap-2">
           <Eye className="size-4" aria-hidden />
-          Ver detalhes
+          {tActions('view_details')}
         </Link>
       </DropdownMenuItem>
       <DropdownMenuSeparator />
@@ -76,7 +79,7 @@ export function PaymentIntentRowActions({ intent }: PaymentIntentRowActionsProps
         ) : (
           <ShieldCheck className="size-4" aria-hidden />
         )}
-        Autorizar
+        {authorizing ? tActions('authorize_pending') : tActions('authorize')}
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={!canCapture || capturing}
@@ -92,7 +95,7 @@ export function PaymentIntentRowActions({ intent }: PaymentIntentRowActionsProps
         ) : (
           <CircleDollarSign className="size-4" aria-hidden />
         )}
-        Capturar
+        {capturing ? tActions('capture_pending') : tActions('capture')}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem
@@ -107,7 +110,7 @@ export function PaymentIntentRowActions({ intent }: PaymentIntentRowActionsProps
         ) : (
           <Copy className="size-4" aria-hidden />
         )}
-        {copied ? 'Copiado' : 'Copiar ID'}
+        {copied ? tActions('copied') : tActions('copy_id')}
       </DropdownMenuItem>
     </DataTableRowActions>
   );

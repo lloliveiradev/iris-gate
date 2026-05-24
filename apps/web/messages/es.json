@@ -73,7 +73,7 @@
       "title_pre": "Pagos",
       "title_mid": "que corren en producción,",
       "title_post": "no en diapositivas.",
-      "body": "IrisGate entrega payment intents idempotentes, antifraude en tiempo real y un SDK <code>contract-first</code> para que el gateway no se desvíe nunca de tu backend.",
+      "body": "IrisGate entrega intenciones de pago idempotentes, antifraude en tiempo real y un SDK <code>contract-first</code> para que el gateway no se desvíe nunca de tu backend.",
       "cta_primary": "Empezar a integrar",
       "cta_secondary": "Ver cómo encaja",
       "trust": {
@@ -109,7 +109,7 @@
       "reporting": {
         "eyebrow": "Reportes",
         "title": "Auditoría y conciliación en las que tu equipo de finanzas confía.",
-        "body": "Cada payment intent, autorización, captura y reembolso se persiste con historial de eventos completo. Exporta saldos conciliados o haz stream a tu libro mayor.",
+        "body": "Cada intención de pago, autorización, captura y reembolso se persiste con historial de eventos completo. Exporta saldos conciliados o haz stream a tu libro mayor.",
         "bullets": {
           "event_store": "Event store append-only con estado reproducible",
           "exports": "Exports CSV / JSON con re-runs idempotentes",
@@ -158,7 +158,7 @@
       "headline_pre": "Pagos",
       "headline_mid": "que corren en producción,",
       "headline_post": "no en diapositivas.",
-      "body": "Autoriza, captura y concilia payment intents idempotentes con un SDK contract-first y antifraude en tiempo real.",
+      "body": "Autoriza, captura y concilia intenciones de pago idempotentes con un SDK contract-first y antifraude en tiempo real.",
       "bullets": {
         "latency": "p95 < 80ms en autorización",
         "compliance": "Alineado a PCI-DSS · API keys con scope",
@@ -190,17 +190,17 @@
     "sidebar": {
       "nav": {
         "overview": "Panel general",
-        "payment_intents": "Payment intents",
-        "new_intent": "Nuevo intent"
+        "payment_intents": "Intenciones de pago",
+        "new_intent": "Nueva intención"
       },
       "sign_out": "Cerrar sesión"
     },
     "overview": {
       "welcome": "Bienvenido, <strong>{merchantName}</strong>",
       "title": "Panel general",
-      "new_cta": "Nuevo intent",
+      "new_cta": "Nueva intención",
       "cards": {
-        "recent_intents": "Intents recientes",
+        "recent_intents": "Intenciones recientes",
         "recent_intents_hint": "últimos {count}",
         "volume": "Volumen autorizado/capturado",
         "volume_hint": "{captured, plural, one {# capturado} other {# capturados}}",
@@ -208,23 +208,25 @@
         "flagged_hint": "failed + canceled"
       },
       "recent": {
-        "title": "Últimos intents",
+        "title": "Últimas intenciones",
         "description": "Actualizado en tiempo real al recargar.",
         "view_all": "Ver todos"
       },
       "empty": {
-        "title": "Aún no hay payment intents. Crea el primero para ver los datos aquí.",
-        "cta": "Crear payment intent"
+        "title": "Aún no hay intenciones de pago. Crea la primera para ver los datos aquí.",
+        "cta": "Crear intención de pago"
       }
     },
     "payment_intents": {
-      "title": "Payment intents",
+      "title": "Intenciones de pago",
       "eyebrow": "Historial de transacciones",
-      "description": "Listado de los últimos {count, plural, one {# intent} other {# intents}} del merchant.",
-      "new_cta": "Nuevo intent",
+      "description": "Mostrando los últimos <n>{count}</n> {count, plural, one {intención} other {intenciones}} del merchant.",
+      "new_cta": "Nueva intención",
+      "search_placeholder": "Buscar por ID…",
+      "row_actions_label": "Acciones de la intención",
       "card_title": "Historial",
-      "card_description": "Más recientes primero · haz clic en una fila para ver detalles.",
-      "empty": "Aún no hay intents.",
+      "card_description": "Más recientes primero · usa el menú de acciones en cada fila.",
+      "empty": "Aún no hay intenciones.",
       "columns": {
         "id": "ID",
         "amount": "Monto",
@@ -242,17 +244,19 @@
       },
       "actions": {
         "details": "Detalles",
+        "view_details": "Ver detalles",
         "authorize": "Autorizar",
         "authorize_pending": "Autorizando…",
         "capture": "Capturar",
         "capture_pending": "Capturando…",
-        "copy_id": "Copiar ID"
+        "copy_id": "Copiar ID",
+        "copied": "Copiado"
       }
     },
     "payment_intents_detail": {
-      "metadata_title": "Payment intent",
+      "metadata_title": "Intención de pago",
       "back": "Volver al listado",
-      "eyebrow": "Payment intent",
+      "eyebrow": "Intención de pago",
       "summary": {
         "title": "Resumen",
         "description": "Estado actual y timestamps de las transiciones.",
@@ -277,11 +281,11 @@
       }
     },
     "payment_intents_new": {
-      "metadata_title": "Nuevo payment intent",
+      "metadata_title": "Nueva intención de pago",
       "back": "Volver al historial",
       "eyebrow": "Nueva transacción",
-      "title": "Nuevo payment intent",
-      "subtitle": "La idempotency key se genera automáticamente — enviar dos veces no duplica el intent.",
+      "title": "Nueva intención de pago",
+      "subtitle": "La idempotency key se genera automáticamente — enviar dos veces no duplica la intención.",
       "card_title": "Detalles",
       "card_description": "Todos los campos son obligatorios excepto descripción.",
       "fields": {
@@ -302,22 +306,71 @@
           "label": "Descripción (opcional)"
         }
       },
-      "submit": "Crear payment intent",
+      "submit": "Crear intención de pago",
       "submit_pending": "Creando…",
       "errors": {
         "amount_invalid": "Monto inválido.",
         "currency_invalid": "La moneda debe seguir ISO-4217 (ej.: 'BRL').",
         "card_token_short": "card_token debe tener al menos 8 caracteres.",
-        "unknown": "No se pudo crear el payment intent."
+        "unknown": "No se pudo crear la intención de pago."
       }
     }
   },
   "errors": {
     "unauthenticated": "Sesión expirada. Inicia sesión de nuevo.",
-    "unknown": "Algo salió mal. Inténtalo de nuevo."
+    "unknown": "Algo salió mal. Inténtalo de nuevo.",
+    "api": {
+      "payment_intent_not_found": "Intención de pago no encontrada.",
+      "idempotency_key_conflict": "Idempotency key ya usada con un payload diferente.",
+      "validation_failed": "Falló la validación de la solicitud.",
+      "server_error": "Ocurrió un error interno. Inténtalo de nuevo.",
+      "rate_limited": "Demasiadas solicitudes. Inténtalo de nuevo en instantes."
+    }
   },
   "locale_switcher": {
     "label": "Idioma",
     "current": "Idioma actual: {locale}"
+  },
+  "metadata": {
+    "root": {
+      "title_default": "IrisGate — Infraestructura de pagos pensada para Brasil",
+      "title_template": "%s · IrisGate",
+      "description": "Pasarela de pagos con antifraude de primera clase, APIs idempotentes y una arquitectura contract-first."
+    }
+  },
+  "data_table": {
+    "search_placeholder": "Buscar…",
+    "search_label": "Buscar",
+    "clear_filters": "Limpiar",
+    "clear_filters_full": "Limpiar filtros",
+    "no_options": "Sin opciones",
+    "many_selected": "{count} seleccionados",
+    "results_summary": "{count, plural, one {# resultado} other {# resultados}}",
+    "selection": "<n>{selected}</n> de <n>{total}</n> seleccionado(s)",
+    "pagination": {
+      "rows_per_page": "Por página",
+      "page_of": "Página <n>{page}</n> de <n>{total}</n>",
+      "first_page": "Primera página",
+      "previous_page": "Página anterior",
+      "next_page": "Página siguiente",
+      "last_page": "Última página"
+    },
+    "columns": {
+      "toggle_button": "Columnas",
+      "toggle_menu_label": "Mostrar columnas",
+      "sort_by": "Ordenar por {title}"
+    },
+    "row_actions_label": "Acciones",
+    "refreshing": "Actualizando",
+    "empty": {
+      "no_data": {
+        "title": "Aún no hay registros.",
+        "description": "Cuando lleguen los datos, aparecerán aquí."
+      },
+      "no_results": {
+        "title": "Sin resultados para tu búsqueda.",
+        "description": "Intenta ajustar los filtros o limpiar la búsqueda."
+      }
+    }
   }
 }

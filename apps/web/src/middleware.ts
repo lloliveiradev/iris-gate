@@ -1,30 +1,10 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { LOCALE_COOKIE, pickLocaleFromAcceptLanguage } from './i18n/config';
+import createMiddleware from 'next-intl/middleware';
+import { routing } from './i18n/routing';
 
-/**
- * Minimal locale-detection middleware (V1 — cookie-only, no URL routing).
- *
- * On first request, if the NEXT_LOCALE cookie is missing, parse Accept-Language,
- * pick the first supported locale (falling back to 'pt'), and set the cookie so
- * subsequent requests / the LocaleSwitcher stay in sync.
- *
- * URL-segment routing (/pt, /en, /es) is a future refactor — see docs/plans/i18n.md.
- */
-export default function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-
-  if (!req.cookies.get(LOCALE_COOKIE)) {
-    const detected = pickLocaleFromAcceptLanguage(req.headers.get('accept-language'));
-    res.cookies.set(LOCALE_COOKIE, detected, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 365,
-      sameSite: 'lax',
-    });
-  }
-
-  return res;
-}
+export default createMiddleware(routing);
 
 export const config = {
+  // Skip API routes, _next assets, _vercel internals, and any path with a dot
+  // (so static files at /icon.png, /favicon.ico, /opengraph-image.png pass through).
   matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
 };

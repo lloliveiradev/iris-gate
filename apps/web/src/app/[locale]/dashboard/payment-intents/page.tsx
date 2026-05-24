@@ -1,10 +1,18 @@
-import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { Button } from '@/components/ui/button';
+import { Link } from '@/i18n/routing';
 import { authenticatedClient } from '@/lib/api-client';
 import { PaymentIntentsTable } from './payment-intents-table';
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('dashboard.payment_intents');
+  return { title: t('title') };
+}
+
 export default async function PaymentIntentsList() {
+  const t = await getTranslations('dashboard.payment_intents');
   const client = await authenticatedClient();
   const initialData = await client.listPaymentIntents();
 
@@ -13,20 +21,23 @@ export default async function PaymentIntentsList() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
           <p className="text-sm font-medium uppercase tracking-wider text-secondary">
-            Histórico de transações
+            {t('eyebrow')}
           </p>
           <h1 className="font-serif text-3xl font-normal tracking-tight text-foreground">
-            Payment intents
+            {t('title')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Listagem das últimas{' '}
-            <span className="font-mono tabular-nums text-foreground">{initialData.length}</span>{' '}
-            intents do merchant.
+            {t.rich('description', {
+              count: initialData.length,
+              n: (chunks) => (
+                <span className="font-mono tabular-nums text-foreground">{chunks}</span>
+              ),
+            })}
           </p>
         </div>
         <Button asChild size="lg">
           <Link href="/dashboard/payment-intents/new">
-            Nova intent
+            {t('new_cta')}
             <ArrowRight className="size-4" />
           </Link>
         </Button>

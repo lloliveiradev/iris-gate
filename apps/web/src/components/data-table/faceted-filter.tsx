@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Check, CirclePlus } from 'lucide-react';
 import type { Column } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
@@ -31,12 +32,13 @@ export function DataTableFacetedFilter<TData, TValue>({
   title,
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
+  const t = useTranslations('data_table');
+
   if (!column) return null;
 
   const facets = column.getFacetedUniqueValues();
   const selected = new Set((column.getFilterValue() as string[]) ?? []);
 
-  // Build options: caller-provided, else derive from facets.
   const resolved: FacetedFilterOption[] =
     options ??
     Array.from(facets.keys())
@@ -59,7 +61,7 @@ export function DataTableFacetedFilter<TData, TValue>({
               <div className="hidden gap-1 lg:flex">
                 {selected.size > 2 ? (
                   <Badge variant="secondary" className="rounded-sm px-1 font-normal">
-                    {selected.size} selecionados
+                    {t('many_selected', { count: selected.size })}
                   </Badge>
                 ) : (
                   resolved
@@ -83,7 +85,7 @@ export function DataTableFacetedFilter<TData, TValue>({
         <DropdownMenuLabel>{title}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {resolved.length === 0 ? (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">Sem opções</div>
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">{t('no_options')}</div>
         ) : (
           resolved.map((option) => {
             const isSelected = selected.has(option.value);
@@ -130,7 +132,7 @@ export function DataTableFacetedFilter<TData, TValue>({
               }}
               className="justify-center text-xs text-muted-foreground"
             >
-              Limpar filtros
+              {t('clear_filters_full')}
             </DropdownMenuItem>
           </>
         )}

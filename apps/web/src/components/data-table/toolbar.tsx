@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Search, X } from 'lucide-react';
 import type { Table } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,7 @@ export interface ToolbarFilterConfig {
 export interface ToolbarConfig {
   /** Render a global-search input. */
   search?: boolean;
-  /** Placeholder for the search input. */
+  /** Placeholder for the search input. Defaults to the localized data_table label. */
   searchPlaceholder?: string;
   /** Faceted filter controls. */
   filters?: ToolbarFilterConfig[];
@@ -33,6 +34,8 @@ interface DataTableToolbarProps<TData> {
 }
 
 export function DataTableToolbar<TData>({ table, config }: DataTableToolbarProps<TData>) {
+  const t = useTranslations('data_table');
+
   const isFiltered =
     table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
 
@@ -53,9 +56,9 @@ export function DataTableToolbar<TData>({ table, config }: DataTableToolbarProps
           <Input
             value={(table.getState().globalFilter as string) ?? ''}
             onChange={(e) => table.setGlobalFilter(e.target.value)}
-            placeholder={config.searchPlaceholder ?? 'Buscar…'}
+            placeholder={config.searchPlaceholder ?? t('search_placeholder')}
             className="h-9 pl-9"
-            aria-label="Buscar"
+            aria-label={t('search_label')}
           />
         </div>
       )}
@@ -79,7 +82,7 @@ export function DataTableToolbar<TData>({ table, config }: DataTableToolbarProps
           }}
           className="h-9 px-2"
         >
-          Limpar
+          {t('clear_filters')}
           <X className="size-4" aria-hidden />
         </Button>
       )}

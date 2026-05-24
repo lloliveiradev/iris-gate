@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { ArrowRight, Activity, AlertTriangle, DollarSign } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/routing';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

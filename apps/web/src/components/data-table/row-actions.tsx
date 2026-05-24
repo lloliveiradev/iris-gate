@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { MoreHorizontal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -15,11 +16,9 @@ interface DataTableRowActionsProps {
   align?: 'start' | 'center' | 'end';
 }
 
-export function DataTableRowActions({
-  children,
-  label = 'Ações',
-  align = 'end',
-}: DataTableRowActionsProps) {
+export function DataTableRowActions({ children, label, align = 'end' }: DataTableRowActionsProps) {
+  const t = useTranslations('data_table');
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -27,7 +26,7 @@ export function DataTableRowActions({
           variant="ghost"
           size="icon"
           className="size-8"
-          aria-label={label}
+          aria-label={label ?? t('row_actions_label')}
         >
           <MoreHorizontal className="size-4" aria-hidden />
         </Button>

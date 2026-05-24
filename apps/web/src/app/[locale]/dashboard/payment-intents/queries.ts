@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { IrisApiError, type PaymentIntent } from '@iris-gate/sdk-web';
 import { authenticatedClient } from '@/lib/api-client';
 
@@ -36,16 +37,18 @@ async function runMutation(
   id: string,
   fn: (id: string) => Promise<void>,
 ): Promise<MutationResult> {
+  const t = await getTranslations('dashboard.payment_intents_detail.errors');
+  const locale = await getLocale();
   const trimmed = id.trim();
-  if (!trimmed) return { ok: false, error: 'id ausente.' };
+  if (!trimmed) return { ok: false, error: t('missing_id') };
   try {
     await fn(trimmed);
-    revalidatePath(`/dashboard/payment-intents/${trimmed}`);
-    revalidatePath('/dashboard/payment-intents');
-    revalidatePath('/dashboard');
+    revalidatePath(`/${locale}/dashboard/payment-intents/${trimmed}`);
+    revalidatePath(`/${locale}/dashboard/payment-intents`);
+    revalidatePath(`/${locale}/dashboard`);
     return { ok: true };
   } catch (err) {
     if (err instanceof IrisApiError) return { ok: false, error: err.message };
-    return { ok: false, error: 'Falha ao executar ação.' };
+    return { ok: false, error: t('unknown') };
   }
 }

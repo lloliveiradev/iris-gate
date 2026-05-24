@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { IrisApiError, IrisClient } from '@iris-gate/sdk-web';
 import { env } from '@/lib/env';
 import { getSession } from '@/lib/session';
@@ -45,11 +45,13 @@ export async function loginAction(
     return { ok: false, error: t('unknown') };
   }
 
-  redirect('/dashboard');
+  const locale = await getLocale();
+  redirect(`/${locale}/dashboard`);
 }
 
 export async function logoutAction(): Promise<void> {
   const session = await getSession();
   await session.destroy();
-  redirect('/login');
+  const locale = await getLocale();
+  redirect(`/${locale}/login`);
 }

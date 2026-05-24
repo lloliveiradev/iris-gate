@@ -1,5 +1,6 @@
-import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { getLocale } from 'next-intl/server';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { getSession } from '@/lib/session';
@@ -9,7 +10,8 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
   if (!session.apiKey || !session.merchant) {
-    redirect('/login');
+    const locale = await getLocale();
+    redirect(`/${locale}/login`);
   }
 
   return (

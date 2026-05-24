@@ -6,7 +6,7 @@ import {
   authorizePaymentIntentAction,
   capturePaymentIntentAction,
   listPaymentIntentsAction,
-} from '@/app/dashboard/payment-intents/queries';
+} from '@/app/[locale]/dashboard/payment-intents/queries';
 
 export const paymentIntentKeys = {
   all: ['payment-intents'] as const,

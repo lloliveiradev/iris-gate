@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/routing';
 import { IrisApiError } from '@iris-gate/sdk-web';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

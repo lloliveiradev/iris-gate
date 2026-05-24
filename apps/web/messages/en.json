@@ -220,10 +220,12 @@
     "payment_intents": {
       "title": "Payment intents",
       "eyebrow": "Transaction history",
-      "description": "Listing the last {count, plural, one {# intent} other {# intents}} for this merchant.",
+      "description": "Showing the latest <n>{count}</n> {count, plural, one {intent} other {intents}} from this merchant.",
       "new_cta": "New intent",
+      "search_placeholder": "Search by ID…",
+      "row_actions_label": "Intent actions",
       "card_title": "History",
-      "card_description": "Most recent first · click a row for details.",
+      "card_description": "Most recent first · use the actions menu on each row.",
       "empty": "No intents yet.",
       "columns": {
         "id": "ID",
@@ -242,11 +244,13 @@
       },
       "actions": {
         "details": "Details",
+        "view_details": "View details",
         "authorize": "Authorize",
         "authorize_pending": "Authorizing…",
         "capture": "Capture",
         "capture_pending": "Capturing…",
-        "copy_id": "Copy ID"
+        "copy_id": "Copy ID",
+        "copied": "Copied"
       }
     },
     "payment_intents_detail": {
@@ -314,10 +318,59 @@
   },
   "errors": {
     "unauthenticated": "Session expired. Sign in again.",
-    "unknown": "Something went wrong. Please try again."
+    "unknown": "Something went wrong. Please try again.",
+    "api": {
+      "payment_intent_not_found": "Payment intent not found.",
+      "idempotency_key_conflict": "Idempotency key already used with a different payload.",
+      "validation_failed": "Request validation failed.",
+      "server_error": "An internal error occurred. Please try again.",
+      "rate_limited": "Too many requests. Please try again shortly."
+    }
   },
   "locale_switcher": {
     "label": "Language",
     "current": "Current language: {locale}"
+  },
+  "metadata": {
+    "root": {
+      "title_default": "IrisGate — Payment infrastructure built for Brazil",
+      "title_template": "%s · IrisGate",
+      "description": "Payment gateway with first-class fraud detection, idempotent APIs, and a contract-first architecture."
+    }
+  },
+  "data_table": {
+    "search_placeholder": "Search…",
+    "search_label": "Search",
+    "clear_filters": "Clear",
+    "clear_filters_full": "Clear filters",
+    "no_options": "No options",
+    "many_selected": "{count} selected",
+    "results_summary": "{count, plural, one {# result} other {# results}}",
+    "selection": "<n>{selected}</n> of <n>{total}</n> selected",
+    "pagination": {
+      "rows_per_page": "Per page",
+      "page_of": "Page <n>{page}</n> of <n>{total}</n>",
+      "first_page": "First page",
+      "previous_page": "Previous page",
+      "next_page": "Next page",
+      "last_page": "Last page"
+    },
+    "columns": {
+      "toggle_button": "Columns",
+      "toggle_menu_label": "Show columns",
+      "sort_by": "Sort by {title}"
+    },
+    "row_actions_label": "Actions",
+    "refreshing": "Refreshing",
+    "empty": {
+      "no_data": {
+        "title": "No records yet.",
+        "description": "When data arrives, it will appear here."
+      },
+      "no_results": {
+        "title": "No results for your search.",
+        "description": "Try adjusting the filters or clearing the search."
+      }
+    }
   }
 }

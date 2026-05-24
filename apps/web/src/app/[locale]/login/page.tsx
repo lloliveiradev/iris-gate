@@ -1,10 +1,10 @@
 import Image from 'next/image';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ShieldCheck, Workflow, Zap } from 'lucide-react';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { LocaleSwitcher } from '@/components/i18n/locale-switcher';
+import { Link } from '@/i18n/routing';
 import { getSession } from '@/lib/session';
 import { LoginForm } from './login-form';
 
@@ -12,7 +12,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function LoginPage() {
   const session = await getSession();
-  if (session.apiKey) redirect('/dashboard');
+  if (session.apiKey) {
+    const locale = await getLocale();
+    redirect(`/${locale}/dashboard`);
+  }
 
   const tBrand = await getTranslations('login.brand_panel');
   const tForm = await getTranslations('login.form');
