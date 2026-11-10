@@ -12,12 +12,12 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 )
 
-// HTTPAcquirer é um adapter HTTP genérico — POSTa um payload JSON num
-// endpoint configurável e parseia a resposta. Pronto pra apontar pra Stone
-// sandbox (ou Cielo, Adyen, etc.) com ajuste fino dos campos quando
-// integração real entrar.
+// HTTPAcquirer is a generic HTTP adapter: it POSTs a JSON payload to a
+// configurable endpoint and parses the response. It can point at the Stone
+// sandbox (or Cielo, Adyen, etc.) once the fields are tuned for a real
+// integration.
 //
-// Contrato esperado pelo backend remoto:
+// Contract expected from the remote backend:
 //
 //	POST {BaseURL}/authorize
 //	Authorization: Bearer {Token}
@@ -25,7 +25,7 @@ import (
 //	{ "intent_id": "...", "amount_cents": ..., "currency": "BRL", "card_token": "..." }
 //
 //	→ 200 { "acquirer_ref": "...", "approved": true, "reason": "..." }
-//	  ou non-2xx → ErrAcquirerHTTP{Status, Body}
+//	  or non-2xx → ErrAcquirerHTTP{Status, Body}
 type HTTPAcquirer struct {
 	BaseURL string
 	Token   string
@@ -77,7 +77,7 @@ func (h *HTTPAcquirer) Authorize(ctx context.Context, in application.AuthorizeIn
 	if err != nil {
 		return application.AuthorizeOutput{}, fmt.Errorf("acquirer call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode/100 != 2 {

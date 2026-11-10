@@ -1,5 +1,5 @@
-// Package hasher implementa Hasher (port da application layer) usando Argon2id
-// no formato PHC string compatível com `passlib`/`libpwquality`/etc.
+// Package hasher implements Hasher (an application-layer port) with Argon2id,
+// encoded as a PHC string compatible with `passlib`/`libpwquality`/etc.
 package hasher
 
 import (
@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Params controla custo do Argon2id. Defaults seguem OWASP 2024 (m=64MB, t=1, p=4).
+// Params controls the Argon2id cost. Defaults follow OWASP 2024 (m=64MB, t=1, p=4).
 type Params struct {
 	Memory      uint32 // KiB
 	Iterations  uint32
@@ -34,8 +34,7 @@ func DefaultParams() Params {
 }
 
 type Argon2 struct {
-	p      Params
-	prefix string // public prefix length (chars) when emitted by SecretGen
+	p Params
 }
 
 func New(p Params) *Argon2 { return &Argon2{p: p} }
@@ -72,7 +71,7 @@ func encodePHC(p Params, salt, digest []byte) string {
 
 func decodePHC(encoded string) (Params, []byte, []byte, error) {
 	parts := strings.Split(encoded, "$")
-	// Esperado: ["", "argon2id", "v=19", "m=...,t=...,p=...", "<salt>", "<digest>"]
+	// Expected: ["", "argon2id", "v=19", "m=...,t=...,p=...", "<salt>", "<digest>"]
 	if len(parts) != 6 || parts[1] != "argon2id" {
 		return Params{}, nil, nil, errors.New("hasher: bad PHC format")
 	}
@@ -97,10 +96,10 @@ func decodePHC(encoded string) (Params, []byte, []byte, error) {
 	return p, salt, digest, nil
 }
 
-// SecretGenerator produz um par (prefix, secret) novo a cada chamada.
+// SecretGenerator produces a new (prefix, secret) pair on every call.
 //
-//	prefix = 16 chars hex (8 bytes random) — público, indexado.
-//	secret = 32 chars base64url (24 bytes random) — hashado pelo Argon2id.
+//	prefix = 16 hex chars (8 random bytes), public and indexed.
+//	secret = 32 base64url chars (24 random bytes), hashed with Argon2id.
 type SecretGenerator struct{}
 
 func (SecretGenerator) NewToken() (string, string, error) {

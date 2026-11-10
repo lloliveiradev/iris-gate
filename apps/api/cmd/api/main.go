@@ -104,7 +104,11 @@ func main() {
 	if cfg.RelayEnabled {
 		brokers := strings.Split(cfg.KafkaBroker, ",")
 		writer := kafkarelay.NewKafkaWriter(brokers)
-		defer writer.Close()
+		defer func() {
+			if err := writer.Close(); err != nil {
+				slog.Error("close kafka writer", "err", err)
+			}
+		}()
 		relay := kafkarelay.New(paymentsRepo, writer, kafkarelay.Config{})
 		go func() {
 			if err := relay.Run(rootCtx); err != nil && !errors.Is(err, context.Canceled) {

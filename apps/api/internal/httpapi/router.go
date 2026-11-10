@@ -1,7 +1,7 @@
-// Package httpapi monta o router HTTP do apps/api.
+// Package httpapi builds the HTTP router of apps/api.
 //
-// Cada bounded context registra suas próprias rotas via Mount(...) — apps/api
-// só compõe.
+// Each bounded context registers its own routes through Mount(...); apps/api
+// only composes them.
 package httpapi
 
 import (
@@ -22,8 +22,9 @@ type Mounters struct {
 
 func NewRouter(m Mounters) http.Handler {
 	r := chi.NewRouter()
+	// No client-IP middleware: nothing reads the client address, and chi's
+	// RealIP trusts spoofable forwarding headers (deprecated since chi v5.5.0).
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 

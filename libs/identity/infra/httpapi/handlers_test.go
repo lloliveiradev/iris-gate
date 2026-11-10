@@ -23,7 +23,7 @@ import (
 	"github.com/iris-gate/iris-gate/libs/identity/infra/httpapi"
 )
 
-// ---------- in-memory fakes (cópia das fixtures de application) ----------
+// ---------- in-memory fakes (copy of the application fixtures) ----------
 
 type fakeMerchantRepo struct {
 	mu    sync.Mutex
@@ -222,12 +222,12 @@ func (r *rig) get(t *testing.T, path, token string) (int, []byte) {
 	if err != nil {
 		t.Fatalf("GET %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, body
 }
 
-// ---------- Tests do critério ----------
+// ---------- Acceptance criteria tests ----------
 
 func TestAuth_ValidKey_Returns200(t *testing.T) {
 	t.Parallel()
@@ -243,11 +243,11 @@ func TestAuth_InvalidKey_Returns401(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"missing":          "",
-		"malformed":        "not-a-token",
-		"wrong scheme":     "wrong_pfx.sec",
-		"wrong secret":     "irk_pfx1.WRONG_SECRET",
-		"unknown prefix":   "irk_doesnotexist.whatever",
+		"missing":        "",
+		"malformed":      "not-a-token",
+		"wrong scheme":   "wrong_pfx.sec",
+		"wrong secret":   "irk_pfx1.WRONG_SECRET",
+		"unknown prefix": "irk_doesnotexist.whatever",
 	}
 	for name, token := range cases {
 		token := token
@@ -266,7 +266,7 @@ func TestAuth_RevokedKey_Returns403(t *testing.T) {
 	t.Parallel()
 	r, issued := newRig(t)
 
-	// Revoga via fake direto (poderia também via POST /v1/api-keys/{id}/revoke).
+	// Revoke through the fake directly (POST /v1/api-keys/{id}/revoke would also work).
 	if _, err := r.keys.Revoke(context.Background(), issued.APIKey.ID, time.Now()); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
@@ -281,13 +281,13 @@ func TestAuth_RevokedKey_Via_HTTP_Endpoint_Returns403(t *testing.T) {
 	t.Parallel()
 	r, issued := newRig(t)
 
-	// Revoga via endpoint público.
+	// Revoke through the public endpoint.
 	revokeURL := r.server.URL + "/v1/api-keys/" + issued.APIKey.ID.String() + "/revoke"
 	resp, err := http.Post(revokeURL, "application/json", bytes.NewReader([]byte(`{}`)))
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("revoke endpoint: err=%v status=%d", err, resp.StatusCode)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	code, _ := r.get(t, "/v1/me", issued.Token)
 	if code != http.StatusForbidden {
@@ -305,7 +305,7 @@ func TestProblemBody_OnInvalidKey(t *testing.T) {
 	}
 	var p map[string]any
 	if err := json.Unmarshal(body, &p); err != nil {
-		t.Fatalf("body não é JSON válido: %s", body)
+		t.Fatalf("body is not valid JSON: %s", body)
 	}
 	if p["status"].(float64) != 401 {
 		t.Errorf("problem.status = %v, want 401", p["status"])
