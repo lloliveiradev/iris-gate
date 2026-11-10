@@ -102,8 +102,21 @@ lint: ## Roda 'lint' em todos os apps que tiverem Makefile
 	@$(MAKE) _foreach TARGET=lint
 build: ## Roda 'build' em todos os apps que tiverem Makefile
 	@$(MAKE) _foreach TARGET=build
-clean: ## Roda 'clean' em todos os apps que tiverem Makefile
+clean: ## Remove node_modules, caches locais e artefatos de build
 	@$(MAKE) _foreach TARGET=clean
+	@echo "▸ workspace :: node_modules + caches"
+	rm -rf \
+		node_modules \
+		.turbo \
+		.cache \
+		.yarn/cache \
+		.yarn/unplugged \
+		.yarn/install-state.gz
+	find apps libs -type d \( \
+		-name node_modules -o -name .next -o -name dist -o \
+		-name .turbo -o -name .cache -o -name coverage \
+	\) -prune -exec rm -rf {} +
+	find apps libs -type f \( -name '*.tsbuildinfo' -o -name '.eslintcache' \) -delete
 
 # Helper interno: itera APPS e chama TARGET onde houver Makefile.
 .PHONY: _foreach

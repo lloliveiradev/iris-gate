@@ -31,5 +31,4 @@ test: ## jest
 
 .PHONY: clean
 clean: ## Remove build
-	$(YARN) run clean
-	rm -rf coverage
+	rm -rf dist coverage tsconfig.tsbuildinfo

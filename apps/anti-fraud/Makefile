@@ -52,5 +52,6 @@ prisma-deploy: ## prisma migrate deploy (CI/prod)
 	$(YARN) run prisma:migrate:deploy
 
 .PHONY: clean
-clean: ## Remove build
-	rm -rf dist coverage
+clean: ## Remove node_modules, cache e build
+	rm -rf node_modules dist coverage .turbo .cache
+	rm -f tsconfig.tsbuildinfo

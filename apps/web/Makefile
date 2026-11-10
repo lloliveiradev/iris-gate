@@ -53,5 +53,6 @@ e2e: ## playwright (precisa do app rodando ou faz spawn via webServer)
 	$(YARN) run e2e
 
 .PHONY: clean
-clean: ## Remove build artifacts
-	rm -rf .next dist coverage .turbo playwright-report test-results
+clean: ## Remove node_modules, cache e artefatos de build
+	rm -rf node_modules .next dist coverage .turbo .cache playwright-report test-results
+	rm -f tsconfig.tsbuildinfo next-env.d.ts

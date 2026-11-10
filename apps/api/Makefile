@@ -55,7 +55,7 @@ vet: ## go vet
 	$(GO) vet $(PKG)
 
 .PHONY: clean
-clean: ## Remove artefatos
+clean: ## Remove binário e cobertura
 	rm -rf $(BIN_DIR) coverage.out
 
 .PHONY: docker-build
