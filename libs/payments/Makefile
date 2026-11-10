@@ -6,14 +6,15 @@ SHELL := /usr/bin/env bash
 
 GO  ?= go
 PKG := ./...
+GOLANGCI_CONFIG := ../../configs/go/golangci.yml
 
 C_RST := \033[0m
 C_BLD := \033[1m
 C_CYN := \033[36m
 
 .PHONY: help
-help: ## Mostra esta ajuda
-	@awk 'BEGIN {FS = ":.*##"; printf "\n$(C_BLD)libs/payments$(C_RST) — alvos:\n"} \
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\n$(C_BLD)libs/payments$(C_RST) — targets:\n"} \
 		/^[a-zA-Z_0-9-]+:.*?##/ { printf "  $(C_CYN)%-12s$(C_RST) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: tidy
@@ -25,7 +26,7 @@ test: ## go test -race
 	$(GO) test -race -count=1 $(PKG)
 
 .PHONY: cover
-cover: ## go test cobertura
+cover: ## go test with coverage
 	$(GO) test -race -coverprofile=coverage.out $(PKG)
 	$(GO) tool cover -func=coverage.out | tail -1
 
@@ -34,19 +35,19 @@ vet: ## go vet
 	$(GO) vet $(PKG)
 
 .PHONY: lint
-lint: ## golangci-lint
-	@command -v golangci-lint >/dev/null || { echo "instale: https://golangci-lint.run/welcome/install/"; exit 1; }
-	golangci-lint run
+lint: ## golangci-lint with configs/go/golangci.yml
+	@command -v golangci-lint >/dev/null || { echo "install: https://golangci-lint.run/welcome/install/"; exit 1; }
+	golangci-lint run --config $(GOLANGCI_CONFIG) $(PKG)
 
 .PHONY: fmt
 fmt: ## gofumpt
-	@command -v gofumpt >/dev/null || { echo "instale: go install mvdan.cc/gofumpt@latest"; exit 1; }
+	@command -v gofumpt >/dev/null || { echo "install: go install mvdan.cc/gofumpt@latest"; exit 1; }
 	gofumpt -l -w .
 
 .PHONY: build
-build: ## Smoke check de compilação
+build: ## go build (compile smoke check)
 	$(GO) build ./...
 
 .PHONY: clean
-clean: ## Remove artefatos
+clean: ## Remove test artifacts
 	rm -f coverage.out

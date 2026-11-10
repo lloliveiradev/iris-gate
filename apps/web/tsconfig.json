@@ -1,23 +1,12 @@
 {
+  "extends": "../../configs/typescript/tsconfig.bundler.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "lib": ["dom", "dom.iterable", "esnext"],
     "jsx": "react-jsx",
-    "strict": true,
     "noEmit": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
     "allowJs": true,
     "incremental": true,
-    "isolatedModules": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": false,
     "plugins": [
       {
@@ -25,20 +14,9 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "next-env.d.ts",
-    "src/**/*",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    ".next",
-    "dist"
-  ]
+  "include": ["next-env.d.ts", "src/**/*", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+  "exclude": ["node_modules", ".next", "dist"]
 }

@@ -2,7 +2,8 @@
 #
 # Dev image — runs nest start --watch with source mounted as volume.
 # Build context must be the repo root so yarn workspaces resolve correctly.
-# Production image (multi-stage distroless-ish) lands in Phase 7.
+# The ignore rules for that context live in Dockerfile.dev.dockerignore, next to this file.
+# There is no production image yet.
 
 FROM node:20-alpine
 
@@ -29,7 +30,8 @@ COPY apps/anti-fraud/prisma apps/anti-fraud/prisma
 ENV YARN_ENABLE_GLOBAL_CACHE=false
 RUN yarn install --immutable
 
-# --- Layer 4: copy fraud lib source + build it (predev hook in anti-fraud expects dist/) ---
+# --- Layer 4: shared tool configs (tsconfig bases), then the fraud lib source + build (predev hook in anti-fraud expects dist/) ---
+COPY configs configs
 COPY libs/fraud libs/fraud
 RUN yarn workspace @iris-gate/fraud build
 

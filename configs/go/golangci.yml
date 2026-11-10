@@ -1,0 +1,56 @@
+# golangci-lint v2 configuration shared by every Go module
+# (apps/api, libs/identity, libs/payments, and the contexts the phases add).
+#
+# Run from a module directory:
+#   golangci-lint run --config ../../configs/go/golangci.yml ./...
+# The module Makefiles (`make lint`) and CI already pass this path.
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - depguard
+
+  settings:
+    depguard:
+      rules:
+        # Clean architecture: domain/ and application/ never depend on
+        # frameworks, drivers, transport or generated DTOs. Define a port in
+        # application/ and implement it in infra/.
+        inner-layers:
+          files:
+            - "**/domain/**"
+            - "**/application/**"
+          deny:
+            - pkg: net/http
+              desc: transport belongs in infra/ (httpapi adapters)
+            - pkg: database/sql
+              desc: persistence belongs in infra/ behind a repository port
+            - pkg: github.com/jackc/pgx
+              desc: persistence belongs in infra/ behind a repository port
+            - pkg: github.com/go-chi
+              desc: routing belongs in infra/httpapi
+            - pkg: github.com/segmentio/kafka-go
+              desc: messaging belongs in infra/ (outbox relay, consumers)
+            - pkg: github.com/iris-gate/iris-gate/libs/contracts
+              desc: generated DTOs are mapped to domain types in infra/
+
+        # Bounded contexts do not import each other's domain or application
+        # packages. Cross-context needs go through ports, contracts or events.
+        identity-isolation:
+          files:
+            - "**/libs/identity/domain/**"
+            - "**/libs/identity/application/**"
+          deny:
+            - pkg: github.com/iris-gate/iris-gate/libs/payments
+              desc: contexts talk through ports, contracts or events
+        payments-isolation:
+          files:
+            - "**/libs/payments/domain/**"
+            - "**/libs/payments/application/**"
+          deny:
+            - pkg: github.com/iris-gate/iris-gate/libs/identity
+              desc: contexts talk through ports, contracts or events
+
+# Formatting (gofumpt) runs in the lefthook pre-commit hook on staged files,
+# so it is not repeated here.

@@ -1,16 +1,9 @@
 {
+  "extends": "../../configs/typescript/tsconfig.bundler.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "strict": true,
     "noEmit": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "isolatedModules": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "forceConsistentCasingInFileNames": true
+    "declaration": true
   },
   "include": ["index.ts", "generated/ts/**/*.d.ts"],
   "exclude": ["node_modules", "generated/go"]

@@ -71,9 +71,9 @@ services:
     networks: [iris]
 
   # One-shot topic provisioner. Runs after kafka is healthy, creates every
-  # contract-owned topic with --if-not-exists (idempotent), then exits.
-  # Auto-create is disabled on the broker, so this is the canonical place to
-  # add new topics — add a line below when you ship a new event contract.
+  # topic in kafka/topics.txt with --if-not-exists (idempotent), then exits.
+  # Auto-create is disabled on the broker: add a line to kafka/topics.txt when
+  # you ship a new event contract.
   kafka-init:
     image: apache/kafka:latest
     container_name: iris-kafka-init
@@ -82,29 +82,11 @@ services:
       kafka:
         condition: service_healthy
     restart: "no"
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -eu
-        BROKER=kafka:9092
-        create() {
-          /opt/kafka/bin/kafka-topics.sh \
-            --bootstrap-server "$$BROKER" \
-            --create --if-not-exists \
-            --topic "$$1" \
-            --partitions "$${2:-3}" \
-            --replication-factor 1
-        }
-        # payments domain
-        create payments.payment_intent.created.v1 3
-        create payments.payment_intent.authorized.v1 3
-        create payments.payment_intent.captured.v1 3
-        # fraud domain
-        create fraud.assessment.requested.v1 3
-        create fraud.assessment.completed.v1 3
-        create fraud.assessment.failed.dlq 1
-        echo "kafka-init: all topics provisioned"
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+    volumes:
+      - ./kafka:/opt/iris/kafka:ro
+    entrypoint: ["/bin/sh", "/opt/iris/kafka/create-topics.sh"]
     networks: [iris]
 
   karapace:
@@ -177,7 +159,6 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-iris}:${POSTGRES_PASSWORD:-iris}@postgres:5432/${ANTI_FRAUD_DB:-antifraud}?schema=public
       KAFKA_BROKERS: kafka:9092
       KAFKA_CLIENT_ID: anti-fraud
-      KAFKA_GROUP_ID: anti-fraud
       KAFKAJS_NO_PARTITIONER_WARNING: "1"
       PORT: 3001
       NODE_ENV: development
@@ -187,6 +168,7 @@ services:
       - ../../apps/anti-fraud/prisma:/repo/apps/anti-fraud/prisma
       - ../../apps/anti-fraud/nest-cli.json:/repo/apps/anti-fraud/nest-cli.json
       - ../../apps/anti-fraud/tsconfig.json:/repo/apps/anti-fraud/tsconfig.json
+      - ../../configs:/repo/configs:ro
     networks: [iris]
 
 volumes:

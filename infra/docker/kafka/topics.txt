@@ -1,0 +1,13 @@
+# Kafka topics owned by the event contracts (libs/contracts/events/asyncapi.yaml).
+# Auto-create is disabled on the broker: a new event contract needs a line here.
+# Format: <topic> <partitions>. Replication factor is 1 in the local stack.
+
+# payments
+payments.payment_intent.created.v1 3
+payments.payment_intent.authorized.v1 3
+payments.payment_intent.captured.v1 3
+
+# fraud
+fraud.assessment.requested.v1 3
+fraud.assessment.completed.v1 3
+fraud.assessment.failed.dlq 1

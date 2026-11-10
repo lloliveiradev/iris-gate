@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
   NODE_VERSION: "20"
 
 jobs:
@@ -39,18 +39,25 @@ jobs:
               - 'go.work'
               - 'libs/**/*.go'
               - 'libs/contracts/generated/go/**'
+              - 'configs/go/**'
             web:
               - 'apps/web/**'
               - 'libs/contracts/generated/ts/**'
               - 'libs/contracts/index.ts'
               - 'libs/sdk-web/**'
+              - 'configs/typescript/**'
             sdk-web:
               - 'libs/sdk-web/**'
+              - 'configs/typescript/**'
             anti-fraud:
               - 'apps/anti-fraud/**'
               - 'libs/fraud/**'
               - 'libs/contracts/events/schemas/fraud/**'
+              - 'configs/typescript/**'
+              - 'configs/eslint/**'
             fraud:
+              - 'configs/typescript/**'
+              - 'configs/eslint/**'
               - 'libs/fraud/**'
             contracts:
               - 'libs/contracts/http/**'
@@ -64,7 +71,7 @@ jobs:
               - 'yarn.lock'
               - '.yarnrc.yml'
 
-  # Garante que generated/ está em sync com as specs (gate anti-drift, ADR-0003).
+  # Fails when generated/ drifts from the specs (ADR-0003).
   contracts:
     needs: changes
     if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node-root == 'true'
@@ -99,11 +106,23 @@ jobs:
       - run: make vet
       - run: make test
       - run: make build
-      - uses: golangci/golangci-lint-action@v6
+      # One shared config for every Go module (configs/go/golangci.yml).
+      # depguard there enforces the clean-architecture and context boundaries.
+      - uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: v2.13.2
           working-directory: apps/api
-          args: --timeout=5m
+          args: --timeout=5m --config=../../configs/go/golangci.yml
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.13.2
+          working-directory: libs/identity
+          args: --timeout=5m --config=../../configs/go/golangci.yml
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.13.2
+          working-directory: libs/payments
+          args: --timeout=5m --config=../../configs/go/golangci.yml
 
   sdk-web:
     needs: changes

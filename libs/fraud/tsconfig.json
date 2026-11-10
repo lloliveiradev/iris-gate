@@ -1,20 +1,11 @@
 {
+  "extends": "../../configs/typescript/tsconfig.node.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
     "lib": ["ES2022"],
     "moduleResolution": "node",
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "declaration": true,
-    "sourceMap": true,
-    "incremental": true,
     "resolveJsonModule": true,
     "rootDir": "src",
     "outDir": "dist"

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "iris-gate Node (CommonJS): NestJS apps and the libraries they run",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "sourceMap": true,
+    "incremental": true
+  }
+}

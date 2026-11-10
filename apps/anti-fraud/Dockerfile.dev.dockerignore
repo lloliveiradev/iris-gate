@@ -1,5 +1,6 @@
-# Avoid sending heavy host directories into the Docker build context.
-# Keep workspace manifests + source — the Dockerfile installs deps fresh.
+# Ignore rules for Dockerfile.dev only (BuildKit reads <Dockerfile>.dockerignore).
+# The build context is the repo root, so these paths are relative to it.
+# Avoid sending heavy host directories; keep workspace manifests and source.
 
 **/node_modules
 **/dist
@@ -25,10 +26,6 @@ apps/web/next-env.d.ts
 .git
 .idea
 .vscode
-
-# dev outputs unrelated to anti-fraud build
-graphify-out
-docs/superpowers
 
 # host env files — container gets env via compose
 **/.env
