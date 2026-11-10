@@ -63,3 +63,6 @@ apps/web/next-env.d.ts
 
 # Development
 .trello.json
+# Local agent and tool state: PM-task audit logs, repo-local tool binaries
+.logs/
+.tools/

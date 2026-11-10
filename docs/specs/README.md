@@ -43,9 +43,10 @@ Later, without a spec yet: observability, AWS deployment with Terraform, ledger,
 5. **Implement** in small commits, one concern each. Commit messages follow Conventional Commits with the context as scope (`feat(payments): ...`, `fix(identity): ...`). Never skip the lefthook hooks.
 6. **Verify.** Run every command in "Verify before you finish" of `AGENTS.md` that applies, plus each acceptance criterion of the spec. A phase is not done while any of them fails.
 7. **Document.** Update `AGENTS.md` where the phase changed a documented behavior, the README if a user-visible command or flow changed, and write an ADR (`docs/adr/NNNN-*.md`) for every decision the spec leaves to the implementer. Set the phase status to `done`.
-8. **Report.** Through Grokbot and the pm-tasks Trello skills:
-   - one card per phase in the agent board, moved as the phase advances, with the plan link and a final summary (what changed, tests added, ADRs written, known limits);
-   - a card in the owner's list for anything that needs a human: a decision the spec does not cover, a conflict between documents, a credential, a design review, a merge.
+8. **Track on Trello** as `AGENTS.md` ("Track the work on Trello") describes, from the moment the plan exists:
+   - create one Backlog card per plan task, then move each card through WIP to Done (or Review, when a human must look) in real time, with a commit-SHA comment on completion;
+   - create a Backlog card assigned to the owner for anything only a human can do: a decision the spec does not cover, a conflict between documents, a credential, a design review, the merge of the phase PR;
+   - when the phase ends, comment a final summary on its last card (what changed, tests added, ADRs written, known limits) and link the PR.
 
 ## Branches and merges
 

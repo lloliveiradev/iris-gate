@@ -15,6 +15,35 @@ Product overview, ports and the quickstart are in `README.md`. Design intent is 
 
 Planned work is spec-driven. Before implementing a phase, read `docs/specs/README.md` (workflow, branch and reporting rules) and the phase spec. Plans go in `docs/plans/<YYYY-MM-DD>-phase-<NN>-<slug>.md`. Specs, plans and design docs live directly under `docs/`, never in folders named after a tool or framework.
 
+### Track the work on Trello
+
+Every agent that implements work here (Cursor, Codex, Claude, Antigravity or any other) tracks it on the Trello board **IrisGate**, in autonomous mode, through the `pm-tasks-trello` skill (the Trello adapter) and the `pm-tasks-core` skill (the vocabulary and the autonomous-mode contract). Read both skills before the first Trello call.
+
+- **Identity.** Agents act as the Trello member **Enki** (username `enki1`, alias `me`); its token lives in the Trello MCP server configuration. The project owner is **Leonardo** (alias `owner`). Never ask for, print or commit the token.
+- **Config.** `.trello.json` at the repo root (local and gitignored; never commit it) holds the board, list, label and member ids, `defaults.escalateToAlias: owner`, and the `autonomous` block (enabled, allowlist, scope, audit-log path). Refer to lists, labels and members by alias, never by hard-coded id.
+- **Autonomous mode.** Invoke the skill with the `[autonomous]` sentinel (or `LLODEV_PM_TASKS_AUTONOMOUS=1`). Allowed verbs: `task.create`, `task.move`, `checklist.check`, `task.close`, `task.comment.add`, `task.assignee.add`. Deleting, archiving or renaming cards, replacing descriptions and removing members are forbidden.
+
+Board flow: **Backlog → WIP → Review (only when needed) → Done**.
+
+| List | A card goes there when |
+| --- | --- |
+| Backlog | it is created from the phase plan: one card per plan task, named `Phase NN · <task>`, with the task's steps as a checklist, area labels (`api`, `web`, `antifraud`, `infra`, `docs`, `core`, `messaging`, `adapter`) and links to the plan and the spec in the description |
+| WIP | work on that task starts; this is the first Trello call of the task |
+| Review | a human must look before the task counts as done: a decision the spec does not cover, a conflict between documents, a visual change, or anything the spec marks as an owner gate. Comment what to review and why, and assign `owner` |
+| Done | the task is finished, tests are green and the work is committed, with no impediment: move it, comment `🤖 [agent] Task complete. Commit: <SHA>. <branch>.`, then close it |
+
+- Mirror every transition as it happens, never in a sweep at the end. Check each checklist item as soon as that step is verified.
+- **Blocked:** comment the blocker, add the `blocker` label and assign `owner`. The card stays in WIP; do not move it to Done or close it.
+- **Work only a human can do** (a credential, a decision, a merge, a design session, an approval): create a card in Backlog assigned to `owner`, saying what is needed and why, and mention it on the card it blocks.
+- Card titles, descriptions and comments follow the `locale` in `.trello.json` (pt-BR). Code, commits and docs stay in English.
+- If `.trello.json` lacks a list the flow needs (for example `review`), do not guess an id: refresh the config with the skill's init or doctor flow, or open an owner card.
+
+**Audit log.** The skills append one JSON line per Trello write to `.logs/pm-tasks/trello/audit.log` (the path set in `.trello.json`; `.logs/` is gitignored). Each line carries the timestamp, verb, result, card id, URL or name, list ids, comment id and session. That file is the agent's record of task ids and of what each MCP call did; the board is the owner's view, and both must stay in sync.
+
+- Use one `session` id per phase run (for example `phase-06-2026-11-11`) so the entries of a phase can be filtered.
+- Nothing else goes in `.logs/`: no debug dumps, test output or copies of MCP payloads.
+- Rotate the file when it passes 1 MB and keep 3 archives, with the core skill's `rotate-audit.mjs --tool trello --max-size 1048576 --keep 3 --log-path .logs/pm-tasks/trello/audit.log`.
+
 ### Explore with CodeGraph first
 
 This repo is indexed by CodeGraph (`.codegraph/`, local to each machine and not committed). Use it before grep, find or opening files:
