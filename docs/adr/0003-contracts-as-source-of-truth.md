@@ -1,77 +1,78 @@
-# ADR-0003 — Contratos (OpenAPI + AsyncAPI) como Single Source of Truth
+# ADR-0003 — OpenAPI and AsyncAPI contracts as the single source of truth
 
 - **Status:** Accepted
-- **Data:** 2026-05-09
-- **Deciders:** time fundador
-- **Contexto relacionado:** [`../architecture.md`](../architecture.md), [`../roadmap.md`](../roadmap.md) (Fase 1)
+- **Date:** 2026-05-09
+- **Deciders:** founding team
+- **Related:** [`../architecture.md`](../architecture.md), [`../roadmap.md`](../roadmap.md) (Phase 1)
 
-## Contexto
+## Context
 
-O `legacy-audit.md` documenta um drift crônico entre os 3 repos legados:
-- `Account` em Go sem `isSuspicious`, presente no `anti-fraud`.
-- `InvoiceStatus` com 3 valores no Go e 2 no Nest.
-- Payloads Kafka misturando `snake_case` (Go) e `camelCase` (Nest).
-- Web reconstruindo DTOs à mão a cada endpoint novo, sem garantia de match com backend.
+`legacy-audit.md` records a drift that never got an owner:
 
-Cada repo possui sua própria definição "de cabeça" do mesmo conceito. Não há instância única que sirva de árbitro. Todo bug de integração começa aqui.
+- `Account` in Go has no `isSuspicious`. The Nest anti-fraud service does.
+- `InvoiceStatus` has three values in Go and two in Nest.
+- Kafka payloads are `snake_case` on the Go side and `camelCase` on the Nest side.
+- The web app rebuilds each DTO by hand, with nothing to prove it still matches the backend.
 
-## Decisão
+Each repository holds its own private definition of the same concept. There is no artifact that can settle an argument. Integration bugs start there.
 
-Adotar **contratos versionados em arquivos** dentro de `libs/contracts/` como **única fonte da verdade** para tudo que cruza fronteira (HTTP entre web↔api, eventos entre serviços via Kafka):
+## Decision
 
-- **HTTP**: OpenAPI 3.1 (`libs/contracts/http/<contexto>.openapi.yaml`).
-- **Eventos**: AsyncAPI 2.6 + JSON Schema 2020-12 (`libs/contracts/events/`).
-- **Tipos gerados** — não escritos à mão — em `libs/contracts/generated/{go,ts}/`, comitados no repo.
+Versioned contract files in `libs/contracts/` are the only source of truth for anything that crosses a boundary: HTTP between web and API, and events between services on Kafka.
+
+- **HTTP:** OpenAPI 3.1, one file per context at `libs/contracts/http/<context>.openapi.yaml`.
+- **Events:** AsyncAPI 2.6 plus JSON Schema 2020-12, under `libs/contracts/events/`.
+- **Generated types,** never hand-written, committed under `libs/contracts/generated/{go,ts}/`.
 
 ### Pipeline
 
 ```
 libs/contracts/http/*.openapi.yaml ──▶ oapi-codegen ──▶ generated/go/<ctx>/types.gen.go
                                   ╰─▶ openapi-typescript ──▶ generated/ts/<ctx>.d.ts
-libs/contracts/events/schemas/**/*.json (futuro: codegen events)
+libs/contracts/events/schemas/**/*.json   (event codegen comes later)
 ```
 
-Comando único: `make gen-contracts` (raiz). CI: `make gen-contracts-check` falha se a árvore gerada divergir do comitado (gate anti-drift).
+One command from the repo root: `make gen-contracts`. CI runs `make gen-contracts-check` and fails when the generated tree drifts from what was committed.
 
-### Convenções
+### Conventions
 
-- **Naming**: `snake_case` em todos os campos JSON. Tradução pra `camelCase` é responsabilidade da camada client/UI, nunca do contrato.
-- **Versionamento HTTP**: rota com `/v1/...`. Breaking change exige `/v2/...` e período de dual-serve.
-- **Versionamento eventos**: nome do tópico com sufixo `.vN` (ex.: `identity.merchant.created.v1`). Breaking change cria `.vN+1` com janela de dual-publish.
-- **Schema registry** (dev): Karapace, compatibilidade `BACKWARD` por padrão, exceção explícita pra eventos `breaking`.
-- **Fonte do contrato manda no código**: editar `*.openapi.yaml` → rodar codegen → atualizar handlers/clients. Nunca o inverso.
+- **Names.** Every JSON field is `snake_case`. Turning that into `camelCase` is the client or the UI's job, never the contract's.
+- **HTTP versions.** Routes live under `/v1/...`. A breaking change adds `/v2/...` and both versions are served together for a transition window.
+- **Event versions.** The topic name ends in `.vN`, for example `identity.merchant.created.v1`. A breaking change adds `.vN+1` and both versions are published for a transition window.
+- **Schema registry, in development.** Karapace, compatibility `BACKWARD` by default. A breaking event is an explicit exception, not a silent overwrite.
+- **The contract leads the code.** Edit the OpenAPI file, run codegen, then update handlers and clients. Never the other way around.
 
-### Regra de dependência
+### Dependency rule
 
-`apps/* → libs/contracts/generated/* → libs/contracts/{http,events}/* (texto YAML/JSON)`
+`apps/* → libs/contracts/generated/* → libs/contracts/{http,events}/*` (the YAML and JSON text).
 
-`libs/<bounded-context>/domain/` **não** importa de `libs/contracts/`. Os tipos gerados são DTOs de delivery; o domínio tem seus próprios tipos. Mapeamento explícito acontece na camada `infra/http` ou `infra/kafka` de cada contexto.
+`libs/<bounded-context>/domain/` does not import `libs/contracts/`. Generated types are delivery DTOs. The domain keeps its own types. The mapping sits in `infra/http` or `infra/kafka` of that context.
 
-## Consequências
+## Consequences
 
-**Positivas**
+### Positive
 
-- Quebra um campo no OpenAPI → quebram os builds Go (apps/api) e TS (apps/web) no mesmo CI run, antes de qualquer merge.
-- Onboarding de cliente externo trivial: spec OpenAPI vira portal automático (Redocly/Swagger).
-- Versionamento explícito força conversa sobre breaking changes em vez de silenciosamente quebrar consumidores.
-- Eventos auditáveis: schema do payload está versionado em arquivo, não disperso em logs.
+- A broken field in the OpenAPI spec breaks the Go build (`apps/api`) and the TypeScript build (`apps/web`) in the same CI run, before merge.
+- An external client can be onboarded from the spec. The same file feeds a Redocly or Swagger portal.
+- Versioning makes a breaking change a conversation instead of a silent failure in someone else's consumer.
+- An event can be audited from a versioned schema file, not reconstructed from logs.
 
-**Negativas / mitigações**
+### Negative, and how we live with it
 
-- Codegen quebra fluxo "edita e roda" — mitigado por `make gen-contracts` rápido (<2s por linguagem) e pre-commit hook.
-- Tipos gerados poluem PRs — mitigado por configurar regra de review: arquivos em `generated/` revistos apenas se a fonte (`http/*.yaml`, `events/*.json`) também mudou.
-- Curva inicial do AsyncAPI — mitigado começando com 1 evento e expandindo conforme cada Fase precisa.
+- Codegen interrupts "edit and run". `make gen-contracts` is fast (under two seconds per language), and a pre-commit hook runs it.
+- Generated files add noise to pull requests. Review `generated/` only when the source (`http/*.yaml`, `events/*.json`) changed in the same change.
+- AsyncAPI is unfamiliar at first. Start with one event and add the next when a phase needs it.
 
-## Não decidido aqui
+## Not decided here
 
-- **Adquirentes externos**: contratos deles não vão pra `libs/contracts/`. Adapters em `libs/payments/infra/acquirers/<nome>/` mantêm seus próprios DTOs.
-- **gRPC interno**: se vier no futuro, entra como `libs/contracts/grpc/*.proto` mantendo o mesmo princípio.
-- **Mock server / contract tests**: deixado pra ADR futura quando o volume de specs justificar.
+- **External acquirers.** Their contracts stay out of `libs/contracts/`. An adapter under `libs/payments/infra/acquirers/<name>/` keeps its own DTOs.
+- **Internal gRPC.** If it arrives, it arrives as `libs/contracts/grpc/*.proto` under the same rule: the file is the source, the generated code is not edited by hand.
+- **A mock server and contract tests.** A later ADR, once there are enough specs to justify the tooling.
 
-## Referências
+## References
 
-- OpenAPI 3.1 spec: https://spec.openapis.org/oas/v3.1.0
-- AsyncAPI 2.6 spec: https://www.asyncapi.com/docs/reference/specification/v2.6.0
+- OpenAPI 3.1: https://spec.openapis.org/oas/v3.1.0
+- AsyncAPI 2.6: https://www.asyncapi.com/docs/reference/specification/v2.6.0
 - oapi-codegen: https://github.com/oapi-codegen/oapi-codegen
 - openapi-typescript: https://github.com/openapi-ts/openapi-typescript
 - Karapace: https://github.com/Aiven-Open/karapace

@@ -287,7 +287,7 @@ Computed against WCAG 2.1 AA (4.5:1 normal, 3:1 large/UI).
 
 <!-- Section header on landing -->
 <h1 class="font-display italic text-5xl text-foreground">
-  Pagamentos sem ruído.
+  Payments without noise.
 </h1>
 
 <!-- Card title in dashboard -->
@@ -327,4 +327,4 @@ Computed against WCAG 2.1 AA (4.5:1 normal, 3:1 large/UI).
 
 Add a token only when **2+ components** need the same value AND the value can't be expressed as a Tailwind utility alias. Avoid one-off semantic vars. Avoid hard-coded HEX in component code — always reach for a semantic var first, fall back to a `--brand-*` raw if marketing/landing truly needs it.
 
-When in doubt, file in `apps/web/docs/design-system/COMPONENTS.md` (separate doc) instead of adding a token.
+When in doubt, file in `docs/design/design-system/COMPONENTS.md` (separate doc) instead of adding a token.

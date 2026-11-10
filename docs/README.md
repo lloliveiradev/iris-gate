@@ -1,24 +1,30 @@
-# IrisGate — Documentação de Arquitetura
+# Iris Gate documentation
 
-> Gateway de pagamentos API-first. Roteamento dinâmico, observabilidade ponta-a-ponta, motor de risco plugável.
-> Stack: **Next.js (web)** · **Go (api-gateway)** · **NestJS (anti-fraud)** · **Kafka (eventos)** · **PostgreSQL (estado)**.
+Iris Gate is a portfolio payment gateway: Go API, NestJS anti-fraud service, Next.js dashboard, Kafka and Postgres. It will never run in production or process real money; it exists to show how a market-standard card gateway is built.
 
-## Índice
+## Where to start
 
-| #   | Documento                              | Conteúdo                                                                                                      |
-| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 1   | [`legacy-audit.md`](./legacy-audit.md) | Auditoria dos repos legados (`go-gateway`, `anti-fraud`, `gateway-web`). O que reaproveitar, o que descartar. |
-| 2   | [`architecture.md`](./architecture.md) | Arquitetura alvo: bounded contexts, camadas DDD/hexagonal, fluxo de eventos, contratos.                       |
-| 3   | [`security.md`](./security.md)         | Baseline de segurança para pagamentos (PCI-DSS, tokenização PAN, idempotência, segredos, mTLS).               |
-| 4   | [`roadmap.md`](./roadmap.md)           | Roadmap em fases — do esqueleto atual ao MVP produtivo.                                                       |
-| 5   | [`adr/`](./adr/)                       | Architecture Decision Records. Decisões irreversíveis ficam aqui.                                             |
+| If you want to know | Read |
+| --- | --- |
+| What the code does today, and what is wrong with it | [`design/as-is.md`](design/as-is.md) |
+| Where the project is going, and why | [`design/to-be.md`](design/to-be.md) |
+| What is done, what comes next, and in which order | [`roadmap.md`](roadmap.md) |
+| The rules and acceptance criteria of a delivery phase | [`specs/`](specs/README.md) |
+| How the system is structured and which conventions every change follows | [`architecture.md`](architecture.md) |
+| The security baseline and the status of each control | [`security.md`](security.md) |
+| Why a structural decision was made | [`adr/`](adr/) |
+| Where the project came from | [`legacy-audit.md`](legacy-audit.md) (historical) |
 
-## TL;DR — crítica em 5 linhas
+Implementation plans written before each phase live in `plans/`. Rules for editing the repository, for people and agents, are in [`../AGENTS.md`](../AGENTS.md).
 
-1. **`go-gateway`** tem layered arch razoável e Kafka funcionando, mas **trata PAN em plaintext, API key sem hash, zero idempotência, fraude mockada com `random.Float64()`, e Kafka+DB não atômico** (publica fora de transação).
-2. **`anti-fraud`** tem o melhor ativo de todos: o **Specification Pattern** para regras é mantenedor. Mas é Nest "vanilla" sem DDD, sem DLQ, sem auth entre serviços, e o consumer não é idempotente (redelivery duplica decisão).
-3. **`gateway-web`** tem boa base shadcn + RHF/Zod, mas **duplica tipos do backend manualmente**, login guarda `apiKey` em cookie sem `httpOnly`, e features (PDF, detalhe da invoice) ficaram pela metade.
-4. **`iris-gate` (atual)** é só esqueleto: tem `libs/{identity,billing,shared}` com layout hexagonal pronto, mas **zero toolchain** (sem `package.json`, `go.work`, `pnpm-workspace.yaml`, `turbo.json`, `Makefile`) e só `apps/api-gateway` — faltam `apps/web` e `apps/anti-fraud`.
-5. **Caminho proposto**: bounded contexts explícitos (Identity, Billing, Payments, Fraud, Ledger, Notifications), Outbox+Inbox para atomicidade DB↔Kafka, tokenização de PAN antes de qualquer persistência, Argon2id em API keys, OpenTelemetry desde o dia zero, contratos versionados em `libs/contracts/` (OpenAPI + AsyncAPI) gerando tipos para Go, TS e Nest.
+## How the documents relate
 
-Detalhes em cada doc.
+- **as-is** is a dated snapshot. It is not edited after the fact; a new snapshot replaces it when needed.
+- **to-be** is the approved target. It changes only with the project owner's approval.
+- **specs** turn the to-be into phases. Each phase updates `AGENTS.md`, `architecture.md` and `security.md` when it changes something they describe.
+- **architecture** and **security** describe the system as it stands, and mark what is planned with the phase that delivers it.
+- When a document and the code disagree, the code and `libs/contracts` win, and the document is fixed.
+
+## Language
+
+All documentation is in English.

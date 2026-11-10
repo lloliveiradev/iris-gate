@@ -1,4 +1,6 @@
-# Plan — TanStack Table + TanStack Query
+# Plan: web tables with TanStack Table and TanStack Query
+
+> **Status: rollout phase 1 implemented in phase 5 (2026-05); rollout phases 2 and 3 pending.** Moved from `apps/web/docs/plans/tables.md` on 2026-11-10. The `DataTable` shell lives in `apps/web/src/components/data-table/` and the payment-intents table in `apps/web/src/app/[locale]/dashboard/payment-intents/`. Routes now sit under `[locale]/`. Server-side pagination and filters (section 3, rollout phase 2) are still open; pick them up when a delivery phase needs bigger lists (phase 11 adds status filters, including `requires_review`). The row actions in section 4.5 change in phase 11: Authorize is removed, and Capture, Cancel and Refund follow the new lifecycle.
 
 > Goal: a reusable, feature-complete table system for every authenticated list view (payment intents first, then merchants, webhooks, API keys, audit log…). Single composable `DataTable` shell, headless state via TanStack Table, server state via TanStack Query, UI via shadcn primitives (with patterns lifted from Origin UI). Each call site picks the features it needs from a known menu.
 
@@ -221,7 +223,7 @@ export const paymentIntentColumns: ColumnDef<PaymentIntent>[] = [
   },
   {
     accessorKey: 'amount',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Valor" align="right" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={t('fields.amount')} align="right" />,
     cell: ({ row }) => (
       <span className="font-mono tabular-nums font-medium">
         {formatMoney(row.original.amount.amount_cents, row.original.amount.currency)}
@@ -236,7 +238,7 @@ export const paymentIntentColumns: ColumnDef<PaymentIntent>[] = [
   },
   {
     accessorKey: 'created_at',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Criado" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={t('fields.created_at')} />,
     cell: ({ row }) => <span className="text-muted-foreground">{formatDateTime(row.original.created_at)}</span>,
   },
   {
@@ -251,15 +253,15 @@ export const paymentIntentColumns: ColumnDef<PaymentIntent>[] = [
 ### 4.5 · Row actions (ellipsis dropdown)
 
 `PaymentIntentRowActions` opens a `DropdownMenu` with:
-- "Ver detalhes" (Link to /detail)
-- "Autorizar" (mutation, disabled if not pending)
-- "Capturar" (mutation, disabled if not authorized)
+- "View details" (link to the detail page)
+- "Authorize" (mutation, disabled if not pending)
+- "Capture" (mutation, disabled if not authorized)
 - separator
-- "Copiar ID" (copy intent.id to clipboard)
+- "Copy ID" (copy intent.id to clipboard)
 - separator
-- "Cancelar" (destructive, requires Dialog confirmation)
+- "Cancel" (destructive, requires Dialog confirmation)
 
-Trigger: `<Button variant="ghost" size="icon"><MoreHorizontal /></Button>` with `aria-label="Ações"`.
+Labels come from the `dashboard.payment_intents.actions.*` messages. Trigger: `<Button variant="ghost" size="icon"><MoreHorizontal /></Button>` with a translated `aria-label` ("Actions").
 
 Pattern is well-covered by Origin UI's table-row-actions samples (e.g., their "table-19" / "table-20" examples — see Origin UI docs for the exact one to crib from).
 
@@ -304,7 +306,7 @@ apps/web/src/
 | Faceted filter | status, date range | status | scope (sandbox/live) | severity, action type |
 | Sortable columns | amount, created_at | created_at | created_at, last_used_at | created_at |
 | Row selection | yes (bulk capture/cancel — V2) | no | yes (revoke bulk) | no |
-| Row actions | Ver / Autorizar / Capturar / Cancelar / Copiar ID | Editar / Suspender | Revogar / Rotacionar | Ver detalhe |
+| Row actions | View / Authorize / Capture / Cancel / Copy ID | Edit / Suspend | Revoke / Roll | View detail |
 | Pagination | cursor, 25/page | cursor, 50/page | cursor, 25/page | cursor, 100/page |
 | Density toggle | optional | optional | optional | yes (compact default) |
 | Export CSV | V3 | V3 | no | V2 |
@@ -331,7 +333,7 @@ You'll pick the boxes per surface as we build each one. The DataTable shell will
 - Generate shadcn `dropdown-menu`, `checkbox`, `select`, `skeleton`.
 - Build `DataTable` shell with **client-side** pagination/sort/filter against the existing `limit=50` payload.
 - Migrate the existing `/dashboard/payment-intents` table to the new shell (visual parity, no new features visible to user yet).
-- Row actions dropdown replaces the "Detalhes" button. Includes Authorize/Capture as mutations using existing Server Actions.
+- Row actions dropdown replaces the "Details" button. Includes Authorize/Capture as mutations using existing Server Actions.
 
 **Phase 2 — Server pagination + search** (API + SDK + web)
 - Ship the OpenAPI / handler / SDK envelope change.

@@ -9,6 +9,9 @@ API-first payments gateway for local study. A Go service owns merchants, API key
 > [!IMPORTANT]
 > This stack is for localhost. The default database password, the fake acquirer, and the dev session secret are not production settings. The API accepts an opaque `card_token`. It does not accept a PAN, CVV, or expiry.
 
+> [!NOTE]
+> This README describes the code as it is today. The approved target design (automatic capture, synchronous fraud scoring, user accounts, card vault, hosted checkout) is in [`docs/design/to-be.md`](docs/design/to-be.md), and the delivery phases are in [`docs/roadmap.md`](docs/roadmap.md).
+
 ## Features
 
 - **Identity** — create a merchant, issue an API key (`irk_<prefix>.<secret>`), revoke it. Only the Argon2id hash is stored. `GET /v1/me` requires `Authorization: Bearer`.
@@ -17,8 +20,6 @@ API-first payments gateway for local study. A Go service owns merchants, API key
 - **Delivery** — state and the Kafka outbox commit in one transaction. A relay publishes. The fraud worker deduplicates with an inbox.
 - **Dashboard** — Next.js App Router, `en` / `pt` / `es`, landing page plus payment-intent screens. The browser session is an httpOnly iron-session cookie.
 - **Local broker** — Postgres 18, Kafka in KRaft mode, and Karapace (schema registry) via Docker Compose.
-
-Billing is a bounded-context scaffold. Its OpenAPI file has no paths yet.
 
 ## Getting started
 
@@ -33,15 +34,21 @@ Optional later: `golangci-lint`, `gofumpt`, `lefthook`, `gitleaks`.
 ### Run locally
 
 ```bash
-make bootstrap          # yarn install, copy infra/docker/.env, start Compose
-make -C apps/api dev    # http://localhost:8080
-make -C apps/web dev    # http://localhost:3000
+make bootstrap   # yarn install, copy infra/docker/.env, start Compose
+make dev         # start Compose if needed, then the API (:8080) and the dashboard (:3000); Ctrl-C stops both
 ```
 
-`make up` already starts the anti-fraud container on port `3001` and hot-reloads its source. Run `make -C apps/anti-fraud dev` only after stopping that container, with `apps/anti-fraud/.env` copied from `.env.example`.
+To run one process alone: `make -C apps/api dev` or `make -C apps/web dev`.
 
-> [!NOTE]
-> Root `make dev` also enters library Makefiles. Those libraries have no `dev` target, so the command fails. Start `apps/api` and `apps/web` as shown above.
+The anti-fraud database is not created by Compose. Once, after the first `make up`:
+
+```bash
+docker compose -f infra/docker/docker-compose.yml exec postgres \
+  psql -U iris -d iris -c "CREATE DATABASE antifraud OWNER iris;"
+make -C apps/anti-fraud prisma-deploy
+```
+
+`make up` already starts the anti-fraud container on port `3001` and hot-reloads its source, so `make dev` does not start it on the host. Run `make -C apps/anti-fraud dev` only after stopping that container, with `apps/anti-fraud/.env` copied from `.env.example`.
 
 The API listens on `:8080` with `postgres://iris:iris@localhost:5432/iris?sslmode=disable` and `localhost:9092`. Leave `ACQUIRER_URL` empty to use the fake acquirer. Migrations run on startup (`MIGRATE_ON_STARTUP=true`).
 
@@ -98,10 +105,11 @@ libs/payments       Payment intents, acquirer port, Postgres, outbox relay.
 libs/fraud          TypeScript rules consumed by apps/anti-fraud.
 libs/contracts      OpenAPI, AsyncAPI, and generated Go/TS types.
 libs/sdk-web        Fetch client for the dashboard.
-libs/billing        Scaffold. No behavior yet.
-libs/shared         Cross-cutting slot. Keep domain logic out of it.
-infra/docker        Postgres, Kafka, Karapace, anti-fraud.
-docs                Architecture, security baseline, ADRs.
+libs/shared         Shared kernel slot. Keep domain logic out of it.
+infra/docker        Compose stack: Postgres (initdb), Kafka (topic list), Karapace, anti-fraud.
+configs             Tool configs shared by several packages: tsconfig bases, ESLint, golangci-lint.
+tools               Developer scripts (seed, DLQ replay, e2e runner), added by the delivery phases.
+docs                Design (as-is, to-be, design system), specs, plans, roadmap, architecture, security, ADRs.
 ```
 
 Inside a context the arrow points inward: `infra` implements ports, `application` orchestrates, `domain` stays free of chi, pgx, Nest, Prisma, and Kafka. Apps wire libraries. Libraries do not import apps.
@@ -111,7 +119,8 @@ Inside a context the arrow points inward: `infra` implements ports, `application
 | Command | What it does |
 | --- | --- |
 | `make help` | List root targets |
-| `make test` | Race-enabled Go tests plus Jest and Vitest where a Makefile exists |
+| `make dev` | Stack up, then the API and the dashboard on the host |
+| `make test` / `make lint` / `make build` | Run the target in every package that defines it (Go tests with `-race`, Jest, Vitest; golangci-lint with `configs/go/golangci.yml`) |
 | `make -C libs/identity test-int` | Identity tests that need Postgres (`-tags=integration`) |
 | `make -C apps/web e2e` | Playwright |
 | `make gen-contracts` | Regenerate Go and TypeScript from the OpenAPI specs |
@@ -130,17 +139,18 @@ Web copy goes in `apps/web/messages/{en,es,pt}.json`. The default locale is `en`
 
 | Doc | Use it for |
 | --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Bounded contexts, hexagonal layout, outbox/inbox |
-| [`docs/security.md`](docs/security.md) | Target baseline: PAN, API keys, logs, idempotency |
+| [`docs/README.md`](docs/README.md) | Index of the documentation and how the documents relate |
+| [`docs/design/as-is.md`](docs/design/as-is.md) | What the code does today, with known defects |
+| [`docs/design/to-be.md`](docs/design/to-be.md) | Approved target design |
+| [`docs/roadmap.md`](docs/roadmap.md) and [`docs/specs`](docs/specs/README.md) | Phases, order, and the spec of each phase |
+| [`docs/architecture.md`](docs/architecture.md) | Bounded contexts, hexagonal layout, communication rules, conventions |
+| [`docs/security.md`](docs/security.md) | Security baseline with the status of each control |
 | [`docs/adr`](docs/adr) | Accepted decisions (DDD, outbox, contracts) |
 | [`AGENTS.md`](AGENTS.md) | Rules that are easy to break while editing |
-
-> [!WARNING]
-> `docs/README.md` and parts of `docs/architecture.md` (the "current layout" and "toolchain still to create" sections) describe an earlier skeleton: Go 1.24, Next 15, and no workspace files. The modules, Makefiles, and OpenAPI specs in the tree are the current source of truth.
 
 ## Troubleshooting
 
 - **Port 3001 is taken.** Compose already runs anti-fraud. Stop it before a host `make -C apps/anti-fraud dev`.
-- **`make dev` exits on a library.** Expected. Those Makefiles have `test` and `build`, not `dev`.
+- **Port 5432 or 9092 is taken by another stack.** Set `POSTGRES_PORT` or `KAFKA_PORT` in `infra/docker/.env` and point `DATABASE_URL` or `KAFKA_BROKER` of the API at the new port.
 - **Contract check fails.** Run `make gen-contracts` and commit the generated files together with the spec.
 - **API cannot reach Postgres or Kafka.** `make ps` should show healthy `iris-postgres` and the Kafka container. Defaults assume `localhost:5432` and `localhost:9092`.

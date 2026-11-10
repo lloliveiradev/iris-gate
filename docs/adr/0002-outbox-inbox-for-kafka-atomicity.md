@@ -1,31 +1,32 @@
-# ADR-0002 — Outbox/Inbox para atomicidade DB ↔ Kafka
+# ADR-0002 — Outbox and inbox for atomicity between Postgres and Kafka
 
 - **Status:** Accepted
-- **Data:** 2026-05-09
-- **Deciders:** time fundador
-- **Contexto relacionado:** [`../architecture.md`](../architecture.md), [`../legacy-audit.md`](../legacy-audit.md)
+- **Date:** 2026-05-09
+- **Deciders:** founding team
+- **Related:** [`../architecture.md`](../architecture.md), [`../legacy-audit.md`](../legacy-audit.md)
 
-## Contexto
+## Context
 
-A auditoria do `go-gateway` legado encontrou um caso clássico de **dual-write**: `InvoiceService.Create()` faz `repo.Save(invoice)` e depois `kafkaProducer.Publish(...)` fora de transação. Cenários de falha:
+The audit of the legacy `go-gateway` found a textbook dual write. `InvoiceService.Create()` calls `repo.Save(invoice)` and then `kafkaProducer.Publish(...)` outside the transaction. The two writes can part company in three ways:
 
-| Falha | Resultado |
-|-------|-----------|
-| Save OK, Publish falha | Invoice no DB sem evento — anti-fraud nunca avalia, status fica eterno em `pending` |
-| Save falha, Publish foi feito antes | Anti-fraud avalia uma invoice que não existe |
-| Crash entre Save e Publish | Mesmo cenário 1 |
+| Failure | What the system is left with |
+| --- | --- |
+| Save succeeds, publish fails | An invoice in the database and no event. Anti-fraud never scores it. The status stays `pending`. |
+| Save fails after a publish that already happened | Anti-fraud scores an invoice that does not exist. |
+| The process crashes between the two calls | The same gap as the first row. |
 
-A auditoria do `anti-fraud` legado encontrou o problema simétrico: o consumer **não é idempotente** — Kafka redelivery (acontece em rebalance, em retry de commit) reprocessa a mensagem e cria `FraudHistory` duplicado.
+The audit of the legacy `anti-fraud` found the matching bug on the read side. The consumer is not idempotent. A Kafka redelivery, which happens on rebalance and on a failed offset commit, runs the handler again and inserts a second `FraudHistory` row.
 
-Para um gateway de pagamentos, esses cenários são inaceitáveis.
+A payments gateway cannot accept either outcome. State and the fact that state changed have to commit together, and a message that arrives twice has to be safe.
 
-## Decisão
+## Decision
 
-Adotar **Transactional Outbox** para todo write que precisa publicar evento, e **Idempotent Inbox** para todo consumer.
+Every write that must publish an event uses a transactional outbox. Every consumer uses an idempotent inbox.
 
-### Outbox (lado producer)
+### Outbox, on the producer
 
-Tabela por contexto:
+Each context owns a table:
+
 ```sql
 CREATE TABLE outbox_events (
   id              UUID PRIMARY KEY,
@@ -42,63 +43,74 @@ CREATE TABLE outbox_events (
 CREATE INDEX outbox_unpublished ON outbox_events (created_at) WHERE published_at IS NULL;
 ```
 
-Use-case escreve `aggregate` + `outbox_events` na **mesma transação**. Worker dedicado (`libs/platform/outbox/relay`) faz polling (`200ms`) ou usa `LISTEN/NOTIFY`, publica em Kafka, marca como `published_at`. Em falha, incrementa `attempts` e tenta de novo com backoff. Após N tentativas, alerta.
+The use case inserts the aggregate and the outbox row in the same transaction. A dedicated relay (`libs/platform/outbox/relay`) polls every 200 ms, or wakes on `LISTEN/NOTIFY`, publishes to Kafka, and sets `published_at`. On failure it increments `attempts` and retries with backoff. After N attempts it alerts.
 
-### Inbox (lado consumer)
+The relay can still publish twice if it crashes after the broker ack and before `published_at` is set. That is why the consumer has an inbox. The pair is at-least-once, not exactly-once.
 
-Tabela compartilhada por consumer group:
+### Inbox, on the consumer
+
+Each consumer group keeps a table:
+
 ```sql
 CREATE TABLE inbox_messages (
-  message_id      TEXT NOT NULL,           -- event_id do header
+  message_id      TEXT NOT NULL,           -- event_id from the header
   consumer        TEXT NOT NULL,           -- 'fraud-assessment-consumer'
   processed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (message_id, consumer)
 );
 ```
 
-Cada mensagem é envolvida em transação:
+The handler wraps the message in one transaction:
+
 ```
 BEGIN
   INSERT INTO inbox_messages (message_id, consumer)
     VALUES ($1, $2)
     ON CONFLICT DO NOTHING
     RETURNING 1;
-  -- se RETURNING vazio: já foi processado, COMMIT e descarta
-  -- senão: aplica side-effect (escreve fraud_history, publica resultado via outbox)
+  -- empty RETURNING: already processed; COMMIT and return
+  -- otherwise: apply the side effect (write fraud_history, publish the result through the outbox)
 COMMIT
 ```
 
-DLQ separado (`<topic>.dlq`) para mensagens que falham N vezes.
+Messages that fail N times go to a separate dead-letter topic, `<topic>.dlq`.
 
-## Alternativas consideradas
+## Alternatives considered
 
-### A. Saga orchestrator (Temporal/Cadence)
-Resolveria atomicidade e mais. Custo operacional (mais um serviço com state) e curva de aprendizado altos para o MVP. **Decisão:** adiar para pós-MVP quando workflows multi-step ficarem comuns. Outbox+Inbox cobrem o caso de 1 write + 1 evento.
+### A. A saga orchestrator (Temporal or Cadence)
 
-### B. Kafka Transactions (exactly-once semantics nativo)
-Kafka tem suporte a transações cross-topic, mas integração com transação Postgres exige 2-phase commit (XA), que tem fama de instável. Outbox é mais simples e funciona com qualquer broker.
+It would cover atomicity and multi-step workflows. It is also another stateful service, and a steep curve for the MVP. Deferred until multi-step workflows are common. Outbox plus inbox covers one write and one event.
 
-### C. Change Data Capture (Debezium)
-Lê o WAL do Postgres e publica eventos automaticamente. Atrativo, mas: (1) acopla schema do DB ao schema do evento; (2) operacionalmente pesado (Kafka Connect, snapshots iniciais); (3) eventos refletem estrutura tabular, não a linguagem ubíqua do domínio.
+### B. Native Kafka transactions
 
-### D. Event Store dedicado (EventStoreDB, Marten)
-Source-of-truth = stream de eventos. Atraente para Ledger, exagero para o resto. **Decisão:** considerar para Ledger no pós-MVP; usar Postgres + Outbox em todo o resto.
+Kafka can transactionally produce across topics. Tying that to a Postgres transaction means two-phase commit. XA has a poor operational record. The outbox is simpler and does not depend on a particular broker.
 
-## Consequências
+### C. Change data capture (Debezium)
 
-### Positivas
-- Atomicidade real: ou ambos (state + evento) acontecem, ou nenhum.
-- Recuperação de falha trivial: relay worker reinicia e drena o backlog.
-- Idempotência garantida: redelivery é seguro.
-- Funciona com qualquer broker (Kafka, Redpanda, NATS, RabbitMQ).
+Reading the Postgres WAL and publishing from it is attractive, and it couples the table shape to the event shape. It is also heavy to run (Kafka Connect, initial snapshots). The events that come out describe rows, not the ubiquitous language of the domain.
 
-### Negativas
-- Latência adicional: relay polling adiciona até `200ms` de delay médio. Mitigável com `LISTEN/NOTIFY`.
-- Mais uma tabela por contexto + um worker por app.
-- Necessário monitorar lag do outbox (alerta se `count(*) where published_at IS NULL > limiar`).
+### D. A dedicated event store (EventStoreDB, Marten)
 
-### Métricas a expor
+The stream becomes the source of truth. That is a good fit for Ledger and too much machinery for the other contexts. Revisit it for Ledger after the MVP. Everywhere else, Postgres plus the outbox.
+
+## Consequences
+
+### Positive
+
+- State and event commit together, or neither does.
+- Recovery is a restart. The relay drains whatever is still unpublished.
+- Redelivery is safe.
+- The pattern works with Kafka, Redpanda, NATS, or RabbitMQ.
+
+### Negative
+
+- Polling adds up to about 200 ms of delay. `LISTEN/NOTIFY` removes that wait.
+- Each context gains a table, and each app gains a worker.
+- Unpublished rows have to be watched. Alert when `count(*) where published_at IS NULL` crosses a threshold.
+
+### Metrics to expose
+
 - `outbox_unpublished_count` (gauge)
 - `outbox_publish_latency_ms` (histogram)
-- `inbox_dedupe_hits_total` (counter, ajuda a entender se redelivery está alto)
-- `dlq_messages_total` (counter por tópico)
+- `inbox_dedupe_hits_total` (counter; a rising rate means redelivery is frequent)
+- `dlq_messages_total` (counter, labeled by topic)

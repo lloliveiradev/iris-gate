@@ -5,7 +5,7 @@
 
 /* =============================================================
  * IrisGate — design tokens
- * Spec: apps/web/docs/design-system/TOKENS.md
+ * Spec: docs/design/design-system/TOKENS.md
  *
  * Dark is the default theme. <html> ships with class="dark".
  * Light is opt-in via class="light" on <html> or any subtree.
