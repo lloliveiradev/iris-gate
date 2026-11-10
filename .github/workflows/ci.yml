@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.25"
-  NODE_VERSION: "20"
+  GO_VERSION: "1.27"
+  NODE_VERSION: "26"
 
 jobs:
   changes:
@@ -29,8 +29,8 @@ jobs:
       contracts: ${{ steps.filter.outputs.contracts }}
       node-root: ${{ steps.filter.outputs.node-root }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -77,15 +77,17 @@ jobs:
     if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node-root == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
+      # Node 25+ no longer bundles corepack; install it for the selected Node.
+      - run: npm install -g corepack@0.34.0 && corepack enable
       - run: yarn install --immutable
       - run: make gen-contracts-check
 
@@ -97,8 +99,8 @@ jobs:
       run:
         working-directory: apps/api
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -108,19 +110,19 @@ jobs:
       - run: make build
       # One shared config for every Go module (configs/go/golangci.yml).
       # depguard there enforces the clean-architecture and context boundaries.
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.15.0
           working-directory: apps/api
           args: --timeout=5m --config=../../configs/go/golangci.yml
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.15.0
           working-directory: libs/identity
           args: --timeout=5m --config=../../configs/go/golangci.yml
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.15.0
           working-directory: libs/payments
           args: --timeout=5m --config=../../configs/go/golangci.yml
 
@@ -132,12 +134,14 @@ jobs:
       run:
         working-directory: libs/sdk-web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
+      # Node 25+ no longer bundles corepack; install it for the selected Node.
+      - run: npm install -g corepack@0.34.0 && corepack enable
       - run: yarn install --immutable
         working-directory: .
       - run: yarn typecheck
@@ -147,12 +151,14 @@ jobs:
     if: needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node-root == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
+      # Node 25+ no longer bundles corepack; install it for the selected Node.
+      - run: npm install -g corepack@0.34.0 && corepack enable
       - run: yarn install --immutable
       - run: make app-web CMD=typecheck
       - run: make app-web CMD=lint
@@ -167,12 +173,14 @@ jobs:
       run:
         working-directory: libs/fraud
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
+      # Node 25+ no longer bundles corepack; install it for the selected Node.
+      - run: npm install -g corepack@0.34.0 && corepack enable
       - run: yarn install --immutable
         working-directory: .
       - run: yarn typecheck
@@ -184,12 +192,14 @@ jobs:
     if: needs.changes.outputs.anti-fraud == 'true' || needs.changes.outputs.node-root == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
+      # Node 25+ no longer bundles corepack; install it for the selected Node.
+      - run: npm install -g corepack@0.34.0 && corepack enable
       - run: yarn install --immutable
       - run: make app-anti-fraud CMD=typecheck
       - run: make app-anti-fraud CMD=lint
@@ -199,9 +209,9 @@ jobs:
   gitleaks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

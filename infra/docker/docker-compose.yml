@@ -8,7 +8,7 @@ x-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:18.3-alpine
+    image: postgres:18.6-alpine
     container_name: iris-postgres
     restart: unless-stopped
     logging: *default-logging
@@ -30,7 +30,7 @@ services:
     networks: [iris]
 
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:4.4.0
     container_name: iris-kafka
     restart: unless-stopped
     logging: *default-logging
@@ -75,7 +75,7 @@ services:
   # Auto-create is disabled on the broker: add a line to kafka/topics.txt when
   # you ship a new event contract.
   kafka-init:
-    image: apache/kafka:latest
+    image: apache/kafka:4.4.0
     container_name: iris-kafka-init
     logging: *default-logging
     depends_on:
@@ -90,7 +90,7 @@ services:
     networks: [iris]
 
   karapace:
-    image: ghcr.io/aiven-open/karapace:6.1.4
+    image: ghcr.io/aiven-open/karapace:6.2.4
     container_name: iris-karapace
     restart: unless-stopped
     logging: *default-logging
@@ -168,6 +168,7 @@ services:
       - ../../apps/anti-fraud/prisma:/repo/apps/anti-fraud/prisma
       - ../../apps/anti-fraud/nest-cli.json:/repo/apps/anti-fraud/nest-cli.json
       - ../../apps/anti-fraud/tsconfig.json:/repo/apps/anti-fraud/tsconfig.json
+      - ../../apps/anti-fraud/prisma.config.ts:/repo/apps/anti-fraud/prisma.config.ts
       - ../../configs:/repo/configs:ro
     networks: [iris]
 
