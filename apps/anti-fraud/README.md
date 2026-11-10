@@ -1,6 +1,6 @@
 # apps/anti-fraud
 
-NestJS 11 worker that scores one fraud assessment per Kafka message. The rules live in `@iris-gate/fraud`. This app wires Prisma, KafkaJS, the inbox, and the outbox. It does not decide a payment and it does not serve the dashboard.
+NestJS 12 worker that scores one fraud assessment per Kafka message. The rules live in `@iris-gate/fraud`. This app wires Prisma, KafkaJS, the inbox, and the outbox. It does not decide a payment and it does not serve the dashboard.
 
 `make up` already builds `apps/anti-fraud/Dockerfile.dev` and runs the container `iris-anti-fraud` on port `3001`, with `src/` and `prisma/` mounted for reload. A host `make -C apps/anti-fraud dev` uses the same port.
 
@@ -48,6 +48,13 @@ make -C apps/anti-fraud prisma-deploy
 
 Models: `Account`, `InvoiceAttempt`, `RiskAssessment`, `FraudRule`, `InboxMessage`, `OutboxMessage`.
 
+Prisma 7 specifics:
+
+- `prisma.config.ts` points at the schema and migrations and reads `DATABASE_URL` (it loads `.env` when the file exists; variables already set win).
+- The client is generated into `src/infra/prisma/generated/` (gitignored). `yarn dev`, `yarn build` and `yarn typecheck` regenerate it; run `make prisma-generate` after editing the schema.
+- `PrismaService` connects through the `@prisma/adapter-pg` driver adapter. There is no query engine binary any more.
+- The process fails fast at startup when `DATABASE_URL` is missing.
+
 ## Run on the host
 
 Stop the Compose service first, or port `3001` is already taken. `yarn dev` loads `apps/anti-fraud/.env` when that file exists.
@@ -57,7 +64,7 @@ cp apps/anti-fraud/.env.example apps/anti-fraud/.env
 make -C apps/anti-fraud dev
 ```
 
-The image used by Compose is a dev image (`node:20-alpine`, `yarn dev`). There is no production image yet.
+The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). There is no production image yet.
 
 ## Environment
 

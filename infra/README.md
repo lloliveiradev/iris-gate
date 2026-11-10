@@ -32,10 +32,10 @@ make ps
 
 | Container         | Image                                       | Host port | Role                                                                                        |
 | ----------------- | ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------- |
-| `iris-postgres`   | `postgres:18.3-alpine`                      | `5432`    | Database `iris` for the API. Init SQL enables `pgcrypto`, `uuid-ossp`, and `citext`         |
-| `iris-kafka`      | `apache/kafka:latest`                       | `9092`    | Single-node KRaft broker. No ZooKeeper. Auto-create is off. Log retention is 24 h or 512 MB |
-| `iris-kafka-init` | `apache/kafka:latest`                       | none      | One-shot. Runs `kafka/create-topics.sh` over `kafka/topics.txt`, then exits                 |
-| `iris-karapace`   | `ghcr.io/aiven-open/karapace:6.1.4`         | `8081`    | Schema registry, Confluent-compatible API, compatibility `BACKWARD`                         |
+| `iris-postgres`   | `postgres:18.6-alpine`                      | `5432`    | Database `iris` for the API. Init SQL enables `pgcrypto`, `uuid-ossp`, and `citext`         |
+| `iris-kafka`      | `apache/kafka:4.4.0`                        | `9092`    | Single-node KRaft broker. No ZooKeeper. Auto-create is off. Log retention is 24 h or 512 MB |
+| `iris-kafka-init` | `apache/kafka:4.4.0`                        | none      | One-shot. Runs `kafka/create-topics.sh` over `kafka/topics.txt`, then exits                 |
+| `iris-karapace`   | `ghcr.io/aiven-open/karapace:6.2.4`         | `8081`    | Schema registry, Confluent-compatible API, compatibility `BACKWARD`                         |
 | `iris-anti-fraud` | built from `apps/anti-fraud/Dockerfile.dev` | `3001`    | Nest worker. Source and Prisma files are mounted for reload                                 |
 
 Logs use the json-file driver, 10 MB × 3 files.

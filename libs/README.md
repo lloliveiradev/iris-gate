@@ -6,8 +6,8 @@ Two shapes live here. A bounded context (`identity`, `payments`, `fraud`) keeps 
 
 | Library | Language | Used by | State |
 | --- | --- | --- | --- |
-| [`identity`](identity/) | Go 1.25 | `apps/api` | Merchants and API keys |
-| [`payments`](payments/) | Go 1.25 | `apps/api` | Payment intents, acquirer port, outbox relay |
+| [`identity`](identity/) | Go 1.27 | `apps/api` | Merchants and API keys |
+| [`payments`](payments/) | Go 1.27 | `apps/api` | Payment intents, acquirer port, outbox relay |
 | [`fraud`](fraud/) | TypeScript | `apps/anti-fraud` | Specification rules and `AssessRisk` |
 | [`contracts`](contracts/) | OpenAPI, AsyncAPI | API, web, codegen | Source of truth for HTTP and events |
 | [`sdk-web`](sdk-web/) | TypeScript | `apps/web` | `IrisClient` over the generated types |

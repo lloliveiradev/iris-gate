@@ -25,8 +25,8 @@ API-first payments gateway for local study. A Go service owns merchants, API key
 
 ### Prerequisites
 
-- Go 1.25
-- Node.js 20.18 or newer, with Corepack (`packageManager` is Yarn 4.14.1)
+- Go 1.27 (the `toolchain go1.27.4` line downloads it automatically when your Go is older)
+- Node.js 26 LTS (24.11 or newer works), with Corepack (`packageManager` is Yarn 4.18.1; Node 25+ needs `npm install -g corepack` first)
 - Docker with Compose
 
 Optional later: `golangci-lint`, `gofumpt`, `lefthook`, `gitleaks`.
@@ -99,7 +99,7 @@ fail:      pending → failed
 ```text
 apps/api            Go HTTP process. Composition root only (chi, slog).
 apps/web            Next.js 16 dashboard and landing page.
-apps/anti-fraud     NestJS 11 worker. Prisma, KafkaJS, inbox, outbox.
+apps/anti-fraud     NestJS 12 worker. Prisma 7, KafkaJS, inbox, outbox.
 libs/identity       Merchants and API keys. domain → application → infra.
 libs/payments       Payment intents, acquirer port, Postgres, outbox relay.
 libs/fraud          TypeScript rules consumed by apps/anti-fraud.

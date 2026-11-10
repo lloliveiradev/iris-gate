@@ -19,9 +19,9 @@ This document is the living reference for how Iris Gate is structured and which 
 
 | Unit | Stack | Owns | Status |
 | --- | --- | --- | --- |
-| `apps/api` | Go 1.25, chi, pgx v5, slog | identity, payments; later checkout, webhooks; HTTP API and background worker | exists |
-| `apps/anti-fraud` | NestJS 11, KafkaJS, Prisma 5.22 | fraud scoring, features and labels | exists (async today; sync endpoint in phase 10) |
-| `apps/web` | Next.js 16, React 19, Tailwind 4, shadcn/ui, next-intl | merchant dashboard, platform console, hosted checkout; backend for frontend | exists (dashboard only) |
+| `apps/api` | Go 1.27, chi, pgx v5, slog | identity, payments; later checkout, webhooks; HTTP API and background worker | exists |
+| `apps/anti-fraud` | NestJS 12, KafkaJS, Prisma 7 | fraud scoring, features and labels | exists (async today; sync endpoint in phase 10) |
+| `apps/web` | Next.js 16.4, React 19.3, Tailwind 4, shadcn/ui, next-intl | merchant dashboard, platform console, hosted checkout; backend for frontend | exists (dashboard only) |
 | `apps/vault` | Go | card tokenization and detokenization | phase 14 |
 | Postgres 18 | | databases `iris`, `antifraud`, later `vault` | exists |
 | Kafka (KRaft) + Karapace | | event backbone and schema registry | exists |
@@ -159,21 +159,21 @@ Dependency rule: `infra → application → domain`. `domain` imports nothing fr
 
 | Concern | Choice |
 | --- | --- |
-| Go | 1.25, workspace via `go.work` |
-| Node | `>=20.18`, Yarn 4 workspaces (`nodeLinker: node-modules`) |
+| Go | 1.27 (toolchain go1.27.4), workspace via `go.work` |
+| Node | 26 LTS runtime (`engines` `>=24.11.0`), Yarn 4.18 workspaces through Corepack (`nodeLinker: node-modules`), TypeScript 6.0 |
 | Task runner | Make (root delegates to each app and infra) |
 | HTTP router (Go) | chi v5 |
 | SQL (Go) | pgx v5 with hand-written queries; migrations embedded with `go:embed` and applied in order |
-| ORM (TypeScript) | Prisma 5.22 |
+| ORM (TypeScript) | Prisma 7 with the `@prisma/adapter-pg` driver adapter; client generated into `src/infra/prisma/generated/` |
 | Kafka clients | segmentio/kafka-go (Go), KafkaJS 2.2 (Node) |
 | Contracts codegen | oapi-codegen (Go), openapi-typescript (TS) |
-| Web | Next.js 16.2, React 19, Tailwind 4 (OKLCH tokens), shadcn/ui, next-intl (`en`, `pt`, `es`), iron-session |
-| Lint and format | golangci-lint v2 and ESLint flat config, both from `configs/`, with architecture rules (depguard, `no-restricted-imports`); gofumpt and Prettier |
+| Web | Next.js 16.4, React 19.3, TanStack Query 5 and Table 9, Tailwind 4 (OKLCH tokens), shadcn/ui, next-intl (`en`, `pt`, `es`), iron-session |
+| Lint and format | golangci-lint v2.15 and ESLint 10 flat config, both from `configs/`, with architecture rules (depguard, `no-restricted-imports`); gofumpt and Prettier |
 | Shared configs | `configs/`: TypeScript bases, ESLint for Node packages, golangci-lint |
 | Git hooks | lefthook: format, vet, gitleaks, Conventional Commits |
-| Tests | Go `testing` with `-race`, Jest (Nest), Vitest (web), Playwright (end to end) |
+| Tests | Go `testing` with `-race`, Jest 30 (Nest, run with `--experimental-vm-modules` because NestJS 12 ships ES modules), Vitest 5 (web), Playwright (end to end) |
 | CI | GitHub Actions with per-app path filters |
-| Local infra | Docker Compose: Postgres 18.3, Kafka (KRaft), Karapace 6.1; later OpenBao and Mailpit |
+| Local infra | Docker Compose: Postgres 18.6, Kafka 4.4 (KRaft), Karapace 6.2; later OpenBao and Mailpit |
 
 ## 10. Not planned
 

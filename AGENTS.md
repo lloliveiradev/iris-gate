@@ -73,7 +73,7 @@ Do not open files only to translate or tidy them. Keep these edits in the same c
 
 ## What is already true
 
-- Go 1.25 (`go.work`), Node `>=20.18`, Yarn 4.14.1 workspaces. The task runner is Make. Do not add pnpm, npm or Turborepo. There is no Python toolchain; do not create a `.venv` or `pyproject.toml`.
+- Go 1.27 (`go.work`, toolchain go1.27.4), Node 26 LTS as the runtime (`engines` accepts `>=24.11.0`), Yarn 4.18.1 workspaces through Corepack. The task runner is Make. Do not add pnpm, npm or Turborepo. There is no Python toolchain; do not create a `.venv` or `pyproject.toml`.
 - Implemented contexts: `libs/identity`, `libs/payments`, `libs/fraud`. `libs/shared` is the empty shared-kernel slot. A new context needs a phase spec.
 - Published topic names are the ones in `libs/contracts/events/asyncapi.yaml` (`payments.payment_intent.*.v1`, `fraud.assessment.*.v1`).
 - Planned work follows `docs/design/to-be.md` and the phase specs in `docs/specs/`. `docs/architecture.md` and `docs/security.md` mark each planned part with its phase.
@@ -110,7 +110,8 @@ The sections below describe current behavior. When a phase changes one of them, 
 - The payments outbox publishes only `payments.payment_intent.{created,authorized,captured}.v1`. `apps/anti-fraud` consumes `fraud.assessment.requested.v1` and publishes `fraud.assessment.completed.v1`. Nothing in the tree produces the request topic; phase 10 replaces it with a synchronous endpoint. Do not build that bridge.
 - Rules are specifications in `libs/fraud`, configured by code and weight. Defaults: `SUSPICIOUS_ACCOUNT` 1.0, `UNUSUAL_AMOUNT` 0.6, `FREQUENT_HIGH_VALUE` 0.5. Thresholds default to review 30 and reject 70, both in `0..100`, with review `<=` reject.
 - Uncertainty fails closed: `REVIEW` or `REJECT`, never a fallback `APPROVE`.
-- `apps/anti-fraud` is the Nest composition root (Prisma, Kafka, inbox, outbox). It runs the built `@iris-gate/fraud` package. Change a rule in the lib. `predev` / `prebuild` already compile it.
+- `apps/anti-fraud` is the Nest composition root (Prisma, Kafka, inbox, outbox). It runs the built `@iris-gate/fraud` package. Change a rule in the lib. Yarn 4 does not run `pre*` scripts, so the `dev`, `build` and `typecheck` scripts build `@iris-gate/fraud` and run `prisma generate` themselves.
+- Prisma 7: the client is generated into `apps/anti-fraud/src/infra/prisma/generated/` (gitignored, never edited), `prisma.config.ts` holds the schema path and `DATABASE_URL`, and `PrismaService` connects through the `@prisma/adapter-pg` driver adapter. Schema changes still go through a migration in `prisma/migrations/`.
 - Consumers dedupe with the inbox. Do not apply one message id twice.
 
 ## Toolchain

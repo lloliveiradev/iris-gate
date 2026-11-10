@@ -6,9 +6,9 @@ There are three apps. Nothing else under this folder is a service.
 
 | App                         | Process              | Port   | What it owns                                                               |
 | --------------------------- | -------------------- | ------ | -------------------------------------------------------------------------- |
-| [`api`](api/)               | Go 1.25, chi, `slog` | `8080` | HTTP composition, Postgres pool, startup migrations, payments outbox relay |
-| [`web`](web/)               | Next.js 16, React 19 | `3000` | Merchant UI, i18n, iron-session                                            |
-| [`anti-fraud`](anti-fraud/) | NestJS 11            | `3001` | Kafka consumer, Prisma, inbox and outbox                                   |
+| [`api`](api/)               | Go 1.27, chi, `slog` | `8080` | HTTP composition, Postgres pool, startup migrations, payments outbox relay |
+| [`web`](web/)               | Next.js 16.4, React 19.3 | `3000` | Merchant UI, i18n, iron-session                                            |
+| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7  | `3001` | Kafka consumer, Prisma, inbox and outbox                                   |
 
 An app may depend on `libs/`. A lib must not import an app. One app must not import another. If a rule is being written under `apps/`, it belongs in the matching `libs/<context>`.
 
@@ -73,7 +73,7 @@ UI notes for this app are under `apps/web/docs/` (design system, i18n, tables). 
 
 ## anti-fraud
 
-NestJS worker. `libs/fraud` holds the specification rules; this app wires Prisma, KafkaJS, the inbox, and the outbox. `predev` and `prebuild` compile `@iris-gate/fraud` first.
+NestJS worker. `libs/fraud` holds the specification rules; this app wires Prisma, KafkaJS, the inbox, and the outbox. Its `dev`, `build` and `typecheck` scripts compile `@iris-gate/fraud` and run `prisma generate` first.
 
 It consumes `fraud.assessment.requested.v1`, deduplicates by message id, and publishes `fraud.assessment.completed.v1`. Failures go to `fraud.assessment.failed.dlq`. No code in this repo produces the request topic yet.
 

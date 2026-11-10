@@ -36,6 +36,7 @@ Iris Gate is a portfolio project: it will never run in production, process real 
 | 20 | Security hardening | later | to be written |
 | 21 | Cloud deployment (AWS, Terraform) | later | to be written |
 | 22 | Ledger | later | to be written |
+| 23 | Client IP and request origin | later | to be written |
 
 The live status of phases 6 to 18 is kept in [`specs/README.md`](specs/README.md); update both tables when a phase changes status.
 
@@ -60,6 +61,7 @@ flowchart LR
   P17 --> P20[20 Hardening]
   P17 --> P21[21 AWS]
   P13 --> P22[22 Ledger]
+  P16 --> P23[23 Client IP]
 ```
 
 Phase 10 can run in parallel with 7 to 9. Phases 12, 13 and 14 can run in parallel after 11.
@@ -139,6 +141,10 @@ Logging in with the API key is defect D9, replaced by user accounts in phases 8 
 
 ---
 
+### Stack upgrade (2026-11-10)
+
+Before phase 6, every runtime and tool moved to its latest stable release: Go 1.27.4 (chi 5.5, pgx 5.12, oapi-codegen 2.8), Node 26 LTS, Yarn 4.18, TypeScript 6.0, Next.js 16.4, React 19.3, NestJS 12, Prisma 7 (driver adapter, generated client), ESLint 10, Jest 30, Vitest 5, TanStack Table 9, Postgres 18.6, Kafka 4.4 and Karapace 6.2. Two deliberate holds: TypeScript stays on 6.0 because typescript-eslint and ts-jest do not support 7 yet, and Prisma stays on 7.10 because 8 is still a release candidate.
+
 ## Next: phases 6 to 18
 
 Each phase has a spec with scope, rules and acceptance criteria. Summaries:
@@ -167,6 +173,12 @@ These phases have no spec yet. Write one in `specs/` before starting.
 - **20. Security hardening.** Strict CSP and the remaining headers of [`security.md`](security.md), rate limits per API key, automated OWASP ZAP scan, written threat model.
 - **21. Cloud deployment.** AWS with Terraform: managed Postgres with IAM authentication, Secrets Manager, KMS adapter for the `KeyManager` port, managed Kafka or an equivalent, CI deploy of a demo environment.
 - **22. Ledger.** Double-entry journal fed by payment events, balance and statement endpoints.
+- **23. Client IP and request origin.** Record where every transaction and sensitive action comes from, for audit, fraud analysis and disputes. Requested by the owner on 2026-11-10. Scope to specify:
+  - resolve the real client IP safely: trust `X-Forwarded-For` only from configured proxies (chi's trusted-proxy helpers), never blindly; this replaces the `middleware.RealIP` removed in the Go 1.27 upgrade because forwarded headers can be spoofed;
+  - capture the customer's IP (and user agent) at the hosted checkout and the caller's IP on API-key and dashboard requests, and carry it through the request context as part of the actor (`request_id`, `actor_type`, `actor_id`, `client_ip`);
+  - store it on payment intents, payment attempts, `payment_intent_events`, `audit_events` and the API request log, and send it to the risk service as a fraud feature (velocity per IP, IP versus card country, many cards from one IP);
+  - treat it as personal data: raw IP only in restricted columns with a retention period, hashed (salted SHA-256) in application logs as `security.md` already requires, and visible in the dashboard only to roles that need it;
+  - surface it in the payment timeline and the dispute/review screens.
 
 Ideas beyond that, not committed: embedded card fields, 3-D Secure, partial capture, MFA, `platform_support` role with audited read-only impersonation, ML scoring served next to the rules, official SDKs (Node, Python, Go), Pix.
 

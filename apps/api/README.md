@@ -2,7 +2,7 @@
 
 Go HTTP process for Identity and Payments. chi and `log/slog` live here. Merchants, API keys, payment intents, the acquirer call, and the outbox live in `libs/identity` and `libs/payments`. `cmd/api/main.go` is the composition root: it opens Postgres, runs migrations, wires the use cases, and mounts the routers.
 
-The module is Go 1.25 (`toolchain go1.25.10`), resolved through the repo `go.work`. This process does not read a `.env` file. Set variables in the shell or accept the defaults.
+The module is Go 1.27 (`toolchain go1.27.4`), resolved through the repo `go.work`. This process does not read a `.env` file. Set variables in the shell or accept the defaults.
 
 Postgres and Kafka come from `make up`. Then, from the repo root:
 
