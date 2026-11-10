@@ -2,16 +2,20 @@
 
 import { useTranslations } from 'next-intl';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
-import type { Column } from '@tanstack/react-table';
+import type { CellData, Column, RowData } from '@tanstack/react-table';
 import { cn } from '@/lib/utils';
+import type { DataTableFeatures } from './features';
 
-interface DataTableColumnHeaderProps<TData, TValue> extends React.HTMLAttributes<HTMLDivElement> {
-  column: Column<TData, TValue>;
+interface DataTableColumnHeaderProps<
+  TData extends RowData,
+  TValue extends CellData,
+> extends React.HTMLAttributes<HTMLDivElement> {
+  column: Column<DataTableFeatures, TData, TValue>;
   title: string;
   align?: 'left' | 'right' | 'center';
 }
 
-export function DataTableColumnHeader<TData, TValue>({
+export function DataTableColumnHeader<TData extends RowData, TValue extends CellData>({
   column,
   title,
   align = 'left',

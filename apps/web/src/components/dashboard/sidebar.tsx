@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import type { Route } from 'next';
-import { LayoutDashboard, ListChecks, PlusCircle } from 'lucide-react';
+import { CirclePlus, LayoutDashboard, ListChecks } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ export async function DashboardSidebar({ merchantName, status }: SidebarProps) {
     {
       href: '/dashboard/payment-intents/new',
       label: t('nav.new_intent'),
-      icon: PlusCircle,
+      icon: CirclePlus,
     },
   ];
 

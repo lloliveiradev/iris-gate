@@ -1,7 +1,7 @@
 {
   "name": "iris-gate",
   "private": true,
-  "packageManager": "yarn@4.14.1",
+  "packageManager": "yarn@4.18.1",
   "workspaces": [
     "apps/web",
     "apps/anti-fraud",
@@ -10,13 +10,9 @@
     "libs/sdk-web"
   ],
   "engines": {
-    "node": ">=20.18.0"
+    "node": ">=24.11.0"
   },
-  "resolutions": {
-    "@eslint/plugin-kit": "0.3.4",
-    "picomatch": "4.0.4",
-    "postcss@^8.0.0": "8.5.14",
-    "@nestjs/cli/glob": "11.1.0",
-    "@nestjs/cli/webpack": "5.105.0"
+  "devDependencies": {
+    "prettier": "3.9.10"
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { MoreHorizontal } from 'lucide-react';
+import { Ellipsis } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,7 +28,7 @@ export function DataTableRowActions({ children, label, align = 'end' }: DataTabl
           className="size-8"
           aria-label={label ?? t('row_actions_label')}
         >
-          <MoreHorizontal className="size-4" aria-hidden />
+          <Ellipsis className="size-4" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-44">

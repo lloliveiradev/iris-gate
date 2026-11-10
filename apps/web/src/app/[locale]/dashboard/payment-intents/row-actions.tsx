@@ -7,7 +7,7 @@ import {
   CircleDollarSign,
   Copy,
   Eye,
-  Loader2,
+  LoaderCircle,
   ShieldCheck,
 } from 'lucide-react';
 import type { PaymentIntent } from '@iris-gate/sdk-web';
@@ -75,7 +75,7 @@ export function PaymentIntentRowActions({ intent }: PaymentIntentRowActionsProps
         className="gap-2"
       >
         {authorizing ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden />
+          <LoaderCircle className="size-4 animate-spin" aria-hidden />
         ) : (
           <ShieldCheck className="size-4" aria-hidden />
         )}
@@ -91,7 +91,7 @@ export function PaymentIntentRowActions({ intent }: PaymentIntentRowActionsProps
         className="gap-2"
       >
         {capturing ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden />
+          <LoaderCircle className="size-4 animate-spin" aria-hidden />
         ) : (
           <CircleDollarSign className="size-4" aria-hidden />
         )}

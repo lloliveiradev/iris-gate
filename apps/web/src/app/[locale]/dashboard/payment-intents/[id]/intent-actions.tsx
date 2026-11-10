@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { CircleDollarSign, Loader2, ShieldCheck } from 'lucide-react';
+import { CircleDollarSign, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { type ActionState, authorizeAction, captureAction } from './actions';
@@ -30,7 +30,7 @@ export function IntentActions({
           <input type="hidden" name="id" value={id} />
           <Button type="submit" size="lg" disabled={!canAuthorize || authPending}>
             {authPending ? (
-              <Loader2 className="size-4 animate-spin" />
+              <LoaderCircle className="size-4 animate-spin" />
             ) : (
               <ShieldCheck className="size-4" />
             )}
@@ -46,7 +46,7 @@ export function IntentActions({
             disabled={!canCapture || capPending}
           >
             {capPending ? (
-              <Loader2 className="size-4 animate-spin" />
+              <LoaderCircle className="size-4 animate-spin" />
             ) : (
               <CircleDollarSign className="size-4" />
             )}

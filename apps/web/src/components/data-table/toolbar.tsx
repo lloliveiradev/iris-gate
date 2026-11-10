@@ -2,10 +2,11 @@
 
 import { useTranslations } from 'next-intl';
 import { Search, X } from 'lucide-react';
-import type { Table } from '@tanstack/react-table';
+import type { ReactTable, RowData } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DataTableFacetedFilter, type FacetedFilterOption } from './faceted-filter';
+import type { DataTableFeatures } from './features';
 import { DataTableViewOptions } from './view-options';
 
 export interface ToolbarFilterConfig {
@@ -28,16 +29,18 @@ export interface ToolbarConfig {
   viewOptions?: boolean;
 }
 
-interface DataTableToolbarProps<TData> {
-  table: Table<TData>;
+interface DataTableToolbarProps<TData extends RowData> {
+  table: ReactTable<DataTableFeatures, TData>;
   config: ToolbarConfig;
 }
 
-export function DataTableToolbar<TData>({ table, config }: DataTableToolbarProps<TData>) {
+export function DataTableToolbar<TData extends RowData>({
+  table,
+  config,
+}: DataTableToolbarProps<TData>) {
   const t = useTranslations('data_table');
 
-  const isFiltered =
-    table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
+  const isFiltered = table.state.columnFilters.length > 0 || !!table.state.globalFilter;
 
   const showSearch = config.search;
   const filters = config.filters ?? [];
@@ -54,7 +57,7 @@ export function DataTableToolbar<TData>({ table, config }: DataTableToolbarProps
             className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
           />
           <Input
-            value={(table.getState().globalFilter as string) ?? ''}
+            value={(table.state.globalFilter as string) ?? ''}
             onChange={(e) => table.setGlobalFilter(e.target.value)}
             placeholder={config.searchPlaceholder ?? t('search_placeholder')}
             className="h-9 pl-9"

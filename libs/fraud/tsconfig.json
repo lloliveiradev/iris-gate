@@ -2,7 +2,7 @@
   "extends": "../../configs/typescript/tsconfig.node.json",
   "compilerOptions": {
     "lib": ["ES2022"],
-    "moduleResolution": "node",
+    "types": ["jest"],
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "declaration": true,

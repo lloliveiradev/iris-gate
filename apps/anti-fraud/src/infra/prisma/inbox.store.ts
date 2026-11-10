@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { InboxStore } from '@iris-gate/fraud';
-import { Prisma } from '@prisma/client';
+import { Prisma } from './generated/client';
 import { PrismaService } from './prisma.service';
 
 const UNIQUE_VIOLATION = 'P2002';

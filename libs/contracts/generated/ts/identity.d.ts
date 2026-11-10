@@ -35,7 +35,6 @@ export interface paths {
          * @description Retorna o segredo em texto-claro **uma única vez** no campo `secret`.
          *     Após esta resposta, apenas o `prefix` permanece consultável; o secret é
          *     armazenado como hash Argon2id.
-         *
          */
         post: operations["issueApiKey"];
         delete?: never;
@@ -72,7 +71,6 @@ export interface paths {
          * Resolve merchant from API key (auth gate test)
          * @description Endpoint protegido. Requer `Authorization: Bearer <api-key>` no formato
          *     `irk_<prefix>.<secret>`. Retorna o merchant dono da chave.
-         *
          */
         get: operations["getCurrentMerchant"];
         put?: never;

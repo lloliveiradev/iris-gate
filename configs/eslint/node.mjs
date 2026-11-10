@@ -1,25 +1,23 @@
 // Shared ESLint flat config for TypeScript packages that run on Node
 // (apps/anti-fraud, libs/fraud). Each package re-exports it from its own
 // eslint.config.mjs, so ESLint still finds a config next to package.json.
-import tseslint from '@typescript-eslint/eslint-plugin';
-import tsparser from '@typescript-eslint/parser';
+import { defineConfig } from 'eslint/config';
+import tseslint from 'typescript-eslint';
 
 // Frameworks and drivers that belong in infra/ or in the composition root.
 const INFRA_MODULES = ['@nestjs/*', '@prisma/*', 'prisma', 'kafkajs', 'pg', 'express'];
 
-export default [
+export default defineConfig([
   {
     files: ['src/**/*.ts'],
+    extends: [tseslint.configs.recommended],
     languageOptions: {
-      parser: tsparser,
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
       },
     },
-    plugins: { '@typescript-eslint': tseslint },
     rules: {
-      ...tseslint.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
@@ -42,6 +40,7 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'coverage/'],
+    // Generated code (the Prisma client in apps/anti-fraud) is not linted.
+    ignores: ['dist/', 'node_modules/', 'coverage/', 'src/**/generated/'],
   },
-];
+]);

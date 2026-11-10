@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, LoaderCircle } from 'lucide-react';
 import type { PaymentIntent, PaymentIntentStatus } from '@iris-gate/sdk-web';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,9 @@ import { DataTableEmptyState } from '@/components/data-table/empty-state';
 import { Link } from '@/i18n/routing';
 import { useListPaymentIntents } from '@/lib/queries/payment-intents';
 import { usePaymentIntentColumns } from './columns';
+
+// Stable fallback so the table does not see new data on every render while loading.
+const NO_ROWS: PaymentIntent[] = [];
 
 interface PaymentIntentsTableProps {
   initialData?: PaymentIntent[];
@@ -22,7 +25,7 @@ export function PaymentIntentsTable({ initialData }: PaymentIntentsTableProps) {
   const tTable = useTranslations('data_table');
   const columns = usePaymentIntentColumns();
   const { data, isFetching, isLoading } = useListPaymentIntents({ initialData });
-  const rows = data ?? [];
+  const rows = data ?? NO_ROWS;
 
   const statusOptions = useMemo<{ value: PaymentIntentStatus; label: string }[]>(
     () => [
@@ -44,7 +47,7 @@ export function PaymentIntentsTable({ initialData }: PaymentIntentsTableProps) {
           <CardDescription>{t('card_description')}</CardDescription>
         </div>
         {isFetching && !isLoading ? (
-          <Loader2
+          <LoaderCircle
             className="size-4 animate-spin text-muted-foreground"
             aria-label={tTable('refreshing')}
           />

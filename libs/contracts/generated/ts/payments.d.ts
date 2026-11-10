@@ -77,12 +77,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description Valor monetário em menor unidade (centavos para BRL/USD/etc).
+        /**
+         * @description Valor monetário em menor unidade (centavos para BRL/USD/etc).
          *     `currency` segue ISO-4217 alpha-3.
-         *      */
+         */
         Money: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 12990
+             */
             amount_cents: number;
+            /** @example BRL */
             currency: string;
         };
         CreatePaymentIntentRequest: {
@@ -184,9 +189,10 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Chave idempotente fornecida pelo cliente. Repetir a mesma chave
+                /**
+                 * @description Chave idempotente fornecida pelo cliente. Repetir a mesma chave
                  *     (com o mesmo body) devolve a resposta original sem efeito colateral.
-                 *      */
+                 */
                 "Idempotency-Key": string;
             };
             path?: never;

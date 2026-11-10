@@ -5,13 +5,14 @@
 # The ignore rules for that context live in Dockerfile.dev.dockerignore, next to this file.
 # There is no production image yet.
 
-FROM node:20-alpine
+FROM node:26.13.0-alpine
 
-# Prisma needs OpenSSL 3 at runtime (matches binaryTargets in schema.prisma).
-RUN apk add --no-cache openssl bash
+# bash runs the dev and start scripts. Prisma 7 has no query engine binary, so no OpenSSL is needed.
+RUN apk add --no-cache bash
 
-# Yarn Berry via corepack (single source of truth — root .yarnrc.yml controls the version).
-RUN corepack enable
+# Node 25+ no longer bundles corepack; install it, then let it provide the Yarn
+# version pinned in the root package.json (packageManager).
+RUN npm install -g corepack@0.34.0 && corepack enable
 
 WORKDIR /repo
 
@@ -23,14 +24,15 @@ COPY libs/fraud/package.json libs/fraud/package.json
 COPY libs/contracts/package.json libs/contracts/package.json
 COPY libs/sdk-web/package.json libs/sdk-web/package.json
 
-# --- Layer 2: copy Prisma schema (anti-fraud postinstall needs it for `prisma generate`) ---
+# --- Layer 2: Prisma schema and config (the anti-fraud postinstall runs `prisma generate`) ---
 COPY apps/anti-fraud/prisma apps/anti-fraud/prisma
+COPY apps/anti-fraud/prisma.config.ts apps/anti-fraud/prisma.config.ts
 
-# --- Layer 3: install deps (postinstall runs prisma generate → needs schema above) ---
+# --- Layer 3: install deps ---
 ENV YARN_ENABLE_GLOBAL_CACHE=false
 RUN yarn install --immutable
 
-# --- Layer 4: shared tool configs (tsconfig bases), then the fraud lib source + build (predev hook in anti-fraud expects dist/) ---
+# --- Layer 4: shared tool configs (tsconfig bases), then the fraud lib source + build ---
 COPY configs configs
 COPY libs/fraud libs/fraud
 RUN yarn workspace @iris-gate/fraud build
@@ -41,5 +43,6 @@ WORKDIR /repo/apps/anti-fraud
 
 EXPOSE 3001
 
-# Default to dev watch mode. The predev hook re-builds libs/fraud (fast tsc incremental).
+# Dev watch mode. `yarn run dev` rebuilds libs/fraud and regenerates the Prisma
+# client first, because Compose mounts the host src/ over the image's copy.
 CMD ["yarn", "run", "dev"]

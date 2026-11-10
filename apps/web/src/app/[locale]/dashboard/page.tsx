@@ -1,4 +1,4 @@
-import { ArrowRight, Activity, AlertTriangle, DollarSign } from 'lucide-react';
+import { ArrowRight, Activity, TriangleExclamationPoint, DollarSign } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { Badge } from '@/components/ui/badge';
@@ -64,7 +64,7 @@ export default async function DashboardOverview() {
           mono
         />
         <StatCard
-          icon={<AlertTriangle className="size-4 text-secondary" />}
+          icon={<TriangleExclamationPoint className="size-4 text-secondary" />}
           label={t('cards.flagged')}
           value={String(flagged)}
           hint={t('cards.flagged_hint')}

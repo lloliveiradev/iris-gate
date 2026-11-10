@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
-import type { Table } from '@tanstack/react-table';
+import type { ReactTable, RowData } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -11,24 +11,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import type { DataTableFeatures } from './features';
 
-interface DataTablePaginationProps<TData> {
-  table: Table<TData>;
+interface DataTablePaginationProps<TData extends RowData> {
+  table: ReactTable<DataTableFeatures, TData>;
   pageSizes?: number[];
 }
 
-export function DataTablePagination<TData>({
+export function DataTablePagination<TData extends RowData>({
   table,
   pageSizes = [10, 25, 50, 100],
 }: DataTablePaginationProps<TData>) {
   const t = useTranslations('data_table');
   const tPag = useTranslations('data_table.pagination');
 
-  const { pageIndex, pageSize } = table.getState().pagination;
+  const { pageIndex, pageSize } = table.state.pagination;
   const pageCount = Math.max(table.getPageCount(), 1);
   const selectedCount = table.getFilteredSelectedRowModel().rows.length;
   const totalCount = table.getFilteredRowModel().rows.length;
-  const showSelection = table.getRowModel().rows.some((r) => r.getCanSelect?.());
+  const showSelection = table.getRowModel().rows.some((r) => r.getCanSelect());
 
   const mono = (chunks: React.ReactNode) => (
     <span className="font-mono tabular-nums text-foreground">{chunks}</span>

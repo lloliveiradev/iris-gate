@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Settings2 } from 'lucide-react';
-import type { Table } from '@tanstack/react-table';
+import type { ReactTable, RowData } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,12 +12,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { DataTableFeatures } from './features';
 
-interface DataTableViewOptionsProps<TData> {
-  table: Table<TData>;
+interface DataTableViewOptionsProps<TData extends RowData> {
+  table: ReactTable<DataTableFeatures, TData>;
 }
 
-export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps<TData>) {
+export function DataTableViewOptions<TData extends RowData>({
+  table,
+}: DataTableViewOptionsProps<TData>) {
   const t = useTranslations('data_table.columns');
 
   const toggleable = table
@@ -38,8 +41,7 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
         <DropdownMenuLabel>{t('toggle_menu_label')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {toggleable.map((column) => {
-          const meta = column.columnDef.meta as { label?: string } | undefined;
-          const label = meta?.label ?? column.id;
+          const label = column.columnDef.meta?.label ?? column.id;
           return (
             <DropdownMenuCheckboxItem
               key={column.id}

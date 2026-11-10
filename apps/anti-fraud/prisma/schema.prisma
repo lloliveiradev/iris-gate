@@ -1,14 +1,18 @@
 // Iris Gate — Anti-fraud datastore.
 // Models cover: account flags, completed risk assessments, configurable rule
 // definitions, plus Inbox/Outbox messages for at-least-once Kafka semantics.
+
+// The client is generated into src/ as TypeScript so `nest build` compiles it
+// with the app. It runs without a query engine binary: PrismaService connects
+// through the pg driver adapter. The connection URL lives in prisma.config.ts.
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+  provider     = "prisma-client"
+  output       = "../src/infra/prisma/generated"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Account {

@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Check, CirclePlus } from 'lucide-react';
-import type { Column } from '@tanstack/react-table';
+import type { CellData, Column, RowData } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,19 +15,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import type { DataTableFeatures } from './features';
 
 export interface FacetedFilterOption {
   value: string;
   label: string;
 }
 
-interface DataTableFacetedFilterProps<TData, TValue> {
-  column?: Column<TData, TValue>;
+interface DataTableFacetedFilterProps<TData extends RowData, TValue extends CellData> {
+  column?: Column<DataTableFeatures, TData, TValue>;
   title: string;
   options?: FacetedFilterOption[];
 }
 
-export function DataTableFacetedFilter<TData, TValue>({
+export function DataTableFacetedFilter<TData extends RowData, TValue extends CellData>({
   column,
   title,
   options,

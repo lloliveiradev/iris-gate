@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, LoaderCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,7 +76,7 @@ export function NewIntentForm() {
       <Button type="submit" size="lg" disabled={pending} className="w-full sm:w-auto sm:self-end">
         {pending ? (
           <>
-            <Loader2 className="size-4 animate-spin" />
+            <LoaderCircle className="size-4 animate-spin" />
             {t('submit_pending')}
           </>
         ) : (

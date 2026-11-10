@@ -6,6 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { PaymentIntent } from '@iris-gate/sdk-web';
 import { Badge } from '@/components/ui/badge';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
+import type { DataTableFeatures } from '@/components/data-table/features';
 import { statusVariant, useFormatDateTime, useFormatMoney } from '@/lib/format';
 import { PaymentIntentRowActions } from './row-actions';
 
@@ -24,13 +25,13 @@ function isKnownStatus(value: string): value is StatusKey {
   return (KNOWN_STATUSES as readonly string[]).includes(value);
 }
 
-export function usePaymentIntentColumns(): ColumnDef<PaymentIntent>[] {
+export function usePaymentIntentColumns(): ColumnDef<DataTableFeatures, PaymentIntent>[] {
   const t = useTranslations('dashboard.payment_intents.columns');
   const tStatus = useTranslations('dashboard.payment_intents.statuses');
   const formatMoney = useFormatMoney();
   const formatDateTime = useFormatDateTime();
 
-  return useMemo<ColumnDef<PaymentIntent>[]>(
+  return useMemo<ColumnDef<DataTableFeatures, PaymentIntent>[]>(
     () => [
       {
         accessorKey: 'id',
@@ -53,7 +54,7 @@ export function usePaymentIntentColumns(): ColumnDef<PaymentIntent>[] {
             {formatMoney(row.original.amount.amount_cents, row.original.amount.currency)}
           </div>
         ),
-        sortingFn: 'basic',
+        sortFn: 'basic',
         enableGlobalFilter: false,
       },
       {
@@ -87,7 +88,7 @@ export function usePaymentIntentColumns(): ColumnDef<PaymentIntent>[] {
             {formatDateTime(row.original.created_at)}
           </span>
         ),
-        sortingFn: (a, b) => {
+        sortFn: (a, b) => {
           const da = new Date(a.original.created_at).getTime();
           const db = new Date(b.original.created_at).getTime();
           return da - db;

@@ -1,4 +1,4 @@
-# apps/anti-fraud — Nest 11
+# apps/anti-fraud — NestJS 12 worker (Prisma 7, KafkaJS)
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -11,8 +11,8 @@ C_BLD := \033[1m
 C_CYN := \033[36m
 
 .PHONY: help
-help: ## Mostra esta ajuda
-	@awk 'BEGIN {FS = ":.*##"; printf "\n$(C_BLD)apps/anti-fraud$(C_RST) — alvos:\n"} \
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\n$(C_BLD)apps/anti-fraud$(C_RST) — targets:\n"} \
 		/^[a-zA-Z_0-9-]+:.*?##/ { printf "  $(C_CYN)%-12s$(C_RST) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: dev
@@ -52,6 +52,6 @@ prisma-deploy: ## prisma migrate deploy (CI/prod)
 	$(YARN) run prisma:migrate:deploy
 
 .PHONY: clean
-clean: ## Remove node_modules, cache e build
+clean: ## Remove node_modules, caches and build output
 	rm -rf node_modules dist coverage .turbo .cache
 	rm -f tsconfig.tsbuildinfo

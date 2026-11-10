@@ -3,18 +3,10 @@
 import * as React from 'react';
 import {
   flexRender,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
+  useTable,
   type ColumnDef,
-  type ColumnFiltersState,
-  type InitialTableState,
-  type SortingState,
-  type VisibilityState,
+  type RowData,
+  type TableState,
 } from '@tanstack/react-table';
 import {
   Table,
@@ -26,14 +18,15 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { dataTableFeatures, type DataTableFeatures } from './features';
 import { DataTableEmptyState } from './empty-state';
 import { DataTablePagination } from './pagination';
 import { DataTableToolbar, type ToolbarConfig } from './toolbar';
 
-export interface DataTableProps<TData, TValue> {
+export interface DataTableProps<TData extends RowData> {
   data: TData[];
-  columns: ColumnDef<TData, TValue>[];
-  initialState?: InitialTableState;
+  columns: ColumnDef<DataTableFeatures, TData>[];
+  initialState?: Partial<TableState<DataTableFeatures>>;
   toolbar?: ToolbarConfig;
   isLoading?: boolean;
   /** Shown when `data` is empty AND no filters/search applied. */
@@ -44,7 +37,7 @@ export interface DataTableProps<TData, TValue> {
   skeletonRows?: number;
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   data,
   columns,
   initialState,
@@ -53,58 +46,21 @@ export function DataTable<TData, TValue>({
   emptyState,
   emptyResults,
   skeletonRows,
-}: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>(
-    initialState?.sorting ?? [],
-  );
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    initialState?.columnFilters ?? [],
-  );
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
-    initialState?.columnVisibility ?? {},
-  );
-  const [globalFilter, setGlobalFilter] = React.useState<string>(
-    (initialState?.globalFilter as string) ?? '',
-  );
-  const [rowSelection, setRowSelection] = React.useState(
-    initialState?.rowSelection ?? {},
-  );
-
-  // TanStack Table internally returns non-memoizable functions; the React
-  // Compiler `incompatible-library` rule fires for any call to `useReactTable`.
-  // Known interaction — the library's owner is tracking it. Safe to silence.
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+}: DataTableProps<TData>) {
+  // The table owns its state; the default selector re-renders on every change.
+  const table = useTable({
+    features: dataTableFeatures,
     data,
     columns,
     initialState,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      globalFilter,
-      rowSelection,
-    },
     enableRowSelection: true,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setGlobalFilter,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
   const filteredRows = table.getRowModel().rows;
   const totalDataRows = data.length;
-  const hasActiveFilters =
-    table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
+  const hasActiveFilters = table.state.columnFilters.length > 0 || !!table.state.globalFilter;
 
-  const skeletonCount = skeletonRows ?? table.getState().pagination.pageSize;
+  const skeletonCount = skeletonRows ?? table.state.pagination.pageSize;
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
   return (

@@ -1,7 +1,7 @@
 # lefthook — git hooks runner (https://github.com/evilmartians/lefthook)
 #
-# Instalar:  make install-hooks   (ou: lefthook install)
-# Bypass:    git commit --no-verify   (use SOMENTE em emergência justificável)
+# Install:  make install-hooks   (or: lefthook install)
+# Bypass:   git commit --no-verify   (ONLY in a justified emergency)
 
 pre-commit:
   parallel: true
@@ -10,7 +10,7 @@ pre-commit:
       glob: "*.go"
       run: |
         if ! command -v gofumpt >/dev/null 2>&1; then
-          echo "✗ gofumpt não instalado. Rode: go install mvdan.cc/gofumpt@latest" >&2
+          echo "✗ gofumpt is not installed. Run: go install mvdan.cc/gofumpt@latest" >&2
           exit 1
         fi
         gofumpt -l -w {staged_files}
@@ -27,33 +27,33 @@ pre-commit:
         - "**/*.generated.*"
       run: |
         if ! command -v yarn >/dev/null 2>&1; then
-          echo "✗ yarn não instalado. corepack enable" >&2
+          echo "✗ yarn is not installed. Run: corepack enable" >&2
           exit 1
         fi
-        yarn dlx prettier@3 --write {staged_files}
+        yarn prettier --write {staged_files}
         git add {staged_files}
 
     gitleaks:
       run: |
         if ! command -v gitleaks >/dev/null 2>&1; then
-          echo "⚠ gitleaks não instalado — pulando. Instale: brew install gitleaks" >&2
+          echo "⚠ gitleaks is not installed; skipping. Install: brew install gitleaks" >&2
           exit 0
         fi
         gitleaks protect --staged --redact --verbose
 
 commit-msg:
   commands:
-    # Conventional Commits leve — "type(scope): subject" ou "type: subject"
+    # Lightweight Conventional Commits: "type(scope): subject" or "type: subject"
     conventional:
       run: |
         msg=$(head -n1 "{1}")
-        # Permite merges/reverts/comentários sem validação
+        # Merges, reverts and comment lines skip validation
         case "$msg" in
           "Merge "*|"Revert "*|"#"*) exit 0 ;;
         esac
         if ! echo "$msg" | grep -qE '^(feat|fix|chore|docs|refactor|test|build|ci|perf|style|revert)(\([a-z0-9_-]+\))?!?: .{3,}'; then
-          echo "✗ commit message não segue Conventional Commits."
-          echo "  Esperado: type(scope): subject   (type ∈ feat|fix|chore|docs|refactor|test|build|ci|perf|style|revert)"
-          echo "  Recebido: $msg"
+          echo "✗ commit message does not follow Conventional Commits."
+          echo "  Expected: type(scope): subject   (type ∈ feat|fix|chore|docs|refactor|test|build|ci|perf|style|revert)"
+          echo "  Received: $msg"
           exit 1
         fi
