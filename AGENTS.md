@@ -25,17 +25,17 @@ Every agent that implements work here (Cursor, Codex, Claude, Antigravity or any
 
 Board flow: **Backlog → WIP → Review (only when needed) → Done**.
 
-| List | A card goes there when |
-| --- | --- |
-| Backlog | it is created from the phase plan: one card per plan task, named `Phase NN · <task>`, with the task's steps as a checklist, area labels (`api`, `web`, `antifraud`, `infra`, `docs`, `core`, `messaging`, `adapter`) and links to the plan and the spec in the description |
-| WIP | work on that task starts; this is the first Trello call of the task |
-| Review | a human must look before the task counts as done: a decision the spec does not cover, a conflict between documents, a visual change, or anything the spec marks as an owner gate. Comment what to review and why, and assign `owner` |
-| Done | the task is finished, tests are green and the work is committed, with no impediment: move it, comment `🤖 [agent] Task complete. Commit: <SHA>. <branch>.`, then close it |
+| List    | A card goes there when                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Backlog | it is created from the phase plan: one card per plan task, named `Phase NN · <task>` with no `[area]` prefix (the area goes in labels), with the task's steps as a checklist, labels for the area (`api`, `web`, `antifraud`, `core`, `messaging`, `infra`, `ci`, `security`, `identity`, `payments`, `contracts`, `docs`), plus `blocker`, plus one agent label per card (`agent:cursor`, `agent:claude`, `agent:agy`), and links to the plan and the spec in the description |
+| WIP     | work on that task starts; this is the first Trello call of the task                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Review  | a human must look before the task counts as done: a decision the spec does not cover, a conflict between documents, a visual change, or anything the spec marks as an owner gate. Comment what to review and why, and assign `owner`                                                                                                                                                                                                                                           |
+| Done    | the task is finished, tests are green and the work is committed, with no impediment: move it, comment `🤖 [agent] Task complete. Commit: <SHA>. <branch>.`, then close it                                                                                                                                                                                                                                                                                                      |
 
 - Mirror every transition as it happens, never in a sweep at the end. Check each checklist item as soon as that step is verified.
 - **Blocked:** comment the blocker, add the `blocker` label and assign `owner`. The card stays in WIP; do not move it to Done or close it.
 - **Work only a human can do** (a credential, a decision, a merge, a design session, an approval): create a card in Backlog assigned to `owner`, saying what is needed and why, and mention it on the card it blocks.
-- Card titles, descriptions and comments follow the `locale` in `.trello.json` (pt-BR). Code, commits and docs stay in English.
+- Card titles, descriptions and comments follow the `locale` in `.trello.json` (pt-BR). Code, comments, docs and commit messages stay in English. Pull request titles and bodies are pt-BR, as "Push and pull requests" describes.
 - If `.trello.json` lacks a list the flow needs (for example `review`), do not guess an id: refresh the config with the skill's init or doctor flow, or open an owner card.
 
 **Audit log.** The skills append one JSON line per Trello write to `.logs/pm-tasks/trello/audit.log` (the path set in `.trello.json`; `.logs/` is gitignored). Each line carries the timestamp, verb, result, card id, URL or name, list ids, comment id and session. That file is the agent's record of task ids and of what each MCP call did; the board is the owner's view, and both must stay in sync.
@@ -50,6 +50,7 @@ Board flow: **Backlog → WIP → Review (only when needed) → Done**.
 - Push with HTTPS through the GitHub CLI's credential helper, e.g. `git push https://github.com/lloliveiradev/iris-gate.git <branch>`, and open the PR with `gh pr create` (fill title and body; link the Trello card and issue).
 - Never push to `main` directly (protected by a ruleset) and never force-push; work on a branch and open a PR.
 - Never merge your own PR; the owner reviews and merges.
+- Pull request title and body are written in pt-BR and filled from [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). Pass that filled file to `gh pr create --body-file`, or open the pull request in the GitHub UI so the template is inserted. Code, comments, docs and commit messages stay in English.
 
 ### Explore with CodeGraph first
 
@@ -163,7 +164,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Shared tool configs live in `configs/` (see `configs/README.md`): `typescript/` bases that every `tsconfig.json` extends, `eslint/node.mjs`, and `go/golangci.yml`. Their architecture rules (depguard in Go, `no-restricted-imports` in TypeScript) enforce the clean-architecture and context boundaries above. Never silence them with `//nolint` or `eslint-disable`; fix the dependency. A new Go module or context gets its isolation rule in `configs/go/golangci.yml`.
 - Infra files go in `infra/`, developer scripts in `tools/` behind a root `make` target, design docs in `docs/design/` (the web design system is in `docs/design/design-system/`).
 - New dashboard copy goes in `apps/web/messages/en.json`, `pt.json` and `es.json`. Default locale is `en`. Routes always wear a prefix.
-- Code, identifiers, comments, docs and commit messages are in English. Dashboard copy is the only place for Portuguese and Spanish.
+- Code, identifiers, comments, docs and commit messages are in English. Dashboard copy is the only product text in Portuguese and Spanish. Pull request titles and bodies are pt-BR, as "Push and pull requests" describes.
 
 ## Verify before you finish
 
