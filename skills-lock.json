@@ -1,0 +1,137 @@
+{
+  "version": 2,
+  "skills": {
+    "backend-to-frontend-handoff-docs": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/backend-to-frontend-handoff-docs/SKILL.md",
+      "computedHash": "ef950971321fb417bc1722d6a4b8b1c8aa72e55776a50f37400706638574c1d0"
+    },
+    "commit-work": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/commit-work/SKILL.md",
+      "computedHash": "9df7a6fa2b73587e0be1034a2c00bd72157bef546a0f724be589c3612e862383"
+    },
+    "create-readme": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/create-readme/SKILL.md",
+      "computedHash": "59e7a20cc6e183f31c0161a619b66f96d05656378c1cef886522b6845d33c953"
+    },
+    "database-schema-designer": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/database-schema-designer/SKILL.md",
+      "computedHash": "45844be469e96fb9ca60d0cb820e0702db70ab24fc8158663502fbd1ec3008fc"
+    },
+    "dependency-updater": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/dependency-updater/SKILL.md",
+      "computedHash": "12dfd3ffb6f21ac5505bbdf0be4f9d43c492ba8d78620ccb6b613a7cff7a55fd"
+    },
+    "lesson-learned": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/lesson-learned/SKILL.md",
+      "computedHash": "58a63ecda867f44cfe27f5af7390caf127d54b676d7924692fb18c0312e133fa"
+    },
+    "naming-analyzer": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/naming-analyzer/SKILL.md",
+      "computedHash": "7e502fa2f5846207f1335b8e6a373f03e9b77c9377d1d81d00efc83305225991"
+    },
+    "pm-tasks-core": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pm-tasks-core/SKILL.md",
+      "computedHash": "1d818bbda2b2336e8c4c6902cd9b33891e363fb268da5629687abf4f9d027df5"
+    },
+    "pm-tasks-trello": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pm-tasks-trello/SKILL.md",
+      "computedHash": "41c5478d738de6591f1cc5ecc479e9d9f6a1884209d1de4c5efc10c0a21b6432"
+    },
+    "pretty-mermaid": {
+      "source": "imxv/Pretty-mermaid-skills",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "b0bb06f991966f61828c1a485be5305aa7f44cc30e95afed26eefbae37e588da"
+    },
+    "react-dev": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/react-dev/SKILL.md",
+      "computedHash": "a2cb4f9d511edecc89b1e83277ec6721be72c764221775e141baa21e1f775e68"
+    },
+    "react-useeffect": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/react-useeffect/SKILL.md",
+      "computedHash": "e450f31d028a1a2670dae02473b1ce8f7c8c2bfa212e7e656c58b444d272bd45"
+    },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "388962d16c7a4f13aaeee0d8f128e50a87df8553d42ef7988c39c0e1c74a40e8"
+    },
+    "ts-ddd-controller": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-ddd-controller/SKILL.md",
+      "computedHash": "f825612a2fe8f9d95eef40b09886ed05fad7b1c829c163dd33f301194ff012b0"
+    },
+    "ts-ddd-domain-service": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-ddd-domain-service/SKILL.md",
+      "computedHash": "91d9a2b92c08647230f794810f70c98093e3ef5d176cff94dd97f339bce87b87"
+    },
+    "ts-ddd-dto": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-ddd-dto/SKILL.md",
+      "computedHash": "a1da627240e67835217f6500e3ab471373af401feeef43dd1c427037a3b155aa"
+    },
+    "ts-ddd-entity": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-ddd-entity/SKILL.md",
+      "computedHash": "f281d0e17b6962fd43b139219b7f8a7a17b0e7c64350f04c85aa058eab00875c"
+    },
+    "ts-ddd-repository": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-ddd-repository/SKILL.md",
+      "computedHash": "098398fac859d6e2d7a39e94807963e204c2f919c9137b6aaf1f08e91e54d720"
+    },
+    "ts-ddd-use-case": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-ddd-use-case/SKILL.md",
+      "computedHash": "33ece7b4bb2736621840d12deef28106d76963f370888faecca8efb623181a3b"
+    },
+    "ts-ddd-value-object": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-ddd-value-object/SKILL.md",
+      "computedHash": "eef9393a7229cbbef7ef410a9ac1f66ca16605f68ff5041b51670da4f0132ad6"
+    },
+    "ts-query-cqrs": {
+      "source": "llodev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ts-query-cqrs/SKILL.md",
+      "computedHash": "1bbe41cad0f84a4df20eea0bcb3e32c3d501bc4a9e381d2b6096b73da1315e78"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "ff6863fc7c1be035b294703b2e7c90b2197548985ca4cb98f58740a7e84dc0cc"
+    }
+  }
+}
