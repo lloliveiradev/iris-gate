@@ -44,6 +44,13 @@ Board flow: **Backlog → WIP → Review (only when needed) → Done**.
 - Nothing else goes in `.logs/`: no debug dumps, test output or copies of MCP payloads.
 - Rotate the file when it passes 1 MB and keep 3 archives, with the core skill's `rotate-audit.mjs --tool trello --max-size 1048576 --keep 3 --log-path .logs/pm-tasks/trello/audit.log`.
 
+### Push and pull requests
+
+- Git over SSH is blocked; never push through an ssh remote.
+- Push with HTTPS through the GitHub CLI's credential helper, e.g. `git push https://github.com/lloliveiradev/iris-gate.git <branch>`, and open the PR with `gh pr create` (fill title and body; link the Trello card and issue).
+- Never push to `main` directly (protected by a ruleset) and never force-push; work on a branch and open a PR.
+- Never merge your own PR; the owner reviews and merges.
+
 ### Explore with CodeGraph first
 
 This repo is indexed by CodeGraph (`.codegraph/`, local to each machine and not committed). Use it before grep, find or opening files:
