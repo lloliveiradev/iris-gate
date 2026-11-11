@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a change to Iris Gate
+labels: ['enhancement']
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Same names as the Trello area labels. Pick the closest one.
+      options:
+        - api
+        - web
+        - antifraud
+        - core
+        - messaging
+        - infra
+        - ci
+        - security
+        - identity
+        - payments
+        - contracts
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do, and why the current behavior does not fit.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: The behavior you want. Point at a phase spec in docs/specs when one already covers it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, prior art, or related issues.
+    validations:
+      required: false

@@ -4,6 +4,9 @@
 
 # Iris Gate
 
+[![CI](https://github.com/lloliveiradev/iris-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/lloliveiradev/iris-gate/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 API-first payments gateway for local study. A Go service owns merchants, API keys, and payment intents. A NestJS worker scores fraud from Kafka. A Next.js app is the merchant dashboard. OpenAPI and AsyncAPI files in `libs/contracts` are the only shared language between them.
 
 > [!IMPORTANT]
@@ -56,17 +59,17 @@ Open the dashboard at [http://localhost:3000/en](http://localhost:3000/en). Crea
 
 ### Calls worth trying
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/healthz`, `/readyz` | no |
-| `POST` | `/v1/merchants` | no (local bootstrap) |
-| `POST` | `/v1/api-keys` | no (local bootstrap) |
-| `POST` | `/v1/api-keys/{id}/revoke` | no (local bootstrap) |
-| `GET` | `/v1/me` | bearer |
-| `GET` | `/v1/payment-intents`, `/v1/payment-intents/{id}` | bearer |
-| `POST` | `/v1/payment-intents` | bearer + `Idempotency-Key` |
-| `POST` | `/v1/payment-intents/{id}/authorize` | bearer |
-| `POST` | `/v1/payment-intents/{id}/capture` | bearer |
+| Method | Path                                              | Auth                       |
+| ------ | ------------------------------------------------- | -------------------------- |
+| `GET`  | `/healthz`, `/readyz`                             | no                         |
+| `POST` | `/v1/merchants`                                   | no (local bootstrap)       |
+| `POST` | `/v1/api-keys`                                    | no (local bootstrap)       |
+| `POST` | `/v1/api-keys/{id}/revoke`                        | no (local bootstrap)       |
+| `GET`  | `/v1/me`                                          | bearer                     |
+| `GET`  | `/v1/payment-intents`, `/v1/payment-intents/{id}` | bearer                     |
+| `POST` | `/v1/payment-intents`                             | bearer + `Idempotency-Key` |
+| `POST` | `/v1/payment-intents/{id}/authorize`              | bearer                     |
+| `POST` | `/v1/payment-intents/{id}/capture`                | bearer                     |
 
 HTTP examples live in `apps/api/tests/*.http`. The typed browser client is `@iris-gate/sdk-web`.
 
@@ -116,18 +119,18 @@ Inside a context the arrow points inward: `infra` implements ports, `application
 
 ## Development
 
-| Command | What it does |
-| --- | --- |
-| `make help` | List root targets |
-| `make dev` | Stack up, then the API and the dashboard on the host |
+| Command                                  | What it does                                                                                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `make help`                              | List root targets                                                                                                                   |
+| `make dev`                               | Stack up, then the API and the dashboard on the host                                                                                |
 | `make test` / `make lint` / `make build` | Run the target in every package that defines it (Go tests with `-race`, Jest, Vitest; golangci-lint with `configs/go/golangci.yml`) |
-| `make -C libs/identity test-int` | Identity tests that need Postgres (`-tags=integration`) |
-| `make -C apps/web e2e` | Playwright |
-| `make gen-contracts` | Regenerate Go and TypeScript from the OpenAPI specs |
-| `make gen-contracts-check` | Fail if generated files drifted (CI does this) |
-| `make psql` / `make kafka-topics` | Local Postgres shell and topic list |
-| `make down` | Stop Compose, keep volumes |
-| `make nuke` | Stop Compose and delete volumes |
+| `make -C libs/identity test-int`         | Identity tests that need Postgres (`-tags=integration`)                                                                             |
+| `make -C apps/web e2e`                   | Playwright                                                                                                                          |
+| `make gen-contracts`                     | Regenerate Go and TypeScript from the OpenAPI specs                                                                                 |
+| `make gen-contracts-check`               | Fail if generated files drifted (CI does this)                                                                                      |
+| `make psql` / `make kafka-topics`        | Local Postgres shell and topic list                                                                                                 |
+| `make down`                              | Stop Compose, keep volumes                                                                                                          |
+| `make nuke`                              | Stop Compose and delete volumes                                                                                                     |
 
 Edit `libs/contracts/http/*.openapi.yaml` or `libs/contracts/events/**`, then run `make gen-contracts`. Do not hand-edit `libs/contracts/generated`. JSON fields are `snake_case`. New HTTP routes stay under `/v1`. A breaking event is a new `.vN` topic, not a silent field rename.
 
@@ -137,16 +140,20 @@ Web copy goes in `apps/web/messages/{en,es,pt}.json`. The default locale is `en`
 
 ## Documentation
 
-| Doc | Use it for |
-| --- | --- |
-| [`docs/README.md`](docs/README.md) | Index of the documentation and how the documents relate |
-| [`docs/design/as-is.md`](docs/design/as-is.md) | What the code does today, with known defects |
-| [`docs/design/to-be.md`](docs/design/to-be.md) | Approved target design |
-| [`docs/roadmap.md`](docs/roadmap.md) and [`docs/specs`](docs/specs/README.md) | Phases, order, and the spec of each phase |
-| [`docs/architecture.md`](docs/architecture.md) | Bounded contexts, hexagonal layout, communication rules, conventions |
-| [`docs/security.md`](docs/security.md) | Security baseline with the status of each control |
-| [`docs/adr`](docs/adr) | Accepted decisions (DDD, outbox, contracts) |
-| [`AGENTS.md`](AGENTS.md) | Rules that are easy to break while editing |
+| Doc                                                                           | Use it for                                                           |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [`docs/README.md`](docs/README.md)                                            | Index of the documentation and how the documents relate              |
+| [`docs/design/as-is.md`](docs/design/as-is.md)                                | What the code does today, with known defects                         |
+| [`docs/design/to-be.md`](docs/design/to-be.md)                                | Approved target design                                               |
+| [`docs/roadmap.md`](docs/roadmap.md) and [`docs/specs`](docs/specs/README.md) | Phases, order, and the spec of each phase                            |
+| [`docs/architecture.md`](docs/architecture.md)                                | Bounded contexts, hexagonal layout, communication rules, conventions |
+| [`docs/security.md`](docs/security.md)                                        | Security baseline with the status of each control                    |
+| [`docs/adr`](docs/adr)                                                        | Accepted decisions (DDD, outbox, contracts)                          |
+| [`AGENTS.md`](AGENTS.md)                                                      | Rules that are easy to break while editing                           |
+
+## Contributing
+
+Setup, branches, commits, and pull requests are in [CONTRIBUTING.md](CONTRIBUTING.md). Community expectations are in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Report a vulnerability privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## Troubleshooting
 
