@@ -2,19 +2,13 @@
  * In-memory query mock — standalone example for use case tests.
  * Implements the same interface as the production adapter.
  */
-import { Result, PaginatedResultDTO } from "@ddd/shared";
-import {
-  FindManyItemsQuery,
-  FindManyItemsInputDTO,
-  ItemListItem,
-} from "./find-many-items.query";
+import { Result, PaginatedResultDTO } from "@acme/shared";
+import { FindManyItemsQuery, FindManyItemsInputDTO, ItemListItem } from "./find-many-items.query";
 
 export class InMemoryFindManyItemsQuery implements FindManyItemsQuery {
   public items: (ItemListItem & { categoryId?: string })[] = []; // public: tests seed before act
 
-  async execute(
-    input: FindManyItemsInputDTO,
-  ): Promise<Result<PaginatedResultDTO<ItemListItem>>> {
+  async execute(input: FindManyItemsInputDTO): Promise<Result<PaginatedResultDTO<ItemListItem>>> {
     const { page = 1, pageSize = 20, categoryId, active } = input;
 
     let filtered = this.items;

@@ -1,7 +1,8 @@
 /**
- * InMemory adapter — lives in `apps/api/src/products/infra/memory/`.
+ * InMemory adapter — e.g. `src/products/infra/memory/` (example layout;
+ * `@products/*` and `@acme/*` are example aliases/package names to adapt).
  *
- * Mirrors the real InMemoryCelebrationRepository style:
+ * Shows the recommended InMemory adapter style:
  *  - backing store is a `Map<id, ProductProps>` (snapshots, not live entities),
  *  - retrieval re-runs `Product.tryCreate(structuredClone(snap))` so a future
  *    invariant change surfaces in tests instead of silently passing,
@@ -12,8 +13,8 @@
  *  - no NestJS decorators — instantiated directly in tests via
  *    `const repo = new InMemoryProductRepository();`.
  */
-import { Result } from "@your-best-day/shared";
-import type { ProductStatus } from "@your-best-day/products-contracts";
+import { Result } from "@acme/shared";
+import type { ProductStatus } from "@acme/products-contracts";
 import { Product, type ProductProps } from "@products/domain/entities";
 import type { ProductRepository } from "@products/domain/repositories";
 

@@ -1,15 +1,20 @@
-# TypeScript DDD Domain Service — Reference (your-best-day)
+# TypeScript DDD Domain Service — Reference
+
+Paths are an example layout relative to the API package root; adapt them to your
+project. In the examples below, `celebrations` is a sample bounded context and
+`Celebration` its aggregate root. Aliases such as `@<bc>/*` and `@acme/*` are
+examples; use the ones your tsconfig and packages define.
 
 ## Is this a Domain Service or an Application Service?
 
 Walk these three questions **in order**. Stop at the first YES.
 
 1. **Q1 — Does the logic need a repository, storage, HTTP call, or any other I/O?**
-   - **YES →** Application Service. Put it in `apps/api/src/<bc>/application/services/<name>.service.ts`, mark `@Injectable()`, inject ports via DI. **Not** a domain service. Stop here.
+   - **YES →** Application Service. Put it in `src/<bc>/application/services/<name>.service.ts`, mark `@Injectable()`, inject ports via DI. **Not** a domain service. Stop here.
    - **NO →** continue to Q2.
 
 2. **Q2 — Does the logic cross multiple entities/VOs and encode a rule the entity itself can't own (because the rule needs more than one aggregate)?**
-   - **YES →** Domain Service. Put it in `apps/api/src/<bc>/domain/services/<name>.service.ts` as a pure class (static methods preferred). Continue reading this reference.
+   - **YES →** Domain Service. Put it in `src/<bc>/domain/services/<name>.service.ts` as a pure class (static methods preferred). Continue reading this reference.
    - **NO →** continue to Q3.
 
 3. **Q3 — Is the rule a single-aggregate invariant?**
@@ -34,31 +39,31 @@ Single-aggregate rule ──────▶ entity method + cloneWith  (see ts-d
 ## Standard Structure
 
 ```
-apps/api/src/<bc>/domain/services/<name>.service.ts          ← pure Domain Service
-apps/api/src/<bc>/domain/services/index.ts                   ← barrel — re-export
-apps/api/test/<bc>/domain/services/<name>.test.ts            ← Jest test, no DI
+src/<bc>/domain/services/<name>.service.ts          ← pure Domain Service
+src/<bc>/domain/services/index.ts                   ← barrel — re-export
+test/<bc>/domain/services/<name>.test.ts            ← Jest test, no DI
 ```
 
-Concrete BC example (`<bc>` = `celebrations`):
+Example with `<bc>` = `celebrations`:
 
 ```
-apps/api/src/celebrations/domain/services/celebration-publishing.policy.ts
-apps/api/src/celebrations/domain/services/index.ts
-apps/api/test/celebrations/domain/services/celebration-publishing.policy.test.ts
+src/celebrations/domain/services/celebration-publishing.policy.ts
+src/celebrations/domain/services/index.ts
+test/celebrations/domain/services/celebration-publishing.policy.test.ts
 ```
 
 **Never** place a Domain Service in:
 
-- `apps/api/src/<bc>/application/**` — orchestration (use cases / application services live there).
-- `apps/api/src/<bc>/infra/**` — Firestore/HTTP adapters.
-- `apps/api/src/<bc>/presentation/**` — NestJS controllers / pipes.
-- `libs/contracts/<bc>/**` — pure wire schemas, no behavior.
-- `libs/shared/**` — only generic, BC-agnostic primitives.
+- `src/<bc>/application/**` — orchestration (use cases / application services live there).
+- `src/<bc>/infra/**` — Firestore/HTTP adapters.
+- `src/<bc>/presentation/**` — NestJS controllers / pipes.
+- the BC contracts package (e.g. `libs/contracts/<bc>/**` in a monorepo) — pure wire schemas, no behavior.
+- the shared kernel package (e.g. `libs/shared/**`) — only generic, BC-agnostic primitives.
 
 Allowed imports inside a Domain Service:
 
-- `@your-best-day/shared` — `Result`, `Entity`, `ValueObject`, generic VOs (`Slug`, `PaletteKey`, `Id`).
-- `@your-best-day/<bc>-contracts` — enums (`CelebrationStatusEnum`), interfaces, catalogs (`CELEBRATION_STATUSES`).
+- `@acme/shared` — `Result`, `Entity`, `ValueObject`, generic VOs (`Slug`, `PaletteKey`, `Id`).
+- `@acme/<bc>-contracts` — enums (`CelebrationStatusEnum`), interfaces, catalogs (`CELEBRATION_STATUSES`).
 - Sibling entities/VOs in the same BC (`Celebration`, `Section`, …).
 
 Forbidden imports: `@nestjs/*`, `firebase-admin`, `zod`, `next`, `react`, any `*Repository`/`*Query` port, any DTO under `presentation/dto/`.
@@ -70,12 +75,12 @@ See `examples/` directory in this skill for complete standalone examples.
 ## Canonical Snippet — `*Policy` (boolean rule over a collection)
 
 Use when the rule is a stateless check on a set of domain objects.
-Pattern below mirrors `Celebration.tryCreate`'s error-aggregation style and the project's `Result` API (`Result.ok`, `Result.fail`, `withFail`).
+Pattern below mirrors the entity's `tryCreate` error-aggregation style and the `Result` API (`Result.ok`, `Result.fail`, `withFail`).
 
 ```typescript
-// apps/api/src/celebrations/domain/services/celebration-publishing.policy.ts
-import { Result } from "@your-best-day/shared";
-import { CelebrationStatusEnum, SectionKindEnum } from "@your-best-day/celebrations-contracts";
+// src/celebrations/domain/services/celebration-publishing.policy.ts
+import { Result } from "@acme/shared";
+import { CelebrationStatusEnum, SectionKindEnum } from "@acme/celebrations-contracts";
 import type { Celebration } from "../entities/celebration.entity";
 
 const ALREADY_PUBLISHED = "ALREADY_PUBLISHED";
@@ -108,7 +113,7 @@ export class CelebrationPublishingPolicy {
 Usage in a Use Case:
 
 ```typescript
-// apps/api/src/celebrations/application/usecases/publish-celebration.usecase.ts (excerpt)
+// src/celebrations/application/usecases/publish-celebration.usecase.ts (excerpt)
 const check = CelebrationPublishingPolicy.check(celebration);
 if (check.isFailure) return check.withFail;
 
@@ -125,9 +130,9 @@ The use case is what loaded `celebration` from the repository — the policy nev
 Use when the rule produces a computed value from multiple domain objects.
 
 ```typescript
-// apps/api/src/celebrations/domain/services/celebration-completeness.calculator.ts
-import { Result } from "@your-best-day/shared";
-import { SectionKindEnum } from "@your-best-day/celebrations-contracts";
+// src/celebrations/domain/services/celebration-completeness.calculator.ts
+import { Result } from "@acme/shared";
+import { SectionKindEnum } from "@acme/celebrations-contracts";
 import type { Celebration } from "../entities/celebration.entity";
 
 const REQUIRED_SECTIONS = [SectionKindEnum.HERO, SectionKindEnum.GALLERY] as const;
@@ -154,26 +159,30 @@ export class CelebrationCompletenessCalculator {
 
 ## Branching on closed sets (enum rule)
 
-Whenever the rule depends on a closed-set field — `status`, `kind`, `palette`, `role`, `provider`, etc. — compare against an **enum member** from `@your-best-day/<bc>-contracts`. Never against a raw string literal.
+Whenever the rule depends on a closed-set field — `status`, `kind`, `palette`, `role`, `provider`, etc. — compare against an **enum member** from `@acme/<bc>-contracts`. Never against a raw string literal.
 
 Right:
 
 ```typescript
-import { CelebrationStatusEnum } from "@your-best-day/celebrations-contracts";
+import { CelebrationStatusEnum } from "@acme/celebrations-contracts";
 
-if (celebration.status === CelebrationStatusEnum.PUBLISHED) { /* … */ }
+if (celebration.status === CelebrationStatusEnum.PUBLISHED) {
+  /* … */
+}
 ```
 
 Wrong:
 
 ```typescript
-if (celebration.status === "published") { /* drifts if the enum value changes */ }
+if (celebration.status === "published") {
+  /* drifts if the enum value changes */
+}
 ```
 
 When you need to iterate over every valid value, use the catalog tuple exported next to the enum:
 
 ```typescript
-import { CELEBRATION_STATUSES, type CelebrationStatus } from "@your-best-day/celebrations-contracts";
+import { CELEBRATION_STATUSES, type CelebrationStatus } from "@acme/celebrations-contracts";
 // or, when no catalog is exported yet:
 // const statuses = Object.values(CelebrationStatusEnum);
 
@@ -188,10 +197,10 @@ The same rule applies to `switch` statements — every `case` is `XxxEnum.MEMBER
 
 ## Static vs Instance
 
-| When to use                                                | Pattern                       | Example                              |
-| ---------------------------------------------------------- | ----------------------------- | ------------------------------------ |
+| When to use                                                | Pattern                       | Example                                |
+| ---------------------------------------------------------- | ----------------------------- | -------------------------------------- |
 | Service is stateless — no shared config                    | Static method                 | `CelebrationPublishingPolicy.check(c)` |
-| Service needs constructor config (e.g., thresholds, clock) | Instance with injected config | `new FeeResolver(config).resolve(p)` |
+| Service needs constructor config (e.g., thresholds, clock) | Instance with injected config | `new FeeResolver(config).resolve(p)`   |
 
 Prefer static. Reach for an instance only when configuration genuinely varies per call site (e.g., a tenant-specific threshold). Even then: pass the config through the constructor, do not pull it from `process.env` — that would be I/O.
 
@@ -199,13 +208,13 @@ Prefer static. Reach for an instance only when configuration genuinely varies pe
 
 ## Test Strategy
 
-Domain Services are the easiest code to test — no mocks, no DI, no NestJS `Test.createTestingModule`. Tests live next to other api tests so `pnpm --filter api test` picks them up.
+Domain Services are the easiest code to test — no mocks, no DI, no NestJS `Test.createTestingModule`. Put them next to the other API tests so the API test runner picks them up.
 
 ```typescript
-// apps/api/test/celebrations/domain/services/celebration-publishing.policy.test.ts
-import { CelebrationPublishingPolicy } from "@celebrations/domain/services/celebration-publishing.policy";
-import { Celebration } from "@celebrations/domain/entities/celebration.entity";
-import { CelebrationStatusEnum, SectionKindEnum } from "@your-best-day/celebrations-contracts";
+// test/celebrations/domain/services/celebration-publishing.policy.test.ts
+import { CelebrationPublishingPolicy } from "@<bc>/domain/services/celebration-publishing.policy";
+import { Celebration } from "@<bc>/domain/entities/celebration.entity";
+import { CelebrationStatusEnum, SectionKindEnum } from "@acme/celebrations-contracts";
 
 function buildCelebration(overrides: Partial<Parameters<typeof Celebration.create>[0]> = {}) {
   return Celebration.create({
@@ -236,7 +245,9 @@ describe("CelebrationPublishingPolicy.check", () => {
 
   it("fails when no hero section is present", () => {
     const result = CelebrationPublishingPolicy.check(
-      buildCelebration({ sections: [{ id: "s-1", order: 0, content: { type: SectionKindEnum.GALLERY, images: [] } }] }),
+      buildCelebration({
+        sections: [{ id: "s-1", order: 0, content: { type: SectionKindEnum.GALLERY, images: [] } }],
+      }),
     );
     expect(result.isFailure).toBe(true);
     expect(result.errors).toEqual(expect.arrayContaining(["MISSING_HERO_SECTION"]));
@@ -257,33 +268,33 @@ Test coverage targets:
 
 ## Implementation Checklist
 
-- [ ] File path is `apps/api/src/<bc>/domain/services/<name>.service.ts` — not `application/`, `infra/`, `presentation/`, or `libs/**`.
+- [ ] File path is `src/<bc>/domain/services/<name>.service.ts` — not `application/`, `infra/`, `presentation/`, or a shared/contracts package.
 - [ ] Added to the `domain/services/index.ts` barrel.
 - [ ] No framework imports (`@nestjs`, `firebase-admin`, `react`, `zod`, etc.).
 - [ ] No I/O — no repository, no query, no HTTP, no filesystem, no `process.env`, no `Date.now()`/`Math.random()` unless injected.
-- [ ] Imports come only from `@your-best-day/shared`, `@your-best-day/<bc>-contracts`, or sibling domain files.
+- [ ] Imports come only from `@acme/shared`, `@acme/<bc>-contracts`, or sibling domain files.
 - [ ] Returns `Result<T>` for failable rules, plain value for infallible ones.
 - [ ] All failure codes are UPPER_SNAKE string constants, declared near the top of the file.
 - [ ] Named by rule intent: `*Policy`, `*Calculator`, `*Resolver`, `*Specification`. No `execute()` method (reserved for `UseCase`).
 - [ ] Static method for stateless rules; instance only when config is needed.
-- [ ] Every closed-set comparison uses an enum from `@your-best-day/<bc>-contracts` (no raw `"published"`/`"hero"`).
-- [ ] Tests in `apps/api/test/<bc>/domain/services/` cover happy + failure + edges + every enum branch.
-- [ ] `pnpm --filter api typecheck && pnpm --filter api test` passes.
+- [ ] Every closed-set comparison uses an enum from `@acme/<bc>-contracts` (no raw `"published"`/`"hero"`).
+- [ ] Tests in `test/<bc>/domain/services/` cover happy + failure + edges + every enum branch.
+- [ ] The API package's typecheck and test commands pass (e.g. `pnpm --filter api typecheck && pnpm --filter api test`).
 
 ---
 
 ## Common Pitfalls
 
-| Mistake                                       | Why it breaks                                                                  | Fix                                                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| Injecting a repository into the service       | Makes the domain layer depend on infra; impossible to unit-test without mocks  | Use Case (or Application Service) loads data, passes it as an argument     |
-| Returning `null`/`undefined` on failure       | Callers must handle `null` separately from `Result`, breaking uniformity       | Return `Result.fail("CODE")`                                               |
-| Duplicating an entity method                  | Two sources of truth diverge silently over time                                | Call the entity's own method (`celebration.publish()`); add it there if missing |
-| Putting orchestration in the service          | Service decides which repo to call next — mixes orchestration with domain rule | Keep the service pure; orchestration belongs in Use Case / App Service     |
-| Branching on `"published"` string literal     | Drifts the day someone renames the enum value                                  | Use `CelebrationStatusEnum.PUBLISHED`                                      |
-| Placing file outside `domain/services/`       | Service becomes visible to infra and accidentally couples to framework code    | Move to `apps/api/src/<bc>/domain/services/<name>.service.ts`              |
-| Naming the method `execute`                   | Collides with `UseCase<IN, OUT>.execute` convention; readers misclassify       | Name after the rule: `check`, `calculate`, `resolve`, `isSatisfiedBy`     |
-| Importing a DTO from `presentation/dto/`      | Couples domain to wire shape; reverse dependency                               | Take entity/VO arguments; mappers in `presentation/` convert DTOs in/out  |
+| Mistake                                   | Why it breaks                                                                  | Fix                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Injecting a repository into the service   | Makes the domain layer depend on infra; impossible to unit-test without mocks  | Use Case (or Application Service) loads data, passes it as an argument          |
+| Returning `null`/`undefined` on failure   | Callers must handle `null` separately from `Result`, breaking uniformity       | Return `Result.fail("CODE")`                                                    |
+| Duplicating an entity method              | Two sources of truth diverge silently over time                                | Call the entity's own method (`celebration.publish()`); add it there if missing |
+| Putting orchestration in the service      | Service decides which repo to call next — mixes orchestration with domain rule | Keep the service pure; orchestration belongs in Use Case / App Service          |
+| Branching on `"published"` string literal | Drifts the day someone renames the enum value                                  | Use `CelebrationStatusEnum.PUBLISHED`                                           |
+| Placing file outside `domain/services/`   | Service becomes visible to infra and accidentally couples to framework code    | Move to `src/<bc>/domain/services/<name>.service.ts`                            |
+| Naming the method `execute`               | Collides with `UseCase<IN, OUT>.execute` convention; readers misclassify       | Name after the rule: `check`, `calculate`, `resolve`, `isSatisfiedBy`           |
+| Importing a DTO from `presentation/dto/`  | Couples domain to wire shape; reverse dependency                               | Take entity/VO arguments; mappers in `presentation/` convert DTOs in/out        |
 
 ---
 
@@ -292,7 +303,7 @@ Test coverage targets:
 If the candidate "service" needs to load by slug, retry against the database, fan out to a queue, or otherwise touch the outside world, it is **not** a Domain Service. Put it in:
 
 ```
-apps/api/src/<bc>/application/services/<name>.service.ts
+src/<bc>/application/services/<name>.service.ts
 ```
 
 Differences from a Domain Service:
@@ -302,12 +313,8 @@ Differences from a Domain Service:
 - Methods can be `async` and still return `Result<T>`.
 - Does **not** belong in `domain/`; it stays in the application layer alongside use cases.
 
-Canonical example in this repo:
-
-```
-apps/api/src/celebrations/application/services/slug-allocator.service.ts
-```
-
+Example: a `SlugAllocator` application service
+(`src/celebrations/application/services/slug-allocator.service.ts` in the sample layout).
 It allocates a unique `Slug` by trying the requested name first and, on collision, retrying with `Slug.withRandomSuffix(...)` against the `CelebrationRepository`. That retry loop is exactly the kind of multi-step I/O flow that does not fit the clean `UseCase<IN, OUT>` shape — and exactly why it cannot live in `domain/services/`.
 
 If you find yourself adding `@Injectable()` or a repository import to a file under `domain/services/`, stop and move it to `application/services/` first.

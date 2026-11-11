@@ -8,6 +8,8 @@ See `examples/` directory in this skill for a complete standalone example.
 
 ## Standard Adapter Structure
 
+Example layout (adapt to your project):
+
 ```
 apps/<app>/src/<domain>/find-<name>.prisma.ts   ← Prisma query adapter
 apps/<app>/src/prisma/prisma.service.ts          ← shared PrismaService
@@ -22,20 +24,14 @@ The hardest part: paginated, filtered projection. The adapter maps rows **direct
 ```typescript
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import {
-  FindManyItemsQuery,
-  FindManyItemsInputDTO,
-  ItemListItem,
-} from "@<module>/core";
-import { Result, PaginatedResultDTO } from "@ddd/shared";
+import { FindManyItemsQuery, FindManyItemsInputDTO, ItemListItem } from "@<module>/core";
+import { Result, PaginatedResultDTO } from "@acme/shared";
 
 @Injectable()
 export class FindManyItemsPrismaQuery implements FindManyItemsQuery {
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(
-    input: FindManyItemsInputDTO,
-  ): Promise<Result<PaginatedResultDTO<ItemListItem>>> {
+  async execute(input: FindManyItemsInputDTO): Promise<Result<PaginatedResultDTO<ItemListItem>>> {
     try {
       const { page = 1, pageSize = 20, categoryId, active } = input;
 
@@ -85,6 +81,7 @@ export class FindManyItemsPrismaQuery implements FindManyItemsQuery {
 ```
 
 Key rules visible in this snippet:
+
 - `select` is explicit — fetches only fields the DTO needs, nothing more.
 - `$transaction([findMany, count])` avoids a race condition between data and total.
 - Conditional `WHERE` via spread — never build SQL strings or apply filters outside the clause.

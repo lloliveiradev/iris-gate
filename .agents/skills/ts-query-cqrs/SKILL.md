@@ -1,6 +1,13 @@
 ---
 name: ts-query-cqrs
-description: "Create, review, or guide read-side queries in a TypeScript + DDD CQRS codebase. Use when the request involves `*Query` interfaces, `*.query.ts` files, read use cases (`find-*`), DTO projections for API/front consumption, pagination/filters/aggregations, or separating read (query) from write (repository/command)."
+description: >-
+  Create, review, or guide read-side queries in a TypeScript + DDD CQRS
+  codebase. Use when the request involves `*Query` interfaces, `*.query.ts`
+  files, read use cases (`find-*`), DTO projections for API/front consumption,
+  pagination/filters/aggregations, or separating read (query) from write
+  (repository/command).
+metadata:
+  version: 0.2.0
 ---
 
 # TypeScript DDD Query (CQRS Read Side)
@@ -9,6 +16,7 @@ description: "Create, review, or guide read-side queries in a TypeScript + DDD C
 [`references/query-cqrs-pattern.md`](references/query-cqrs-pattern.md) completely.
 
 **Then load the adapter reference for your infrastructure:**
+
 - **Prisma** → also read [`references/prisma-adapter.md`](references/prisma-adapter.md) completely.
 - Other adapters (Firestore, MongoDB, Supabase…) → reference files not yet available; apply the principles from `query-cqrs-pattern.md`.
 
@@ -29,14 +37,14 @@ Before defining a single interface, answer:
 
 ## Query vs Repository Decision Table
 
-| Situation | Use | Why |
-|-----------|-----|-----|
-| Display a list on the front-end | `Query` | Returns DTO, no entity overhead |
-| Load entity before an update/delete | `Repository.findById` | Needs domain invariants (`cloneWith`) |
-| Paginated list with filters | `Query` | Joins and selective projection are a read-side concern |
-| Existence check before a write | `Repository.findById` | Returns entity or `Result.fail` — not a DTO |
-| Dashboard / aggregated panel | `Query` | Reads across tables, no entity reconstruction needed |
-| Custom domain lookup (`findByEmail`) that feeds a command | `Repository` | Caller needs an entity to modify |
+| Situation                                                 | Use                   | Why                                                    |
+| --------------------------------------------------------- | --------------------- | ------------------------------------------------------ |
+| Display a list on the front-end                           | `Query`               | Returns DTO, no entity overhead                        |
+| Load entity before an update/delete                       | `Repository.findById` | Needs domain invariants (`cloneWith`)                  |
+| Paginated list with filters                               | `Query`               | Joins and selective projection are a read-side concern |
+| Existence check before a write                            | `Repository.findById` | Returns entity or `Result.fail` — not a DTO            |
+| Dashboard / aggregated panel                              | `Query`               | Reads across tables, no entity reconstruction needed   |
+| Custom domain lookup (`findByEmail`) that feeds a command | `Repository`          | Caller needs an entity to modify                       |
 
 ---
 

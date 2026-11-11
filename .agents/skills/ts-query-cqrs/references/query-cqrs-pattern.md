@@ -2,13 +2,16 @@
 
 ## Standard Structure
 
+Example monorepo layout (adapt the folders to your project). Package and alias names such as `@acme/shared` and `@<module>/core` are examples; use the ones your tsconfig defines.
+
 ```
 libs/<module>/core/src/<domain>/provider/find-<name>.query.ts   ← query interface + DTOs
 libs/<module>/core/test/<domain>/                               ← in-memory mock + tests
 apps/<app>/src/<domain>/find-<name>.query.ts                    ← adapter implementation
 ```
 
-Shared pagination contracts (from `@ddd/shared`):
+Shared pagination contracts (from your shared kernel package, e.g. `@acme/shared`):
+
 - `PaginatedInputDTO`, `PaginationMetaDTO`, `PaginatedResultDTO<T>`
 
 See `examples/` directory in this skill for complete standalone examples.
@@ -21,7 +24,7 @@ The interface lives in `core` — no ORM imports, no database driver types:
 
 ```typescript
 // libs/<module>/core/src/<domain>/provider/find-many-items.query.ts
-import { Result, PaginatedResultDTO } from "@ddd/shared";
+import { Result, PaginatedResultDTO } from "@acme/shared";
 
 export interface ItemListItem {
   id: string;
@@ -45,7 +48,7 @@ export interface FindManyItemsQuery {
 For a single-item query:
 
 ```typescript
-import { Result } from "@ddd/shared";
+import { Result } from "@acme/shared";
 
 export interface ItemDetailDTO {
   id: string;
@@ -63,11 +66,11 @@ export interface FindItemByIdQuery {
 
 ## DTO Modeling Decision
 
-| Situation | Strategy | Example |
-| --------- | -------- | ------- |
-| DTO needs almost the same fields as `*Props` | Derive with `Omit`/`Pick` | `type RoleDTO = Omit<RoleProps, "permissionIds"> & { permissions: PermissionDTO[] }` |
-| DTO needs a different shape (joins, computed fields) | Independent DTO | `interface ItemListItem { id, name, sku, active }` — no coupling to `*Props` |
-| DTO needs to expand a relation (e.g., `categoryId` → `category.name`) | Independent DTO | Create a join-based projection; `*Props` only has the FK |
+| Situation                                                             | Strategy                  | Example                                                                              |
+| --------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------ |
+| DTO needs almost the same fields as `*Props`                          | Derive with `Omit`/`Pick` | `type RoleDTO = Omit<RoleProps, "permissionIds"> & { permissions: PermissionDTO[] }` |
+| DTO needs a different shape (joins, computed fields)                  | Independent DTO           | `interface ItemListItem { id, name, sku, active }` — no coupling to `*Props`         |
+| DTO needs to expand a relation (e.g., `categoryId` → `category.name`) | Independent DTO           | Create a join-based projection; `*Props` only has the FK                             |
 
 **Never extend the entity class** — even if the shapes seem identical today, the entity will grow with domain methods and invariants that the DTO consumer should never receive.
 
@@ -77,19 +80,22 @@ export interface FindItemByIdQuery {
 
 ```typescript
 // libs/<module>/core/test/<domain>/in-memory-find-many-items.query.ts
-import { FindManyItemsQuery, FindManyItemsInputDTO, ItemListItem } from "../provider/find-many-items.query";
-import { Result, PaginatedResultDTO } from "@ddd/shared";
+import {
+  FindManyItemsQuery,
+  FindManyItemsInputDTO,
+  ItemListItem,
+} from "../provider/find-many-items.query";
+import { Result, PaginatedResultDTO } from "@acme/shared";
 
 export class InMemoryFindManyItemsQuery implements FindManyItemsQuery {
   public items: ItemListItem[] = []; // public: tests seed data before act
 
-  async execute(
-    input: FindManyItemsInputDTO,
-  ): Promise<Result<PaginatedResultDTO<ItemListItem>>> {
+  async execute(input: FindManyItemsInputDTO): Promise<Result<PaginatedResultDTO<ItemListItem>>> {
     const { page = 1, pageSize = 20, categoryId, active } = input;
 
     let filtered = this.items;
-    if (categoryId !== undefined) filtered = filtered.filter((i) => (i as any).categoryId === categoryId);
+    if (categoryId !== undefined)
+      filtered = filtered.filter((i) => (i as any).categoryId === categoryId);
     if (active !== undefined) filtered = filtered.filter((i) => i.active === active);
 
     const total = filtered.length;
@@ -104,6 +110,7 @@ export class InMemoryFindManyItemsQuery implements FindManyItemsQuery {
 ```
 
 Rules for mocks:
+
 - `items` is `public` — tests seed data before `act` and assert final state directly.
 - Apply the same filter logic as the production adapter — test expectations must reflect real behaviour.
 - No `try/catch` — only fail in ways the production adapter would fail.
@@ -127,10 +134,10 @@ Rules for mocks:
 
 ## Common Pitfalls
 
-| Mistake | Why it breaks | Fix |
-| ------- | ------------- | --- |
-| Return entity from query | Exposes write-side invariants to consumers; any refactor of getters breaks the API contract | Map rows directly to DTO |
-| Select all columns | Fetches every column; becomes a silent perf trap as schema grows | Always declare fields explicitly |
-| Two separate DB calls for data + count | Count and data can diverge between calls on concurrent writes | Use a single atomic operation |
-| Hard-coded filters | Optional filters become mandatory; impossible to call without all params | Build filters conditionally |
-| `toDomain` inside query adapter | Constructs an entity only to immediately destructure it into a DTO; wastes CPU | Map directly: `row → DTO` |
+| Mistake                                | Why it breaks                                                                               | Fix                              |
+| -------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------- |
+| Return entity from query               | Exposes write-side invariants to consumers; any refactor of getters breaks the API contract | Map rows directly to DTO         |
+| Select all columns                     | Fetches every column; becomes a silent perf trap as schema grows                            | Always declare fields explicitly |
+| Two separate DB calls for data + count | Count and data can diverge between calls on concurrent writes                               | Use a single atomic operation    |
+| Hard-coded filters                     | Optional filters become mandatory; impossible to call without all params                    | Build filters conditionally      |
+| `toDomain` inside query adapter        | Constructs an entity only to immediately destructure it into a DTO; wastes CPU              | Map directly: `row → DTO`        |

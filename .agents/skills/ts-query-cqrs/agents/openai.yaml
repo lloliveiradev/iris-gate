@@ -1,4 +1,0 @@
-interface:
-  display_name: "TypeScript DDD Query (CQRS)"
-  short_description: "Create and review read-side CQRS queries with DTO projections, pagination, and filters"
-  default_prompt: "Create or review a CQRS read-side query — core interface in `*Query`, DTO projection mapped directly from DB rows (no entity), Prisma adapter with explicit SELECT + $transaction for pagination, in-memory mock for use case tests, and clear separation from write-side Repository."

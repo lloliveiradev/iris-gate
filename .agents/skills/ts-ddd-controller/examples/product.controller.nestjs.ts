@@ -1,6 +1,6 @@
 /**
- * Reference controller mirroring CelebrationsController from
- * apps/api/src/celebrations/presentation/controllers/celebrations.controller.ts.
+ * Reference controller for a sample `products` bounded context, mirroring the
+ * canonical controller in references/controller-pattern.md.
  *
  * Patterns shown:
  *   - Thin handlers: validate → call use case → mapResultToHttp(mapper).
@@ -10,10 +10,10 @@
  *   - Status conventions: 200 (read/update), 201 (@HttpCode CREATED on POST),
  *     204 (@HttpCode NO_CONTENT on void mutations), 200 (@HttpCode OK on POST actions).
  *
- * Imports below use the path aliases configured in apps/api/tsconfig.json
- * (@shared/*, @products/*) and the BC contracts package
- * (@your-best-day/products-contracts). This file is a documentation example,
- * not a buildable target — it does not exist in the repo.
+ * Imports below use example path aliases from the API package's tsconfig.json
+ * (@shared/*, @products/*) and an example BC contracts package
+ * (@acme/products-contracts); adapt them to your project. This file is a
+ * documentation example, not a buildable target.
  */
 import {
   Body,
@@ -34,7 +34,7 @@ import {
   type CreateProductDTO,
   type ProductResponseDTO,
   type UpdateProductDTO,
-} from "@your-best-day/products-contracts";
+} from "@acme/products-contracts";
 import { ZodValidationPipe } from "@shared/http/zod-validation.pipe";
 import { mapResultToHttp } from "@shared/http/result-to-http";
 import { ApiKeyGuard } from "../guards/api-key.guard";

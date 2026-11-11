@@ -1,4 +1,0 @@
-interface:
-  display_name: "TypeScript DDD DTO"
-  short_description: "Create and review DTOs following the project's TypeScript + DDD pattern"
-  default_prompt: "Create or review DTOs for the TypeScript api — input/output/query contracts, pagination with PaginatedResultDTO, Omit/Pick from Props, and no entity or ORM leakage."

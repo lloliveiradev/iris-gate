@@ -1,4 +1,6 @@
-# TypeScript DDD Entity — Reference (your-best-day)
+# TypeScript DDD Entity — Reference
+
+In the examples below, `celebrations` is a sample bounded context: `Celebration` is its aggregate root and `Section` a child entity. `Product` is a sample leaf entity (see [`../examples/product.entity.ts`](../examples/product.entity.ts)). Paths are an example layout relative to the API package root; adapt them to your project.
 
 ## Decision Tree — Leaf Entity vs Aggregate Root
 
@@ -20,12 +22,12 @@ Does this entity own a collection that grows / shrinks / reorders at runtime?
            and "Mutable Collection Pattern"
 ```
 
-| Trait | Leaf entity | Aggregate root |
-| ----- | ----------- | -------------- |
-| Owns a mutable collection? | No | Yes (e.g. `Section[]`) |
-| Mutation API | `cloneWith` returning `Result<T>` | named methods mutating `_field` + `touch()` |
-| Identity stability across mutations | New instance per change | Same instance, internal state evolves |
-| Example domain method | `product.deactivate()` | `celebration.addSection()` |
+| Trait                               | Leaf entity                       | Aggregate root                              |
+| ----------------------------------- | --------------------------------- | ------------------------------------------- |
+| Owns a mutable collection?          | No                                | Yes (e.g. `Section[]`)                      |
+| Mutation API                        | `cloneWith` returning `Result<T>` | named methods mutating `_field` + `touch()` |
+| Identity stability across mutations | New instance per change           | Same instance, internal state evolves       |
+| Example domain method               | `product.deactivate()`            | `celebration.addSection()`                  |
 
 ---
 
@@ -39,45 +41,46 @@ Do not load `ts-ddd-repository` or `ts-ddd-use-case` references while implementi
 
 _When: setting up file layout for a new entity._
 
-
 ```
-apps/api/src/<bc>/domain/entities/<name>.entity.ts        ← domain entity
-apps/api/src/<bc>/domain/entities/index.ts                ← barrel
-apps/api/test/<bc>/domain/entities/<name>.entity.test.ts  ← jest tests
-libs/contracts/<bc>/src/interfaces/<closed-set>.ts        ← enums + type guards
-libs/shared/src/{base,vo}/...                             ← Entity, Result, Id, Slug, PaletteKey, ImageRefValue
+src/<bc>/domain/entities/<name>.entity.ts            ← domain entity
+src/<bc>/domain/entities/index.ts                    ← barrel
+test/<bc>/domain/entities/<name>.entity.test.ts      ← jest tests
+libs/contracts/<bc>/src/interfaces/<closed-set>.ts   ← enums + type guards (contracts package)
+libs/shared/src/{base,vo}/...                        ← Entity, Result, Id, Slug, PaletteKey, ImageRefValue (shared kernel)
 ```
 
-Real example paths:
+The `libs/` entries are an example monorepo layout for the per-BC contracts package and the shared kernel package; use wherever those packages live in your project.
 
-- `apps/api/src/celebrations/domain/entities/celebration.entity.ts`
-- `apps/api/src/celebrations/domain/entities/section.entity.ts`
-- `apps/api/test/celebrations/domain/entities/celebration.entity.test.ts`
-- `libs/contracts/celebrations/src/interfaces/celebration-status.ts`
-- `libs/contracts/celebrations/src/interfaces/section-content.ts`
+Example paths for the sample `celebrations` BC:
 
-Imports you'll actually write:
+- `src/celebrations/domain/entities/celebration.entity.ts`
+- `src/celebrations/domain/entities/section.entity.ts`
+- `test/celebrations/domain/entities/celebration.entity.test.ts`
+- `<contracts package>/src/interfaces/celebration-status.ts`
+- `<contracts package>/src/interfaces/section-content.ts`
+
+Typical imports (package names are examples):
 
 ```ts
-import { Entity, type EntityProps, Id, PaletteKey, Result, Slug } from "@your-best-day/shared";
+import { Entity, type EntityProps, Id, PaletteKey, Result, Slug } from "@acme/shared";
 import {
   CelebrationStatusEnum,
   SectionKindEnum,
   isCelebrationStatus,
   type CelebrationStatus,
   type SectionContent,
-} from "@your-best-day/celebrations-contracts";
+} from "@acme/celebrations-contracts";
 ```
 
-Path aliases (`@celebrations/*`, `@shared/*`, `@/*`) are for cross-layer imports inside `apps/api`. **Never** import from `@ddd/shared` — that alias does not exist in this repo.
+Path aliases (`@<bc>/*`, `@shared/*`, `@/*`) are for cross-layer imports inside the API package. Aliases such as `@<bc>/*`, `@shared/*` and `@acme/*` are examples; use the ones your tsconfig defines. **Never** import base classes through a deprecated or duplicate alias — always from your shared kernel package.
 
-Base class API (`libs/shared/src/base/entity.ts`):
+Base class API (shared kernel, e.g. `libs/shared/src/base/entity.ts`):
 
 - `Entity<Type, Props>` — protected constructor; calls `Id.create(props.id!, { attribute: "id" })` and stamps `createdAt`/`updatedAt`/`deletedAt` automatically.
 - `equals` / `notEquals` — compare by `id`.
 - `cloneWith(overrides)` — deep-merges `structuredClone(this.props)` with `overrides`, then calls `(this.constructor as any).tryCreate(merged)`.
 
-`Result` API (`libs/shared/src/base/result.ts`):
+`Result` API (shared kernel, e.g. `libs/shared/src/base/result.ts`):
 
 - `Result.ok(value?)`, `Result.fail("CODE")` or `Result.fail(["CODE_A", "CODE_B"])`.
 - `result.isOk`, `result.isFailure`, `result.instance`, `result.errors`, `result.throwIfFailed()`, `result.withFail` (cast a failure to `Result<any>`).
@@ -96,7 +99,7 @@ Every status / kind / layout / provider / palette comes from a string-backed enu
 3. Comparisons use enum members, never string literals.
 
 ```ts
-// libs/contracts/celebrations/src/interfaces/celebration-status.ts
+// <contracts package>/src/interfaces/celebration-status.ts
 export enum CelebrationStatusEnum {
   DRAFT = "draft",
   PUBLISHED = "published",
@@ -137,10 +140,10 @@ A literal `"published"` anywhere in entity code is a bug.
 
 _When: building an aggregate root with mixed VO + type-guard validation and a nested-entity array._
 
-This mirrors `celebration.entity.ts`. Two patterns sit side-by-side: a manual `errors[]` accumulator (needed when you have mixed VO + type-guard + numeric checks) and a private mutable collection updated by named methods.
+Sample aggregate root `Celebration` (`celebration.entity.ts`). Two patterns sit side-by-side: a manual `errors[]` accumulator (needed when you have mixed VO + type-guard + numeric checks) and a private mutable collection updated by named methods.
 
 ```ts
-import { Entity, type EntityProps, PaletteKey, Result, Slug } from "@your-best-day/shared";
+import { Entity, type EntityProps, PaletteKey, Result, Slug } from "@acme/shared";
 import {
   CelebrationStatusEnum,
   SectionKindEnum,
@@ -149,7 +152,7 @@ import {
   type CelebrationKind,
   type CelebrationStatus,
   type SectionContent,
-} from "@your-best-day/celebrations-contracts";
+} from "@acme/celebrations-contracts";
 import { Section, type SectionProps } from "./section.entity";
 
 export interface CelebrationProps extends EntityProps {
@@ -256,13 +259,27 @@ export class Celebration extends Entity<Celebration, CelebrationProps> {
     return r.instance;
   }
 
-  get slug(): string { return this._slug.value; }
-  get kind(): CelebrationKind { return this._kind; }
-  get palette(): string { return this._palette.value; }
-  get title(): string { return this._title; }
-  get status(): CelebrationStatus { return this._status; }
-  get sections(): readonly Section[] { return this._sections; }
-  get ownerId(): string | null { return this._ownerId; }
+  get slug(): string {
+    return this._slug.value;
+  }
+  get kind(): CelebrationKind {
+    return this._kind;
+  }
+  get palette(): string {
+    return this._palette.value;
+  }
+  get title(): string {
+    return this._title;
+  }
+  get status(): CelebrationStatus {
+    return this._status;
+  }
+  get sections(): readonly Section[] {
+    return this._sections;
+  }
+  get ownerId(): string | null {
+    return this._ownerId;
+  }
 
   publish(): Result<void> {
     if (this._status === CelebrationStatusEnum.PUBLISHED) return Result.fail("ALREADY_PUBLISHED");
@@ -335,10 +352,10 @@ deactivate(): Result<Product> {
 
 _When: validating the entity's own `id` or any FK reference (`ownerId`, `categoryId`, …)._
 
-| Use case | Method | Behaviour |
-| -------- | ------ | --------- |
-| Own entity `id` | Let the `Entity` base call `Id.create(props.id!)`, or pre-validate with `Id.tryCreate(props.id)` if you want the error inside `tryCreate` | Generates UUID v4 when undefined; validates format otherwise |
-| Required FK (`categoryId`, `userId`) | `Id.required(value, { attribute: "categoryId" })` | Fails on missing / blank / malformed |
+| Use case                             | Method                                                                                                                                    | Behaviour                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Own entity `id`                      | Let the `Entity` base call `Id.create(props.id!)`, or pre-validate with `Id.tryCreate(props.id)` if you want the error inside `tryCreate` | Generates UUID v4 when undefined; validates format otherwise |
+| Required FK (`categoryId`, `userId`) | `Id.required(value, { attribute: "categoryId" })`                                                                                         | Fails on missing / blank / malformed                         |
 
 ---
 
@@ -375,7 +392,7 @@ toSnapshot(): CelebrationProps {
 
 _When: about to mark the entity as done — walk this list before opening a PR._
 
-- [ ] File at `apps/api/src/<bc>/domain/entities/<name>.entity.ts`, re-exported from sibling `index.ts`.
+- [ ] File at `src/<bc>/domain/entities/<name>.entity.ts`, re-exported from sibling `index.ts`.
 - [ ] `XxxProps extends EntityProps` declared in the same file.
 - [ ] Class extends `Entity<Xxx, XxxProps>` with `private`/`protected` constructor.
 - [ ] Every closed-set field uses a contracts-package enum + type guard; no string literals.
@@ -394,15 +411,19 @@ _When: about to mark the entity as done — walk this list before opening a PR._
 
 _When: writing or extending `*.entity.test.ts` for a domain entity._
 
-Tests live at `apps/api/test/<bc>/domain/entities/<name>.entity.test.ts` and import via the path alias barrel (`@celebrations/domain/entities`). Run with `pnpm --filter api test`. Always import enums in fixtures — never type a string literal.
+Tests live at `test/<bc>/domain/entities/<name>.entity.test.ts` and import via the path alias barrel (`@<bc>/domain/entities`). Run them with your test runner (e.g. `pnpm --filter <api-package> test`). Always import enums in fixtures — never type a string literal.
 
 ```ts
-import { Celebration, type CelebrationProps } from "@celebrations/domain/entities";
-import { CelebrationStatusEnum, SectionKindEnum, type SectionContent } from "@your-best-day/celebrations-contracts";
+import { Celebration, type CelebrationProps } from "@<bc>/domain/entities";
+import {
+  CelebrationStatusEnum,
+  SectionKindEnum,
+  type SectionContent,
+} from "@acme/celebrations-contracts";
 
 const heroContent: SectionContent = {
   type: SectionKindEnum.HERO,
-  headline: "Mãezinha",
+  headline: "Mom",
   backgroundImage: { storagePath: "celebrations/mae/hero.jpg", alt: "hero" },
 };
 
@@ -412,7 +433,7 @@ function validProps(overrides: Partial<CelebrationProps> = {}): CelebrationProps
     slug: "mae",
     kind: "mothers-day",
     palette: "bordo",
-    title: "Para a Mãezinha",
+    title: "For Mom",
     status: CelebrationStatusEnum.DRAFT,
     sections: [],
     ...overrides,
@@ -428,7 +449,9 @@ describe("Celebration.publish", () => {
   });
 
   it("rejects re-publishing", () => {
-    const c = Celebration.tryCreate(validProps({ status: CelebrationStatusEnum.PUBLISHED })).instance;
+    const c = Celebration.tryCreate(
+      validProps({ status: CelebrationStatusEnum.PUBLISHED }),
+    ).instance;
     const r = c.publish();
     expect(r.isFailure).toBe(true);
     expect(r.errors).toContain("ALREADY_PUBLISHED");
@@ -451,15 +474,15 @@ Coverage you must include for every entity:
 
 _When: debugging a failing entity test or reviewing a PR for the patterns most often violated._
 
-| Mistake | Why it breaks | Fix |
-| ------- | ------------- | --- |
-| `import { Entity } from "@ddd/shared"` | Alias doesn't exist in this repo | `@your-best-day/shared` |
-| `if (status === "published")` | Magic string drifts from the enum | `status === CelebrationStatusEnum.PUBLISHED` |
-| `status: "draft"` in a fixture | Same drift risk in tests | `status: CelebrationStatusEnum.DRAFT` |
-| `new Product({ ...props, name: props.name })` | Stores raw input | `name: nameVo.instance.value` |
-| `product.name = "new"` | Bypasses invariants | named domain method (`cloneWith` or mutate + `touch`) |
-| Skipping per-element validation on an array | Silent partial failure | loop + push to `errors[]` or per-item `Result.combine` |
-| Setting `createdAt` / `updatedAt` inside `tryCreate` | Base constructor already stamps them | drop the fields; use `this.touch()` for updates |
-| Calling `this.tryCreate(...)` from inside a domain method | Duplicates what `cloneWith` does | `return this.cloneWith({ ...overrides })` |
-| Returning `this.props` to a caller | Leaks mutable internal state | expose typed getters or a `toSnapshot()` method |
-| Pushing the same error twice across nested loops | Noisy test assertions | `Result.fail(Array.from(new Set(errors)))` |
+| Mistake                                                   | Why it breaks                        | Fix                                                    |
+| --------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------ |
+| `import { Entity } from "<deprecated alias>"`             | Duplicate/stale path to the kernel   | your shared kernel package (e.g. `@acme/shared`)       |
+| `if (status === "published")`                             | Magic string drifts from the enum    | `status === CelebrationStatusEnum.PUBLISHED`           |
+| `status: "draft"` in a fixture                            | Same drift risk in tests             | `status: CelebrationStatusEnum.DRAFT`                  |
+| `new Product({ ...props, name: props.name })`             | Stores raw input                     | `name: nameVo.instance.value`                          |
+| `product.name = "new"`                                    | Bypasses invariants                  | named domain method (`cloneWith` or mutate + `touch`)  |
+| Skipping per-element validation on an array               | Silent partial failure               | loop + push to `errors[]` or per-item `Result.combine` |
+| Setting `createdAt` / `updatedAt` inside `tryCreate`      | Base constructor already stamps them | drop the fields; use `this.touch()` for updates        |
+| Calling `this.tryCreate(...)` from inside a domain method | Duplicates what `cloneWith` does     | `return this.cloneWith({ ...overrides })`              |
+| Returning `this.props` to a caller                        | Leaks mutable internal state         | expose typed getters or a `toSnapshot()` method        |
+| Pushing the same error twice across nested loops          | Noisy test assertions                | `Result.fail(Array.from(new Set(errors)))`             |

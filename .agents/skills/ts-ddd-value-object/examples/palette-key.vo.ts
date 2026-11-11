@@ -1,20 +1,20 @@
 /**
- * Canonical closed-set VO example — enum-backed catalog (target pattern).
+ * Reference closed-set VO example — enum-backed catalog (target pattern).
  *
- * The live libs/shared/src/vo/palette-key.vo.ts is currently on the older
- * `PALETTE_KEYS = ["bordo"] as const` form. NEW closed-set VOs must follow
- * the pattern below (enum + Object.values + (typeof Enum)[keyof typeof Enum]).
+ * Older closed-set VOs may still use the `PALETTE_KEYS = ["bordo"] as const`
+ * form. NEW closed-set VOs must follow the pattern below
+ * (enum + Object.values + (typeof Enum)[keyof typeof Enum]).
  *
- * Real location in this monorepo:
+ * Suggested location (example monorepo layout; package names are examples):
  *   src   → libs/shared/src/vo/palette-key.vo.ts
  *   tests → libs/shared/test/vo/palette-key.vo.test.ts
- *   import (consumers) → import { PaletteKeyVO, PaletteKeyEnum, PALETTE_KEYS, PaletteKey } from "@your-best-day/shared";
+ *   import (consumers) → import { PaletteKeyVO, PaletteKeyEnum, PALETTE_KEYS, PaletteKey } from "@acme/shared";
  *
  * Comparisons elsewhere always go through the enum:
  *   if (palette.value === PaletteKeyEnum.BORDO) { ... }    // OK
  *   if (palette.value === "bordo") { ... }                 // FORBIDDEN
  */
-import { Result, ValueObject, ValueObjectConfig } from "@your-best-day/shared";
+import { Result, ValueObject, ValueObjectConfig } from "@acme/shared";
 
 // Single source of truth for the closed set.
 export enum PaletteKeyEnum {

@@ -1,6 +1,7 @@
 /**
  * DTO triplet example for a hypothetical `products` bounded context.
- * Mirrors the your-best-day contracts-package layout:
+ * Follows an example contracts-package layout (adapt paths and the
+ * `@acme/*` package names to your project):
  *
  *   libs/contracts/products/src/
  *     interfaces/product-status.ts       ← string-backed enum + helpers
@@ -11,7 +12,7 @@
  *     dtos/product-response.dto.ts       ← z.infer DTO
  *
  * Everything below is collapsed into a single file purely for illustration.
- * In the real codebase, each section lives in its own file under the paths
+ * In a real project, each section lives in its own file under the paths
  * above and is re-exported by the per-folder `index.ts` barrel.
  */
 
@@ -28,13 +29,10 @@ export enum ProductStatusEnum {
 
 export const PRODUCT_STATUSES = Object.values(ProductStatusEnum);
 
-export type ProductStatus =
-  (typeof ProductStatusEnum)[keyof typeof ProductStatusEnum];
+export type ProductStatus = (typeof ProductStatusEnum)[keyof typeof ProductStatusEnum];
 
 export function isProductStatus(v: unknown): v is ProductStatus {
-  return (
-    typeof v === "string" && PRODUCT_STATUSES.includes(v as ProductStatus)
-  );
+  return typeof v === "string" && PRODUCT_STATUSES.includes(v as ProductStatus);
 }
 
 // ─── interfaces/product-content.ts ────────────────────────────────────────────
@@ -65,9 +63,7 @@ export interface SubscriptionProductContent {
 }
 
 export type ProductContent =
-  | PhysicalProductContent
-  | DigitalProductContent
-  | SubscriptionProductContent;
+  PhysicalProductContent | DigitalProductContent | SubscriptionProductContent;
 
 // ─── schemas/enum.schemas.ts ──────────────────────────────────────────────────
 // Full-set validators use `z.nativeEnum`; tied to the enum, never to literals.

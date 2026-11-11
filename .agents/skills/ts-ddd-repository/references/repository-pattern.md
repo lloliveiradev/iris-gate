@@ -1,9 +1,14 @@
-# TypeScript DDD Repository — Core Reference (your-best-day)
+# TypeScript DDD Repository — Core Reference
 
-## Real layout
+## Layout
+
+Paths are an example layout relative to the API package root; adapt them to your
+project. In the examples below, `celebrations` is a sample bounded context and
+`Celebration` its aggregate root (with a `sections` subcollection). Aliases such as
+`@<bc>/*`, `@shared/*` and `@acme/*` are examples; use the ones your tsconfig defines.
 
 ```
-apps/api/src/<bc>/
+src/<bc>/
   domain/repositories/
     <name>.repository.ts          ← port (interface) + DI token
     index.ts                      ← barrel
@@ -17,7 +22,7 @@ apps/api/src/<bc>/
       index.ts
   <bc>.module.ts                  ← wires { provide: <NAME>_REPOSITORY, useClass: Firestore<Name>Repository }
 
-apps/api/test/<bc>/infra/
+test/<bc>/infra/
   firestore/firestore-<name>.repository.test.ts   ← fake-DB at the SDK boundary
   memory/in-memory-<name>.repository.test.ts      ← straight unit test
 ```
@@ -38,9 +43,9 @@ See `examples/` for the standalone `Product` port + InMemory pair.
 The port lives in `domain/` — **no `firebase-admin`, no `@nestjs/*`, no Zod, no DTOs**:
 
 ```typescript
-// apps/api/src/celebrations/domain/repositories/celebration.repository.ts
-import type { Result } from "@your-best-day/shared";
-import type { CelebrationStatus } from "@your-best-day/celebrations-contracts";
+// src/celebrations/domain/repositories/celebration.repository.ts
+import type { Result } from "@acme/shared";
+import type { CelebrationStatus } from "@acme/celebrations-contracts";
 import type { Celebration, Section } from "../entities";
 
 export const CELEBRATION_REPOSITORY = Symbol("CELEBRATION_REPOSITORY");
@@ -57,7 +62,7 @@ export interface CelebrationRepository {
 Rules visible in the snippet:
 
 - The DI token symbol is exported **next to** the port — never invent it in the module file. Use cases inject with `@Inject(CELEBRATION_REPOSITORY) private readonly repo: CelebrationRepository`.
-- The port re-exports types via `<bc>/domain/repositories/index.ts` so callers say `from "@celebrations/domain/repositories"`.
+- The port re-exports types via `<bc>/domain/repositories/index.ts` so callers say `from "@<bc>/domain/repositories"`.
 - Closed-set parameters are typed by **enums from the contracts package** (`CelebrationStatus` is a union backed by `CelebrationStatusEnum`), never raw `string`.
 - `findBy*` may return `Result<Entity | null>` when "absent" is a legitimate, expected outcome (a slug not yet allocated). Use `Result.fail("<AGG>_NOT_FOUND")` only when absence is an error for the caller.
 
@@ -68,7 +73,7 @@ Rules visible in the snippet:
 Bind the port symbol to the production adapter in the BC module:
 
 ```typescript
-// apps/api/src/celebrations/celebrations.module.ts
+// src/celebrations/celebrations.module.ts
 @Module({
   providers: [
     { provide: CELEBRATION_REPOSITORY, useClass: FirestoreCelebrationRepository },
@@ -89,15 +94,11 @@ Always ships side-by-side with the Firestore adapter. Implements the same port s
 tests never have to mock individual methods.
 
 ```typescript
-// apps/api/src/celebrations/infra/memory/in-memory-celebration.repository.ts
-import { Result } from "@your-best-day/shared";
-import type { CelebrationStatus } from "@your-best-day/celebrations-contracts";
-import {
-  Celebration,
-  type CelebrationProps,
-  type Section,
-} from "@celebrations/domain/entities";
-import type { CelebrationRepository } from "@celebrations/domain/repositories";
+// src/celebrations/infra/memory/in-memory-celebration.repository.ts
+import { Result } from "@acme/shared";
+import type { CelebrationStatus } from "@acme/celebrations-contracts";
+import { Celebration, type CelebrationProps, type Section } from "@<bc>/domain/entities";
+import type { CelebrationRepository } from "@<bc>/domain/repositories";
 
 export class InMemoryCelebrationRepository implements CelebrationRepository {
   private readonly store = new Map<string, CelebrationProps>();
@@ -141,7 +142,7 @@ Conventions for InMemory adapters:
 
 ## Dual-Adapter Test Strategy
 
-Each adapter has its own file under `apps/api/test/<bc>/infra/`:
+Each adapter has its own file under `test/<bc>/infra/`:
 
 - **InMemory test** — plain unit test of CRUD + edge cases (`CELEBRATION_NOT_FOUND`, ordering, idempotency).
 - **Firestore test** — same scenarios, but constructed via a fake-DB that mimics the Firestore Admin SDK shape (see `firestore-adapter.md`). No real network calls; no emulator.
@@ -150,14 +151,14 @@ Where the behavior is identical between the two adapters (e.g. "round-trip a sav
 
 ### Enums in test fixtures
 
-Repository tests build entities with **enum members** from `@your-best-day/celebrations-contracts`, never raw string literals. This matches the entity rule and keeps a renamed enum value from silently passing the test:
+Repository tests build entities with **enum members** from `@acme/celebrations-contracts`, never raw string literals. This matches the entity rule and keeps a renamed enum value from silently passing the test:
 
 ```typescript
 import {
   CelebrationKindEnum,
   CelebrationStatusEnum,
   SectionKindEnum,
-} from "@your-best-day/celebrations-contracts";
+} from "@acme/celebrations-contracts";
 
 const c = Celebration.create({
   slug: "mae",
@@ -187,21 +188,21 @@ palette, layout, provider, role).
 - [ ] Firestore adapter is `@Injectable()` and bound via the token in `<bc>.module.ts`
 - [ ] InMemory adapter ships in `<bc>/infra/memory/`, implements the same port, matches the Firestore error codes
 - [ ] `<name>.mapper.ts` holds `toFirestore` / `fromFirestore`; no inline mapping in operation methods
-- [ ] Tests exist for both adapters under `apps/api/test/<bc>/infra/{firestore,memory}/`
+- [ ] Tests exist for both adapters under `test/<bc>/infra/{firestore,memory}/`
 - [ ] Test fixtures use enum members for status/kind/type/palette — never raw strings
 
 ---
 
 ## Common Pitfalls
 
-| Mistake                                          | Why it breaks                                                                  | Fix                                                       |
-| ------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| `findBy*` returns `null` directly                | Callers split logic between `Result` and `null` handling                       | Return `Result.ok<T \| null>(null)` or `Result.fail(...)` |
-| `firebase-admin` imported in `domain/repositories/` | Domain layer becomes infra-dependent; can't be reused                          | Move type imports to the adapter only                      |
-| `CrudRepository<T>` for an aggregate with subcollections | Generic CRUD names hide aggregate semantics (`saveSection`, `removeSection`) | Spell out the intent on the port                          |
-| Read-projection method on the Repository         | Returns an entity when the caller only needs DTO; leaks domain into the API   | Move to a separate `Query` interface (see `ts-query-cqrs`) |
-| Inline mapping in `findBy*` / `save`             | Different load paths drift; entity rules silently bypassed                    | Extract `<name>.mapper.ts` with `toFirestore`/`fromFirestore` |
-| Partial-field `update`                           | Adapter has to know which fields changed → coupling, bugs                     | Use-case does `cloneWith`; adapter receives full aggregate |
-| Test fixture uses `"draft"` / `"hero"` literals  | A renamed enum value passes the test silently                                 | Use `CelebrationStatusEnum.DRAFT`, `SectionKindEnum.HERO` |
-| Provider declared without the token              | Nest can't inject an interface — runtime DI failure                           | Always use `{ provide: <NAME>_REPOSITORY, useClass: ... }` |
-| Test hits real Firestore                         | Slow, flaky, leaks state across runs                                          | Use the fake-DB harness from `firestore-adapter.md`        |
+| Mistake                                                  | Why it breaks                                                                | Fix                                                           |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `findBy*` returns `null` directly                        | Callers split logic between `Result` and `null` handling                     | Return `Result.ok<T \| null>(null)` or `Result.fail(...)`     |
+| `firebase-admin` imported in `domain/repositories/`      | Domain layer becomes infra-dependent; can't be reused                        | Move type imports to the adapter only                         |
+| `CrudRepository<T>` for an aggregate with subcollections | Generic CRUD names hide aggregate semantics (`saveSection`, `removeSection`) | Spell out the intent on the port                              |
+| Read-projection method on the Repository                 | Returns an entity when the caller only needs DTO; leaks domain into the API  | Move to a separate `Query` interface (see `ts-query-cqrs`)    |
+| Inline mapping in `findBy*` / `save`                     | Different load paths drift; entity rules silently bypassed                   | Extract `<name>.mapper.ts` with `toFirestore`/`fromFirestore` |
+| Partial-field `update`                                   | Adapter has to know which fields changed → coupling, bugs                    | Use-case does `cloneWith`; adapter receives full aggregate    |
+| Test fixture uses `"draft"` / `"hero"` literals          | A renamed enum value passes the test silently                                | Use `CelebrationStatusEnum.DRAFT`, `SectionKindEnum.HERO`     |
+| Provider declared without the token                      | Nest can't inject an interface — runtime DI failure                          | Always use `{ provide: <NAME>_REPOSITORY, useClass: ... }`    |
+| Test hits real Firestore                                 | Slow, flaky, leaks state across runs                                         | Use the fake-DB harness from `firestore-adapter.md`           |

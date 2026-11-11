@@ -1,16 +1,16 @@
 /**
- * *Policy pattern — standalone example for the your-best-day monorepo.
- * Pure domain rule over a Celebration aggregate: decides whether it is
+ * *Policy pattern — standalone example for a TypeScript + DDD codebase.
+ * Pure domain rule over a sample `Celebration` aggregate: decides whether it is
  * eligible to publish. No I/O, no @Injectable, no DI.
  *
- * Real location in the project would be:
- *   apps/api/src/celebrations/domain/services/celebration-publishing.policy.ts
+ * Example location (adapt to your layout):
+ *   src/celebrations/domain/services/celebration-publishing.policy.ts
+ *
+ * `@celebrations/*` (BC path alias) and `@acme/*` (packages) are example
+ * names; use the ones your tsconfig and workspace define.
  */
-import { Result } from "@your-best-day/shared";
-import {
-  CelebrationStatusEnum,
-  SectionKindEnum,
-} from "@your-best-day/celebrations-contracts";
+import { Result } from "@acme/shared";
+import { CelebrationStatusEnum, SectionKindEnum } from "@acme/celebrations-contracts";
 import type { Celebration } from "@celebrations/domain/entities/celebration.entity";
 
 const ALREADY_PUBLISHED = "ALREADY_PUBLISHED";
@@ -36,9 +36,7 @@ export class CelebrationPublishingPolicy {
     }
     if (celebration.sections.length === 0) {
       errors.push(NO_SECTIONS);
-    } else if (
-      !celebration.sections.some((s) => s.content.type === SectionKindEnum.HERO)
-    ) {
+    } else if (!celebration.sections.some((s) => s.content.type === SectionKindEnum.HERO)) {
       errors.push(MISSING_HERO_SECTION);
     }
 

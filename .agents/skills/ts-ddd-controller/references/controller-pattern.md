@@ -1,8 +1,8 @@
-# TypeScript DDD Controller — Core Reference (your-best-day)
+# TypeScript DDD Controller — Core Reference
 
 > **Token budget**: this reference is ~470 lines. Load only if you're authoring or reviewing a new controller end-to-end. For a one-off lookup (status code, guard semantics), skim the headings via the TOC in your editor instead of reading top-to-bottom.
 
-This reference is grounded in the actual `apps/api` codebase. Mirror these shapes exactly — they are not suggestions.
+This reference is grounded in a real NestJS API. Mirror these shapes — they are rules, not suggestions. In the examples below, `celebrations` is a sample bounded context and `Celebration` its aggregate root; substitute your own.
 
 ## The Translation-Only Principle
 
@@ -27,8 +27,10 @@ The controller does not:
 
 ## Folder layout (per bounded context)
 
+Paths are an example layout relative to the API package root; adapt them to your project.
+
 ```
-apps/api/src/<bc>/
+src/<bc>/
   presentation/
     controllers/
       <bc>.controller.ts                ← e.g. celebrations.controller.ts
@@ -44,7 +46,7 @@ apps/api/src/<bc>/
   domain/                               ← never imported directly by the controller (only via use cases)
   infra/                                ← never imported by the controller
   <bc>.module.ts                        ← registers controllers + mappers + guard + use cases
-apps/api/src/shared/
+src/shared/
   http/
     result-to-http.ts                   ← mapResultToHttp
     error-codes.ts                      ← ERROR_CODE_TO_STATUS catalog
@@ -55,13 +57,13 @@ apps/api/src/shared/
   config/                               ← envSchema (Zod) + AppConfigModule (Global)
 ```
 
-Aliases (from `apps/api/tsconfig.json`): `@/*`, `@celebrations/*`, `@shared/*`. **Add a new alias for every new BC** in `tsconfig.json` and `jest.config.ts`.
+Example aliases (in the API package's `tsconfig.json`): `@/*`, `@<bc>/*`, `@shared/*`. Aliases such as `@<bc>/*`, `@shared/*` and `@acme/*` are examples; use the ones your tsconfig defines. If you use per-BC aliases, **add a new alias for every new BC** in `tsconfig.json` and your test runner config (e.g. `jest.config.ts`).
 
 ---
 
-## Canonical controller (mirror this exactly)
+## Canonical controller (mirror this shape)
 
-From `apps/api/src/celebrations/presentation/controllers/celebrations.controller.ts`:
+Example: a `CelebrationsController` at `src/celebrations/presentation/controllers/celebrations.controller.ts`:
 
 ```typescript
 import {
@@ -87,7 +89,7 @@ import {
   type ReorderSectionDTO,
   type SectionInputDTO,
   type UpdateCelebrationDTO,
-} from "@your-best-day/celebrations-contracts";
+} from "@acme/celebrations-contracts";
 import { ZodValidationPipe } from "@shared/http/zod-validation.pipe";
 import { mapResultToHttp } from "@shared/http/result-to-http";
 import { ApiKeyGuard } from "../guards/api-key.guard";
@@ -202,14 +204,14 @@ What is this endpoint doing?
 
 Then confirm against the lookup table below.
 
-| Endpoint kind                            | Decorators                                              | Status |
-| ---------------------------------------- | ------------------------------------------------------- | ------ |
-| Read list / read one                     | `@Get` (no `@HttpCode`)                                 | 200    |
-| Create (resource creation)               | `@Post` + `@HttpCode(HttpStatus.CREATED)`               | 201    |
-| Update returning resource                | `@Put`/`@Patch` (no `@HttpCode`)                        | 200    |
-| Void mutation (delete, reorder, replace) | `@Delete`/`@Put` + `@HttpCode(HttpStatus.NO_CONTENT)`   | 204    |
-| State-transition action                  | `@Post(":slug/publish")` + `@HttpCode(HttpStatus.OK)`   | 200    |
-| Sub-resource create (e.g. add section)   | `@Post(":parent/children")` + `@HttpCode(CREATED)`      | 201    |
+| Endpoint kind                            | Decorators                                            | Status |
+| ---------------------------------------- | ----------------------------------------------------- | ------ |
+| Read list / read one                     | `@Get` (no `@HttpCode`)                               | 200    |
+| Create (resource creation)               | `@Post` + `@HttpCode(HttpStatus.CREATED)`             | 201    |
+| Update returning resource                | `@Put`/`@Patch` (no `@HttpCode`)                      | 200    |
+| Void mutation (delete, reorder, replace) | `@Delete`/`@Put` + `@HttpCode(HttpStatus.NO_CONTENT)` | 204    |
+| State-transition action                  | `@Post(":slug/publish")` + `@HttpCode(HttpStatus.OK)` | 200    |
+| Sub-resource create (e.g. add section)   | `@Post(":parent/children")` + `@HttpCode(CREATED)`    | 201    |
 
 `@HttpCode(HttpStatus.OK)` is explicit on `@Post` actions so success is `200`, not the default `201`.
 
@@ -217,13 +219,13 @@ Then confirm against the lookup table below.
 
 ## `ApiKeyGuard` + `MUTATIONS_DISABLED` semantics
 
-`apps/api/src/celebrations/presentation/guards/api-key.guard.ts` reads `API_WRITE_KEY` via `ConfigService` and compares it to the `x-api-key` header:
+`ApiKeyGuard` (e.g. `src/<bc>/presentation/guards/api-key.guard.ts`) reads `API_WRITE_KEY` via `ConfigService` and compares it to the `x-api-key` header:
 
-| Condition                               | Status | Body                                            |
-| --------------------------------------- | ------ | ----------------------------------------------- |
-| `API_WRITE_KEY` unset in env            | 503    | `{ message: "MUTATIONS_DISABLED", errors: […] }`|
-| Header missing or mismatched            | 401    | `{ message: "INVALID_API_KEY", errors: […] }`   |
-| Header matches `API_WRITE_KEY`          | passes | (handler executes)                              |
+| Condition                      | Status | Body                                             |
+| ------------------------------ | ------ | ------------------------------------------------ |
+| `API_WRITE_KEY` unset in env   | 503    | `{ message: "MUTATIONS_DISABLED", errors: […] }` |
+| Header missing or mismatched   | 401    | `{ message: "INVALID_API_KEY", errors: […] }`    |
+| Header matches `API_WRITE_KEY` | passes | (handler executes)                               |
 
 Apply `@UseGuards(ApiKeyGuard)` **per-method** on every mutation. **Do NOT** apply at class level — read endpoints in the same controller are public.
 
@@ -233,7 +235,7 @@ The 503 is **intentional**: production deployments without `API_WRITE_KEY` confi
 
 ## Validation: `ZodValidationPipe` + contracts package
 
-Every `@Body()` and every non-trivial `@Param()` flows through `ZodValidationPipe(schema)` from `@shared/http/zod-validation.pipe.ts`. Schemas come from the BC contracts package (`@your-best-day/<bc>-contracts`), which is the single source of truth for wire shapes.
+Every `@Body()` and every non-trivial `@Param()` flows through `ZodValidationPipe(schema)` from `@shared/http/zod-validation.pipe.ts`. Schemas come from the BC contracts package (`@acme/<bc>-contracts`), which is the single source of truth for wire shapes.
 
 - `@Body(new ZodValidationPipe(createCelebrationDtoSchema)) body: CreateCelebrationDTO` — DTO type and schema imported from the same package; never redefine the shape in the controller.
 - `@Param("slug", slugPipe) slug: string` — reuse `const slugPipe = new ZodValidationPipe(slugSchema)` at module scope to avoid re-instantiating per request.
@@ -243,7 +245,7 @@ Every `@Body()` and every non-trivial `@Param()` flows through `ZodValidationPip
 
 ## `Result` → HTTP: `mapResultToHttp` + `error-codes.ts`
 
-From `apps/api/src/shared/http/result-to-http.ts`:
+Example implementation (`src/shared/http/result-to-http.ts`):
 
 ```typescript
 export function mapResultToHttp<T, R>(result: Result<T>, onOk: (value: T) => R): R {
@@ -255,16 +257,16 @@ export function mapResultToHttp<T, R>(result: Result<T>, onOk: (value: T) => R):
 }
 ```
 
-The status is looked up in `apps/api/src/shared/http/error-codes.ts` (`ERROR_CODE_TO_STATUS`). Sample mappings:
+The status is looked up in the error-code catalog (e.g. `src/shared/http/error-codes.ts`, exporting `ERROR_CODE_TO_STATUS`). Sample mappings:
 
-| Error code (use case)              | HTTP status               |
-| ---------------------------------- | ------------------------- |
-| `CELEBRATION_NOT_FOUND`, `SECTION_NOT_FOUND` | 404             |
-| `SLUG_ALREADY_EXISTS`, `ALREADY_PUBLISHED`   | 409             |
-| `INVALID_SLUG`, `INVALID_TITLE`, `INVALID_*` | 400             |
-| `HERO_LIMIT_EXCEEDED`, `USE_PUBLISH_METHOD`  | 422             |
-| `FIRESTORE_*`, `SIGNED_URL_FAILED`, `STORAGE_UPLOAD_FAILED` | 502 |
-| Unknown / not in catalog                     | 500             |
+| Error code (use case)                                       | HTTP status |
+| ----------------------------------------------------------- | ----------- |
+| `CELEBRATION_NOT_FOUND`, `SECTION_NOT_FOUND`                | 404         |
+| `SLUG_ALREADY_EXISTS`, `ALREADY_PUBLISHED`                  | 409         |
+| `INVALID_SLUG`, `INVALID_TITLE`, `INVALID_*`                | 400         |
+| `HERO_LIMIT_EXCEEDED`, `USE_PUBLISH_METHOD`                 | 422         |
+| `FIRESTORE_*`, `SIGNED_URL_FAILED`, `STORAGE_UPLOAD_FAILED` | 502         |
+| Unknown / not in catalog                                    | 500         |
 
 When a use case introduces a new error constant, **add it to `error-codes.ts`** with the correct status before throwing from the controller path. Unknown codes default to 500, which is almost never what you want.
 
@@ -287,7 +289,7 @@ Response envelope shape (final JSON, after the global `HttpExceptionFilter`):
 Controllers must not project entities to DTOs inline. Use a `@Injectable()` mapper:
 
 ```typescript
-// apps/api/src/celebrations/presentation/mappers/celebration-response.mapper.ts (excerpt)
+// src/celebrations/presentation/mappers/celebration-response.mapper.ts (example excerpt)
 @Injectable()
 export class CelebrationResponseMapper {
   constructor(@Inject(StorageService) private readonly storage: StorageService) {}
@@ -321,7 +323,9 @@ export class CelebrationResponseMapper {
         );
         return { ...c, images };
       }
-      case SectionKindEnum.TIMELINE: { /* sign each entry.image when present */ }
+      case SectionKindEnum.TIMELINE: {
+        /* sign each entry.image when present */
+      }
       default:
         return c;
     }
@@ -342,7 +346,7 @@ Register the mapper as a provider in `<bc>.module.ts` alongside controllers, gua
 
 ## Module wiring
 
-`apps/api/src/celebrations/celebrations.module.ts`:
+Example `src/celebrations/celebrations.module.ts`:
 
 ```typescript
 @Module({
@@ -362,38 +366,44 @@ Register the mapper as a provider in `<bc>.module.ts` alongside controllers, gua
     RemoveSection,
     ReplaceSection,
   ],
-  exports: [SlugAllocator, CELEBRATION_REPOSITORY, CreateCelebration, AddSection, PublishCelebration],
+  exports: [
+    SlugAllocator,
+    CELEBRATION_REPOSITORY,
+    CreateCelebration,
+    AddSection,
+    PublishCelebration,
+  ],
 })
 export class CelebrationsModule {}
 ```
 
-Production wires `FirestoreCelebrationRepository`. Tests swap in `InMemoryCelebrationRepository` (next section).
+The production module wires the real adapter (here `FirestoreCelebrationRepository`). Tests swap in `InMemoryCelebrationRepository` (next section).
 
 ---
 
 ## Test strategy (controllers)
 
-Tests live at `apps/api/test/<bc>/presentation/controllers/<name>.controller.test.ts` and run via `pnpm --filter api test`. They use `@nestjs/testing` + `supertest`, the InMemory repository, and a fake `StorageService`.
+Tests live at `test/<bc>/presentation/controllers/<name>.controller.test.ts` and run with the API package's test script. They use `@nestjs/testing` + `supertest`, the InMemory repository, and a fake `StorageService`.
 
-Skeleton (from `apps/api/test/celebrations/presentation/controllers/celebrations.controller.test.ts`):
+Skeleton (example: `test/celebrations/presentation/controllers/celebrations.controller.test.ts`):
 
 ```typescript
 import { Test } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
 import request from "supertest";
 import { INestApplication } from "@nestjs/common";
-import { CelebrationsController } from "@celebrations/presentation/controllers";
-import { CELEBRATION_REPOSITORY } from "@celebrations/domain/repositories";
-import { InMemoryCelebrationRepository } from "@celebrations/infra/memory";
-import { CelebrationResponseMapper } from "@celebrations/presentation/mappers";
-import { ApiKeyGuard } from "@celebrations/presentation/guards";
+import { CelebrationsController } from "@<bc>/presentation/controllers";
+import { CELEBRATION_REPOSITORY } from "@<bc>/domain/repositories";
+import { InMemoryCelebrationRepository } from "@<bc>/infra/memory";
+import { CelebrationResponseMapper } from "@<bc>/presentation/mappers";
+import { ApiKeyGuard } from "@<bc>/presentation/guards";
 import { StorageService } from "@shared/firebase";
-import { Result } from "@your-best-day/shared";
+import { Result } from "@acme/shared";
 import {
   CelebrationKindEnum,
   CelebrationStatusEnum,
   SectionKindEnum,
-} from "@your-best-day/celebrations-contracts";
+} from "@acme/celebrations-contracts";
 
 beforeEach(async () => {
   const moduleRef = await Test.createTestingModule({
@@ -457,26 +467,26 @@ Strings in `.send({ kind: "mothers-day", ... })` are acceptable for raw HTTP pay
 
 ## Implementation checklist
 
-- [ ] File at `apps/api/src/<bc>/presentation/controllers/<name>.controller.ts` with `index.ts` barrel updated.
+- [ ] File at `src/<bc>/presentation/controllers/<name>.controller.ts` with `index.ts` barrel updated.
 - [ ] `@Controller("<route-base>")` set; no class-level `@UseGuards` (guards go per-method).
 - [ ] Constructor injects use cases and the response mapper — no `new` calls.
-- [ ] `@Body(new ZodValidationPipe(<schema>))` for every write, schema imported from `@your-best-day/<bc>-contracts`.
+- [ ] `@Body(new ZodValidationPipe(<schema>))` for every write, schema imported from `@acme/<bc>-contracts`.
 - [ ] `@Param` values validated by a `ZodValidationPipe` when the shape is non-trivial (`slugPipe`).
 - [ ] Mutations carry `@UseGuards(ApiKeyGuard)` per method.
 - [ ] `@HttpCode(HttpStatus.CREATED | NO_CONTENT | OK)` matches the contract.
 - [ ] Handler body is one-liner-ish: call use case, `return mapResultToHttp(result, …)`.
 - [ ] Entity → DTO projection goes through the response mapper, never inline.
-- [ ] New error constants added to `apps/api/src/shared/http/error-codes.ts`.
+- [ ] New error constants added to the error-code catalog (e.g. `src/shared/http/error-codes.ts`).
 - [ ] Controller registered in `<bc>.module.ts`; mapper + guard listed as providers.
-- [ ] Test at `apps/api/test/<bc>/presentation/controllers/*.controller.test.ts` using InMemory repo, fake `StorageService`, `ConfigModule.forRoot({ load: [() => ({ API_WRITE_KEY: "test-key" })] })`.
+- [ ] Test at `test/<bc>/presentation/controllers/*.controller.test.ts` using InMemory repo, fake `StorageService`, `ConfigModule.forRoot({ load: [() => ({ API_WRITE_KEY: "test-key" })] })`.
 - [ ] Test fixtures and body assertions use enum members (`CelebrationKindEnum.*`, `CelebrationStatusEnum.*`, `SectionKindEnum.*`).
-- [ ] `pnpm --filter api typecheck && pnpm --filter api test` is green.
+- [ ] The API package's typecheck and test scripts are green.
 
 ---
 
 ## Adding a new framework reference
 
-Only NestJS 11 is supported here. If the project ever grows another HTTP runtime, create:
+Only NestJS 11 is documented in this skill so far. To cover another HTTP runtime, create:
 
 ```
 references/<framework-name>.md

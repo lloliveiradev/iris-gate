@@ -1,4 +1,0 @@
-interface:
-  display_name: "TypeScript DDD Controller"
-  short_description: "Create and review HTTP controllers following the project's DDD pattern"
-  default_prompt: "Create or review an HTTP controller for the TypeScript DDD api — use case injection via DI, Result failure mapping to HTTP status codes, auth guards, query param normalization, and error envelope. Specify your framework (NestJS, Express…) for framework-specific guidance."

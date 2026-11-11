@@ -1,13 +1,11 @@
 /**
  * Domain Service test template — standalone, no mocks, no DI.
- * Mirrors the api test style under `apps/api/test/<bc>/domain/services/`.
- * Run via `pnpm --filter api test`.
+ * Example location (adapt to your layout): `test/<bc>/domain/services/`.
+ * Run with your API package's test command (e.g. `pnpm --filter api test`).
+ * `@celebrations/*` and `@acme/*` are example alias/package names.
  */
 import { Celebration } from "@celebrations/domain/entities/celebration.entity";
-import {
-  CelebrationStatusEnum,
-  SectionKindEnum,
-} from "@your-best-day/celebrations-contracts";
+import { CelebrationStatusEnum, SectionKindEnum } from "@acme/celebrations-contracts";
 import { CelebrationPublishingPolicy } from "./permission-policy.service";
 
 function buildCelebration(
@@ -20,9 +18,7 @@ function buildCelebration(
     palette: "rose",
     title: "Ana 25",
     status: CelebrationStatusEnum.DRAFT,
-    sections: [
-      { id: "s-1", order: 0, content: { type: SectionKindEnum.HERO, title: "Hi" } },
-    ],
+    sections: [{ id: "s-1", order: 0, content: { type: SectionKindEnum.HERO, title: "Hi" } }],
     ...overrides,
   });
 }
@@ -42,9 +38,7 @@ describe("CelebrationPublishingPolicy.check", () => {
   });
 
   it("fails when there are no sections at all", () => {
-    const result = CelebrationPublishingPolicy.check(
-      buildCelebration({ sections: [] }),
-    );
+    const result = CelebrationPublishingPolicy.check(buildCelebration({ sections: [] }));
     expect(result.isFailure).toBe(true);
     expect(result.errors).toEqual(expect.arrayContaining(["NO_SECTIONS"]));
   });
@@ -52,9 +46,7 @@ describe("CelebrationPublishingPolicy.check", () => {
   it("fails when no hero section is present", () => {
     const result = CelebrationPublishingPolicy.check(
       buildCelebration({
-        sections: [
-          { id: "s-1", order: 0, content: { type: SectionKindEnum.GALLERY, images: [] } },
-        ],
+        sections: [{ id: "s-1", order: 0, content: { type: SectionKindEnum.GALLERY, images: [] } }],
       }),
     );
     expect(result.isFailure).toBe(true);
@@ -69,9 +61,7 @@ describe("CelebrationPublishingPolicy.check", () => {
       }),
     );
     expect(result.isFailure).toBe(true);
-    expect(result.errors).toEqual(
-      expect.arrayContaining(["ALREADY_PUBLISHED", "NO_SECTIONS"]),
-    );
+    expect(result.errors).toEqual(expect.arrayContaining(["ALREADY_PUBLISHED", "NO_SECTIONS"]));
   });
 
   it("is deterministic — same celebration produces the same outcome twice", () => {

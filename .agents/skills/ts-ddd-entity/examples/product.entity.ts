@@ -1,21 +1,22 @@
 /**
- * Canonical entity example — self-contained, mirrors the your-best-day pattern.
+ * Reference entity example — self-contained. `Product` is a sample leaf entity;
+ * package names (`@acme/shared`) are examples to adapt to your project.
  *
  * Demonstrates:
- *  - `Entity` base from `@your-best-day/shared`
+ *  - `Entity` base from `@acme/shared`
  *  - dual API `tryCreate` (Result) + `create` (throws)
  *  - closed-set field driven by a string-backed TS enum (`ProductStatusEnum`)
  *  - manual `errors[]` accumulator combined with VO validation (`Id.required`)
  *  - enum-member comparison inside a domain method (NEVER a string literal)
  *  - `cloneWith` for immutable state transitions
  *
- * In the real codebase the enum + type guard live in the contracts package:
- *   libs/contracts/<bc>/src/interfaces/product-status.ts
+ * In a real project the enum + type guard live in the BC's contracts package
+ * (e.g. `libs/contracts/<bc>/src/interfaces/product-status.ts` in a monorepo).
  * They are inlined here only to keep the example standalone.
  */
-import { Entity, type EntityProps, Id, Result } from "@your-best-day/shared";
+import { Entity, type EntityProps, Id, Result } from "@acme/shared";
 
-// --- Enum (would live in @your-best-day/<bc>-contracts) ---
+// --- Enum (would live in @acme/<bc>-contracts) ---
 export enum ProductStatusEnum {
   DRAFT = "draft",
   PUBLISHED = "published",

@@ -1,7 +1,8 @@
 /**
- * Repository PORT — lives in `apps/api/src/products/domain/repositories/`.
+ * Repository PORT — e.g. `src/products/domain/repositories/` (example layout;
+ * `@acme/*` package names are examples to adapt).
  *
- * Mirrors the real CelebrationRepository style:
+ * Shows the recommended port style:
  *  - methods named after domain intent (`save`, `findById`, `listByStatus`),
  *    not generic `create`/`update`,
  *  - every method returns `Promise<Result<T>>`,
@@ -9,11 +10,11 @@
  *    is `Result.fail("PRODUCT_NOT_FOUND")` inside the use case,
  *  - DI token symbol exported next to the interface so the Nest module can wire
  *    `{ provide: PRODUCT_REPOSITORY, useClass: FirestoreProductRepository }`,
- *  - the port imports only `@your-best-day/shared`, the contracts package and
+ *  - the port imports only `@acme/shared`, the contracts package and
  *    domain entities — never `firebase-admin` or `@nestjs/*`.
  */
-import type { Result } from "@your-best-day/shared";
-import type { ProductStatus } from "@your-best-day/products-contracts";
+import type { Result } from "@acme/shared";
+import type { ProductStatus } from "@acme/products-contracts";
 import type { Product } from "../entities";
 
 export const PRODUCT_REPOSITORY = Symbol("PRODUCT_REPOSITORY");

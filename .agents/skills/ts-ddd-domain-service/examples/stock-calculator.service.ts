@@ -2,15 +2,15 @@
  * *Calculator pattern — standalone example.
  * Numeric computation from multiple domain objects; deterministic, no I/O.
  *
- * Real location in the project would be:
- *   apps/api/src/<bc>/domain/services/<name>.calculator.ts
+ * Example location (adapt to your layout):
+ *   src/<bc>/domain/services/<name>.calculator.ts
  *
  * Notice: pure class, no `@Injectable`, no constructor injection, takes
  * domain primitives as arguments and returns `Result`. The enum branch
  * below (MovementKindEnum) shows the closed-set rule from SKILL.md —
  * compare against the enum member, never a raw string.
  */
-import { Result } from "@your-best-day/shared";
+import { Result } from "@acme/shared";
 
 const NEGATIVE_BALANCE = "NEGATIVE_BALANCE";
 const UNKNOWN_MOVEMENT_KIND = "UNKNOWN_MOVEMENT_KIND";

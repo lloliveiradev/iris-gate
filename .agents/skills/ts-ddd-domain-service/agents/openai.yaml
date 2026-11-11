@@ -1,4 +1,0 @@
-interface:
-  display_name: "TypeScript DDD Domain Service"
-  short_description: "Create and review domain services restricted to the domain core following the project's DDD pattern"
-  default_prompt: "Create or review a Domain Service for the TypeScript DDD codebase — pure rule or calculation across 2+ entities/VOs, file in libs/*/core/src/**, named *Policy/*Calculator/*Resolver, returns Result<T>, no I/O or framework imports, with unit tests requiring no mocks."

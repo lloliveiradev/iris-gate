@@ -1,21 +1,28 @@
-# Firestore Adapter — Repository Reference (your-best-day)
+# Firestore Adapter — Repository Reference
 
-Read **after** `repository-pattern.md`. The only production persistence stack in this
-repo is the **Firebase Admin SDK** (`firebase-admin/firestore`). No Prisma, no
-Mongoose, no Supabase clients. Storage (signed URLs) lives next to it but is not
-the repository's concern.
+Read **after** `repository-pattern.md`, if your project persists aggregates with the
+**Firebase Admin SDK** (`firebase-admin/firestore`). The snippets assume Firestore is
+the persistence stack behind the port (no Prisma, Mongoose, or Supabase clients in the
+same adapter). File storage (signed URLs) may live next to it but is not the
+repository's concern.
+
+The examples use NestJS for DI and a sample `celebrations` bounded context
+(`Celebration` aggregate root with a `sections` subcollection). Aliases such as
+`@<bc>/*`, `@shared/*` and `@acme/*` are examples; use the ones your tsconfig defines.
 
 ---
 
 ## Standard Adapter Structure
 
+Example layout relative to the API package root; adapt it to your project:
+
 ```
-apps/api/src/<bc>/infra/firestore/
+src/<bc>/infra/firestore/
   firestore-<name>.repository.ts   ← the @Injectable adapter (implements the port)
   <name>.mapper.ts                 ← toFirestore + fromFirestore (Result<Entity>)
   index.ts                         ← barrel
 
-apps/api/src/shared/firebase/
+src/shared/firebase/
   firestore.service.ts             ← exposes `db` (Firestore singleton)
 ```
 
@@ -26,18 +33,18 @@ injection and never reaches for the singleton through a global.
 
 ## Firebase Admin SDK Cheat Sheet
 
-| Need                                  | Snippet                                                                  |
-| ------------------------------------- | ------------------------------------------------------------------------ |
-| Get a root doc                        | `db.collection("celebrations").doc(slug).get()` → `DocumentSnapshot`     |
-| Check existence                       | `snap.exists` (boolean) — always before `snap.data()`                    |
-| Read field bag                        | `snap.data()` returns `Record<string, unknown> \| undefined`             |
-| Write a root doc (full replace)       | `ref.set(toFirestore(entity))`                                           |
-| Write a subcollection doc             | `ref.collection("sections").doc(section.id).set(sectionToFirestore(s))`  |
-| Delete a doc                          | `ref.delete()` / `ref.collection("sections").doc(id).delete()`           |
-| Query by field                        | `db.collection("celebrations").where("status", "==", status).get()`      |
-| Ordered subcollection read            | `ref.collection("sections").orderBy("order").get()`                      |
-| Iterate result docs                   | `snap.docs.map(d => ({ id: d.id, data: d.data() }))`                     |
-| `Date` ↔ Firestore `Timestamp`        | `Timestamp.fromDate(d)` / `ts.toDate()` (both from `firebase-admin/firestore`) |
+| Need                            | Snippet                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| Get a root doc                  | `db.collection("celebrations").doc(slug).get()` → `DocumentSnapshot`           |
+| Check existence                 | `snap.exists` (boolean) — always before `snap.data()`                          |
+| Read field bag                  | `snap.data()` returns `Record<string, unknown> \| undefined`                   |
+| Write a root doc (full replace) | `ref.set(toFirestore(entity))`                                                 |
+| Write a subcollection doc       | `ref.collection("sections").doc(section.id).set(sectionToFirestore(s))`        |
+| Delete a doc                    | `ref.delete()` / `ref.collection("sections").doc(id).delete()`                 |
+| Query by field                  | `db.collection("celebrations").where("status", "==", status).get()`            |
+| Ordered subcollection read      | `ref.collection("sections").orderBy("order").get()`                            |
+| Iterate result docs             | `snap.docs.map(d => ({ id: d.id, data: d.data() }))`                           |
+| `Date` ↔ Firestore `Timestamp`  | `Timestamp.fromDate(d)` / `ts.toDate()` (both from `firebase-admin/firestore`) |
 
 `Timestamp` is the only persistence concern leaking into the mapper layer. The
 domain entity always works in plain `Date`.
@@ -51,11 +58,11 @@ SCREAMING_SNAKE_CASE codes on failure:
 
 ```typescript
 import { Inject, Injectable } from "@nestjs/common";
-import { Result } from "@your-best-day/shared";
-import type { CelebrationStatus } from "@your-best-day/celebrations-contracts";
+import { Result } from "@acme/shared";
+import type { CelebrationStatus } from "@acme/celebrations-contracts";
 import { FirestoreService } from "@shared/firebase";
-import type { CelebrationRepository } from "@celebrations/domain/repositories";
-import { Celebration, type Section } from "@celebrations/domain/entities";
+import type { CelebrationRepository } from "@<bc>/domain/repositories";
+import { Celebration, type Section } from "@<bc>/domain/entities";
 import {
   celebrationFromFirestore,
   celebrationToFirestore,
@@ -147,8 +154,8 @@ the persisted data drifted from the current invariants.
 ```typescript
 // celebration.mapper.ts
 import { Timestamp } from "firebase-admin/firestore";
-import { Result } from "@your-best-day/shared";
-import { Celebration, type Section } from "@celebrations/domain/entities";
+import { Result } from "@acme/shared";
+import { Celebration, type Section } from "@<bc>/domain/entities";
 
 export interface CelebrationFirestoreDoc {
   kind: string;
@@ -224,8 +231,12 @@ function makeFakeDb() {
           const data = store.get(docKey);
           return { exists: !!data, data: () => data };
         },
-        async set(data: Record<string, unknown>) { store.set(docKey, data); },
-        async delete() { store.delete(docKey); },
+        async set(data: Record<string, unknown>) {
+          store.set(docKey, data);
+        },
+        async delete() {
+          store.delete(docKey);
+        },
         collection(subName: string) {
           const key = `${docKey}/${subName}`;
           if (!subcollections.has(key)) subcollections.set(key, new Map());
@@ -233,18 +244,25 @@ function makeFakeDb() {
           return {
             doc(id: string) {
               return {
-                async set(data: Record<string, unknown>) { sub.set(id, data); },
-                async delete() { sub.delete(id); },
+                async set(data: Record<string, unknown>) {
+                  sub.set(id, data);
+                },
+                async delete() {
+                  sub.delete(id);
+                },
               };
             },
             async get() {
               return {
                 docs: Array.from(sub.entries()).map(([id, data]) => ({
-                  id, data: () => data,
+                  id,
+                  data: () => data,
                 })),
               };
             },
-            orderBy() { return this; }, // fake: insertion-order is fine for tests
+            orderBy() {
+              return this;
+            }, // fake: insertion-order is fine for tests
           };
         },
       };
@@ -345,8 +363,8 @@ Use Firestore batching only when:
 - The write spans multiple docs **and** the caller cannot tolerate partial application (e.g. moving a section from one celebration to another).
 - The write needs to be conditioned on a current value the adapter just read (use `runTransaction`).
 
-For single-aggregate writes that are eventually consistent (the current wholesale
-section replace), document the trade-off in a comment instead of paying the
+For single-aggregate writes that are eventually consistent (like the wholesale
+section replace above), document the trade-off in a comment instead of paying the
 transaction overhead. Promote to a batch when volume justifies it.
 
 ---

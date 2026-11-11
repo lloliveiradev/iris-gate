@@ -1,24 +1,26 @@
-# NestJS 11 — Framework Reference (your-best-day)
+# NestJS 11 — Framework Reference
 
 > **Do NOT load** this reference if the controller you're reviewing is not NestJS-based (Express, Fastify, Hono, Koa, etc.). Apply the framework-neutral principles from `controller-pattern.md` instead — none of the decorators, DI tokens, or module wiring below transfer.
 >
-> **Token budget**: this reference is ~290 lines of repo-specific NestJS detail. Load only if you're authoring or reviewing a new controller end-to-end (i.e. you'll touch `@nestjs/testing`, `ConfigModule`, or a new `@Injectable()` provider). For a quick lookup (e.g. "which DI symbol for the Firebase app?"), skim section headings instead of reading top-to-bottom.
+> **Token budget**: this reference is ~290 lines of concrete NestJS detail. Load only if you're authoring or reviewing a new controller end-to-end (i.e. you'll touch `@nestjs/testing`, `ConfigModule`, or a new `@Injectable()` provider). For a quick lookup (e.g. "which DI symbol for the Firebase app?"), skim section headings instead of reading top-to-bottom.
 
-Load this file **in addition to** `controller-pattern.md`. It documents the NestJS 11 patterns actually used in `apps/api`. If a pattern is not in this file, it is not used here.
+Load this file **in addition to** `controller-pattern.md`. It documents a focused set of NestJS 11 patterns for a DDD API; prefer these over inventing new ones. The examples use a sample `celebrations` bounded context, a Firebase-backed infra layer and an API-key write guard; keep the shape and swap the specifics for your stack.
 
 ---
 
 ## Runtime
 
 - NestJS **11**, Node **≥ 20.11**, TypeScript **5** strict.
-- Process: `apps/api` listens on **port 3001** (`PORT` in `envSchema`, default 3001).
-- Dev: `make api` (or `pnpm --filter api dev`). Gate: `pnpm --filter api typecheck && pnpm --filter api test`.
-- Decorators enabled (`experimentalDecorators`, `emitDecoratorMetadata` in `apps/api/tsconfig.json`).
+- Port and other settings come from a Zod-validated `envSchema` (e.g. `PORT`, with a default).
+- Gate before merging: the API package's typecheck and test scripts.
+- Decorators enabled (`experimentalDecorators`, `emitDecoratorMetadata` in the API package's `tsconfig.json`).
 
 ## Standard file layout
 
+Paths are an example layout relative to the API package root; adapt them to your project.
+
 ```
-apps/api/src/
+src/
   main.ts                                ← bootstrap, global pipes/filters
   app.module.ts                          ← imports AppConfigModule, FirebaseModule, <bc>.module.ts
   <bc>/
@@ -33,19 +35,19 @@ apps/api/src/
     http/                                ← ZodValidationPipe, mapResultToHttp, error-codes, HttpExceptionFilter
 ```
 
-Path aliases in `apps/api/tsconfig.json`: `@/*`, `@celebrations/*`, `@shared/*`. **Every new BC adds its own alias** in both `tsconfig.json` and `jest.config.ts`.
+Example path aliases in the API package's `tsconfig.json`: `@/*`, `@<bc>/*`, `@shared/*`. Aliases such as `@<bc>/*`, `@shared/*` and `@acme/*` are examples; use the ones your tsconfig defines. With per-BC aliases, **every new BC adds its own alias** in both `tsconfig.json` and the test runner config (e.g. `jest.config.ts`).
 
 ---
 
 ## Dependency injection — symbol tokens + `@Inject`
 
-This repo uses **`Symbol` tokens for any non-class provider**: repository ports, the Firebase app handle, etc. There are no string tokens.
+Use **`Symbol` tokens for any non-class provider**: repository ports, the Firebase app handle, etc. Avoid string tokens.
 
 ```typescript
-// apps/api/src/shared/firebase/firebase.tokens.ts
+// src/shared/firebase/firebase.tokens.ts
 export const FIREBASE_APP = Symbol("FIREBASE_APP");
 
-// apps/api/src/celebrations/domain/repositories/celebration.repository.token.ts
+// src/celebrations/domain/repositories/celebration.repository.token.ts
 export const CELEBRATION_REPOSITORY = Symbol("CELEBRATION_REPOSITORY");
 ```
 
@@ -59,9 +61,7 @@ export class CelebrationResponseMapper {
 
 @Injectable()
 export class CreateCelebration {
-  constructor(
-    @Inject(CELEBRATION_REPOSITORY) private readonly repo: CelebrationRepository,
-  ) {}
+  constructor(@Inject(CELEBRATION_REPOSITORY) private readonly repo: CelebrationRepository) {}
 }
 ```
 
@@ -71,9 +71,9 @@ Class-token providers (use cases, mappers, the guard) are injected positionally 
 
 ## `@Global()` modules
 
-Two cross-cutting modules are `@Global()`, so consumers do not re-import them in every BC module:
+In the examples, two cross-cutting modules are `@Global()`, so consumers do not re-import them in every BC module:
 
-### `AppConfigModule` (`apps/api/src/shared/config/app-config.module.ts`)
+### `AppConfigModule` (`src/shared/config/app-config.module.ts`)
 
 ```typescript
 @Global()
@@ -99,7 +99,7 @@ Two cross-cutting modules are `@Global()`, so consumers do not re-import them in
 export class AppConfigModule {}
 ```
 
-Env is validated by **Zod** (`envSchema` in `apps/api/src/shared/config/env.schema.ts`). Inject `ConfigService<Env, true>` and use the `infer: true` accessor:
+Env is validated by **Zod** (`envSchema` in `src/shared/config/env.schema.ts`). Inject `ConfigService<Env, true>` and use the `infer: true` accessor:
 
 ```typescript
 constructor(@Inject(ConfigService) private readonly config: ConfigService<Env, true>) {}
@@ -107,7 +107,9 @@ constructor(@Inject(ConfigService) private readonly config: ConfigService<Env, t
 const expected = this.config.get("API_WRITE_KEY", { infer: true });
 ```
 
-### `FirebaseModule` (`apps/api/src/shared/firebase/firebase.module.ts`)
+### `FirebaseModule` (`src/shared/firebase/firebase.module.ts`)
+
+If your project uses Firebase, wrap the Admin SDK in a global module like this; for other backends, the same shape applies to your database/storage clients.
 
 ```typescript
 @Global()
@@ -115,7 +117,9 @@ const expected = this.config.get("API_WRITE_KEY", { infer: true });
   providers: [firebaseAppProvider, FirestoreService, StorageService],
   exports: [FIREBASE_APP, FirestoreService, StorageService],
 })
-export class FirebaseModule implements OnApplicationShutdown { /* … */ }
+export class FirebaseModule implements OnApplicationShutdown {
+  /* … */
+}
 ```
 
 `StorageService` and `FirestoreService` are class providers — inject them by class, not by symbol. The raw `app.App` handle is exported under the `FIREBASE_APP` symbol.
@@ -132,11 +136,23 @@ export class FirebaseModule implements OnApplicationShutdown { /* … */ }
     CelebrationResponseMapper,
     ApiKeyGuard,
     SlugAllocator,
-    CreateCelebration, GetCelebrationBySlug, ListPublishedCelebrations,
-    UpdateCelebrationMetadata, PublishCelebration,
-    AddSection, ReorderSection, RemoveSection, ReplaceSection,
+    CreateCelebration,
+    GetCelebrationBySlug,
+    ListPublishedCelebrations,
+    UpdateCelebrationMetadata,
+    PublishCelebration,
+    AddSection,
+    ReorderSection,
+    RemoveSection,
+    ReplaceSection,
   ],
-  exports: [SlugAllocator, CELEBRATION_REPOSITORY, CreateCelebration, AddSection, PublishCelebration],
+  exports: [
+    SlugAllocator,
+    CELEBRATION_REPOSITORY,
+    CreateCelebration,
+    AddSection,
+    PublishCelebration,
+  ],
 })
 export class CelebrationsModule {}
 ```
@@ -151,7 +167,7 @@ Patterns to follow:
 
 ## Validation: `ZodValidationPipe`
 
-`apps/api/src/shared/http/zod-validation.pipe.ts`:
+`src/shared/http/zod-validation.pipe.ts`:
 
 ```typescript
 @Injectable()
@@ -186,13 +202,13 @@ async createOne(
 async getOne(@Param("slug", slugPipe) slug: string) { /* … */ }
 ```
 
-Schemas live in `@your-best-day/<bc>-contracts` (`src/schemas/`). DTO types are `z.infer<typeof schema>` exports from the same package. Never hand-write a DTO interface in the controller.
+Schemas live in `@acme/<bc>-contracts` (`src/schemas/`). DTO types are `z.infer<typeof schema>` exports from the same package. Never hand-write a DTO interface in the controller.
 
 ---
 
-## Guards: `ApiKeyGuard` only (no JWT, no role/permission system)
+## Guards: `ApiKeyGuard` on writes
 
-There is no JWT or RBAC layer in this codebase. The single guard is `ApiKeyGuard`, applied **per-method** on writes:
+The examples use a single guard, `ApiKeyGuard`, applied **per-method** on writes (no JWT or RBAC layer):
 
 ```typescript
 import { ApiKeyGuard } from "../guards/api-key.guard";
@@ -210,7 +226,7 @@ Behavior:
 - `x-api-key` header missing or mismatched → `HttpException(401, "INVALID_API_KEY")`.
 - Match → passes.
 
-There is no `@CurrentUser()`, no `JwtAuthGuard`, no `RequirePermission()` in this repo. If you see those in older skill notes, ignore them.
+The examples have no `@CurrentUser()`, `JwtAuthGuard` or `RequirePermission()`. If your project has JWT/RBAC guards, apply them with the same rule: per-method on the handlers that need them, never at the class level when the controller also serves public reads.
 
 ---
 
@@ -225,9 +241,9 @@ const result = await this.getBySlug.execute({ slug });
 return await mapResultToHttp(result, (c) => this.mapper.toDTO(c));
 ```
 
-`statusForCode(code)` looks up `apps/api/src/shared/http/error-codes.ts`. Add new error codes there with their HTTP status; default is 500. See `references/controller-pattern.md` for the full catalog sample.
+`statusForCode(code)` looks up the error-code catalog (e.g. `src/shared/http/error-codes.ts`). Add new error codes there with their HTTP status; default is 500. See `references/controller-pattern.md` for the full catalog sample.
 
-The global `HttpExceptionFilter` (`apps/api/src/shared/http/http-exception.filter.ts`) adds `path` and `timestamp` to the JSON envelope and logs unhandled exceptions as `INTERNAL_SERVER_ERROR`.
+The global `HttpExceptionFilter` (e.g. `src/shared/http/http-exception.filter.ts`) adds `path` and `timestamp` to the JSON envelope and logs unhandled exceptions as `INTERNAL_SERVER_ERROR`.
 
 ---
 
@@ -273,7 +289,7 @@ Rules:
 - Always set `API_WRITE_KEY` via the `load` factory; otherwise `ApiKeyGuard` returns 503 on every mutation.
 - Use enum members in fixtures (`CelebrationKindEnum.MOTHERS_DAY`) — see `controller-pattern.md` test strategy.
 
-`pnpm --filter api test` runs the suite. The real-Firebase smoke (`pnpm --filter api smoke`) is separate and requires `.env.local` with a service account — do not run it from controller tests.
+Controller tests run in the API package's regular test suite. Keep any smoke test against real Firebase (which needs `.env.local` with a service account) in a separate script — do not run it from controller tests.
 
 ---
 
@@ -281,12 +297,12 @@ Rules:
 
 - [ ] `@Controller("<base>")` set; guards applied **per-method** with `@UseGuards(ApiKeyGuard)` on mutations.
 - [ ] `@HttpCode(HttpStatus.CREATED)` on creates, `@HttpCode(HttpStatus.NO_CONTENT)` on void mutations, `@HttpCode(HttpStatus.OK)` on `@Post` actions that return data.
-- [ ] `@Body()` validated with `new ZodValidationPipe(<schema>)`; DTO types imported from `@your-best-day/<bc>-contracts`.
+- [ ] `@Body()` validated with `new ZodValidationPipe(<schema>)`; DTO types imported from `@acme/<bc>-contracts`.
 - [ ] `@Param()` for non-trivial path params goes through a module-scoped pipe (`const slugPipe = new ZodValidationPipe(slugSchema)`).
 - [ ] Use cases and response mapper injected via constructor — no `new`, no factory calls inside handlers.
 - [ ] Repository ports provided via `Symbol` token + `{ provide, useClass }`.
 - [ ] `ConfigService<Env, true>` with `.get("KEY", { infer: true })` for env access.
-- [ ] No JWT, no permissions, no `@CurrentUser()` — only `ApiKeyGuard`.
+- [ ] Only the guards your project defines (here `ApiKeyGuard`), applied per-method; no guard copied from older notes.
 - [ ] Controller registered in `<bc>.module.ts`; mapper, guard, and all injected use cases listed in `providers`.
 - [ ] Test bed mocks `StorageService` and loads `API_WRITE_KEY: "test-key"` via `ConfigModule.forRoot({ load: […] })`.
 
@@ -294,4 +310,4 @@ Rules:
 
 ## Adding another framework
 
-Not applicable while NestJS is the only HTTP runtime in this monorepo. If that changes, create a sibling reference (`references/<framework>.md`) and a sibling example, and keep `controller-pattern.md` framework-neutral above the canonical NestJS snippet.
+This skill documents only NestJS so far. To cover another HTTP runtime, create a sibling reference (`references/<framework>.md`) and a sibling example, and keep `controller-pattern.md` framework-neutral above the canonical NestJS snippet.
