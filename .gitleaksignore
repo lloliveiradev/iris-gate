@@ -1,0 +1,10 @@
+# Historical false positives. Inline gitleaks:allow comments cover the
+# current tree; these fingerprints cover the commits that introduced the
+# same test fixtures. Each entry is one finding (commit:file:rule:line).
+
+# Identity auth test: placeholder bearer token in the "wrong secret" case.
+902a7898b0982facd84eb62c26074dffffdd7636:libs/identity/infra/httpapi/handlers_test.go:generic-api-key:249
+
+# Payments use-case tests: placeholder card token literals.
+d7c88a63a4b4b9a5a6d2ddff8140e30b58e152c8:libs/payments/application/create_payment_intent_test.go:generic-api-key:75
+d7c88a63a4b4b9a5a6d2ddff8140e30b58e152c8:libs/payments/application/create_payment_intent_test.go:generic-api-key:106
