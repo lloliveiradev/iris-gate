@@ -246,7 +246,7 @@ func TestAuth_InvalidKey_Returns401(t *testing.T) {
 		"missing":        "",
 		"malformed":      "not-a-token",
 		"wrong scheme":   "wrong_pfx.sec",
-		"wrong secret":   "irk_pfx1.WRONG_SECRET",
+		"wrong secret":   "irk_pfx1.WRONG_SECRET", // gitleaks:allow fixture: not a real API key
 		"unknown prefix": "irk_doesnotexist.whatever",
 	}
 	for name, token := range cases {
@@ -311,6 +311,6 @@ func TestProblemBody_OnInvalidKey(t *testing.T) {
 		t.Errorf("problem.status = %v, want 401", p["status"])
 	}
 	if p["title"] == "" {
-		t.Errorf("problem.title vazio")
+		t.Errorf("problem.title empty")
 	}
 }

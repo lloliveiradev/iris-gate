@@ -87,7 +87,7 @@ func TestCreatePaymentIntent_OK(t *testing.T) {
 	pi, err := uc.Execute(context.Background(), application.CreatePaymentIntentInput{
 		MerchantID:  uuid.New(),
 		Amount:      amt,
-		CardToken:   "tok_abcdef12",
+		CardToken:   "tok_abcdef12", // gitleaks:allow fixture: not a real card token
 		Description: "ACME order",
 	})
 	if err != nil {
@@ -98,7 +98,7 @@ func TestCreatePaymentIntent_OK(t *testing.T) {
 		t.Errorf("status = %v", pi.Status)
 	}
 	if got := repo.intents[pi.ID]; got.ID != pi.ID {
-		t.Errorf("intent não persistido")
+		t.Errorf("intent not persisted")
 	}
 	if n := len(repo.outbox); n != 1 {
 		t.Fatalf("outbox messages = %d, want 1", n)
@@ -116,14 +116,14 @@ func TestCreatePaymentIntent_ValidationFails(t *testing.T) {
 
 	amt, _ := domain.NewMoney(100, "BRL")
 	_, err := uc.Execute(context.Background(), application.CreatePaymentIntentInput{
-		MerchantID: uuid.Nil, // inválido
+		MerchantID: uuid.Nil, // invalid
 		Amount:     amt,
-		CardToken:  "tok_abcdef12",
+		CardToken:  "tok_abcdef12", // gitleaks:allow fixture: not a real card token
 	})
 	if err == nil {
 		t.Fatalf("expected validation error, got nil")
 	}
 	if len(repo.outbox) != 0 {
-		t.Errorf("outbox tem mensagens em fluxo inválido")
+		t.Errorf("outbox has messages on an invalid flow")
 	}
 }
