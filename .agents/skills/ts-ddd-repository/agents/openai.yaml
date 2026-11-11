@@ -1,0 +1,4 @@
+interface:
+  display_name: "TypeScript DDD Repository"
+  short_description: "Create and review repository contracts and infrastructure adapters following the project's DDD pattern"
+  default_prompt: "Create or review a repository for the TypeScript DDD codebase — core contract composing CrudRepository/CreateRepository/FindByIdRepository, infrastructure adapter (Prisma or other) with try/catch and Result mapping, toDomain/fromDomain mappers, in-memory mock for tests, and CQRS Repository vs Query separation."

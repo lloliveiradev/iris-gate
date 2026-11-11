@@ -1,0 +1,4 @@
+interface:
+  display_name: "TypeScript DDD Value Object"
+  short_description: "Create and review Value Objects following the project's DDD pattern"
+  default_prompt: "Create or review a Value Object for the TypeScript api — ValueObject<T,Config> base, tryCreate with normalization-before-validation, private/protected constructor decision, typed ValueObjectConfig extension, static error constants, and test coverage."

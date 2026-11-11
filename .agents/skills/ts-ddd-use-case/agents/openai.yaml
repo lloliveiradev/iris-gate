@@ -1,0 +1,4 @@
+interface:
+  display_name: "TypeScript DDD Use Case"
+  short_description: "Create and review use cases following the project's TypeScript + DDD pattern"
+  default_prompt: "Create or review a use case for the TypeScript api — UseCase<IN,OUT> contract, Query vs Repository decision, early-return failure flow, entity tryCreate/cloneWith orchestration, error constants, and test coverage."

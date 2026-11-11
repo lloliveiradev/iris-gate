@@ -53,6 +53,10 @@ This repo is indexed by CodeGraph (`.codegraph/`, local to each machine and not 
 - If results look stale after large changes, run `codegraph sync`. If `.codegraph/` does not exist on your machine, run `codegraph init`.
 - Fall back to grep and file reads only for what CodeGraph does not cover (Markdown, YAML, SQL, Makefiles).
 
+### Skills
+
+Project skills live in `.agents/skills/` (symlinked from `.claude/skills`). Each skill directory contains a `SKILL.md`; read the relevant skill before executing a task. The `ts-ddd-*` skills still reference paths from another project and apply only to `apps/anti-fraud`.
+
 ## Design rules
 
 ### Domain-driven design

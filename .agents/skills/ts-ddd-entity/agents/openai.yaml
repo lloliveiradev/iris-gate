@@ -1,0 +1,4 @@
+interface:
+  display_name: "TypeScript DDD Entity"
+  short_description: "Create and review domain entities following the project's DDD pattern"
+  default_prompt: "Create or review a domain entity for the TypeScript api — EntityProps, tryCreate with Result.combine, VO normalization, Id.tryCreate vs Id.required, domain methods with cloneWith, and test coverage."
