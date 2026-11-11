@@ -54,11 +54,11 @@ Do not skip hooks with `--no-verify` unless the owner asks. Format Go with `gofu
 
 ## Push and pull requests
 
-Git over SSH is blocked. Push with HTTPS and open the pull request with the GitHub CLI. Copy [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md), fill every section, and pass that file as the body. The title and the body are Brazilian Portuguese (pt-BR). Code, comments, docs, and commit messages stay in English.
+Git over SSH is blocked. Push with HTTPS and open the pull request with the GitHub CLI. Copy [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md), fill every section, and pass that file as the body. The title and the body are English, as is the rest of the repository: code, comments, docs, and commit messages.
 
 ```bash
 git push https://github.com/lloliveiradev/iris-gate.git docs/community-health
-gh pr create --title "Adiciona o guia de contribuição" --body-file /tmp/pr-body.md
+gh pr create --title "Add the contributing guide" --body-file /tmp/pr-body.md
 ```
 
 The GitHub web form inserts the same template. Never push to `main` (a ruleset protects it) and never force-push. Never merge your own pull request. The owner reviews and merges.
@@ -67,7 +67,7 @@ Link the Trello card and the issue when they exist (`Closes #` in the template's
 
 ## Tracking work
 
-Work is tracked on the Trello board **IrisGate**: **Backlog → WIP → Review (only when a human must look) → Done**. Card titles, descriptions, and comments are pt-BR. A card title has no `[area]` prefix; the area is a label.
+Work is tracked on the Trello board **IrisGate**: **Backlog → WIP → Review → Done**. A coding agent stops at Review once its pull request is open and CI is green, and does not move the card to Done. Card titles, descriptions, and comments follow the `.trello.json` locale. That text is board narration, not repository content. A card title has no `[area]` prefix; the area is a label.
 
 The labels, the checklist, who moves a card, and the audit log are specified in [`AGENTS.md`](AGENTS.md) ("Track the work on Trello"). Follow that section rather than a second copy of the board rules.
 

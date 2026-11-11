@@ -1,48 +1,48 @@
-## Resumo
+## Summary
 
-<!-- Uma ou duas frases: o que este PR faz. -->
+<!-- One or two sentences: what this pull request does. -->
 
-## Problema / contexto
+## Problem / context
 
-<!-- Por que essa mudança existe. O que quebra ou falta sem ela. -->
+<!-- Why this change exists. What is broken or missing without it. -->
 
-## O que mudou
+## What changed
 
-<!-- Bullets por área ou arquivo. -->
+<!-- Bullets by area or file. -->
 
 -
 
-## Como verificar
+## How to verify
 
-<!-- Comandos exatos e passos manuais. Diga o resultado esperado. -->
+<!-- Exact commands and manual steps. State the expected result. -->
 
 ```bash
 
 ```
 
-Resultado esperado:
+Expected result:
 
-## Riscos e impacto
+## Risks and impact
 
-<!-- Breaking changes, migrações, segurança. Escreva "Nenhum" se não houver. -->
+<!-- Breaking changes, migrations, security. Write "None" if there are none. -->
 
-## Fora do escopo
+## Out of scope
 
-<!-- O que este PR deliberadamente não muda. -->
+<!-- What this pull request deliberately does not change. -->
 
 ## Links
 
-<!-- Issue (`Closes #`), card do Trello, spec ou plano. Apague a linha que não se aplica. -->
+<!-- Issue (`Closes #`), Trello card, spec or plan. Delete the line that does not apply. -->
 
 - Issue:
 - Trello:
-- Spec / plano:
+- Spec / plan:
 
 ## Checklist
 
-<!-- Marque antes de pedir revisão. -->
+<!-- Check these before requesting review. -->
 
-- [ ] Testes e lint aplicáveis passam
-- [ ] Nenhum segredo no diff
-- [ ] Documentação atualizada quando o comportamento visível mudou
-- [ ] `AGENTS.md` seguido
+- [ ] Applicable tests and lint pass
+- [ ] No secrets in the diff
+- [ ] Docs updated when visible behavior changed
+- [ ] `AGENTS.md` followed

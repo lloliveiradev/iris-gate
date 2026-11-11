@@ -6,21 +6,21 @@ The design was approved by the project owner on 2026-11-10. The overall picture,
 
 ## Phases
 
-| Phase | Spec | Depends on | Status |
-| --- | --- | --- | --- |
-| 06 | [Security baseline](phase-06-security-baseline.md) | none | ready |
-| 07 | [Database roles and tenant isolation](phase-07-tenant-isolation.md) | 06 | ready |
-| 08 | [Identity and access API](phase-08-identity-access-api.md) | 07 | ready |
-| 09 | [Dashboard and console access](phase-09-dashboard-console-access.md) | 08 | ready |
-| 10 | [Synchronous risk scoring](phase-10-sync-risk-scoring.md) | 06 | ready |
-| 11 | [Payment lifecycle and review](phase-11-payment-lifecycle.md) | 09, 10 | ready |
-| 12 | [Background jobs](phase-12-background-jobs.md) | 11 | ready |
-| 13 | [Kafka event backbone](phase-13-kafka-backbone.md) | 11 | ready |
-| 14 | [Card vault](phase-14-card-vault.md) | 11 | ready |
-| 15 | [Hosted checkout, catalog and payment links](phase-15-checkout-catalog.md) | 12, 14 | ready |
-| 16 | [Webhooks and request logs](phase-16-webhooks-request-logs.md) | 13, 15 | ready |
-| 17 | [End-to-end tests and CI](phase-17-e2e-ci.md) | 16 | ready |
-| 18 | [Visual identity refresh](phase-18-visual-identity.md) | 09 | **blocked: owner design session** |
+| Phase | Spec                                                                       | Depends on | Status                            |
+| ----- | -------------------------------------------------------------------------- | ---------- | --------------------------------- |
+| 06    | [Security baseline](phase-06-security-baseline.md)                         | none       | ready                             |
+| 07    | [Database roles and tenant isolation](phase-07-tenant-isolation.md)        | 06         | ready                             |
+| 08    | [Identity and access API](phase-08-identity-access-api.md)                 | 07         | ready                             |
+| 09    | [Dashboard and console access](phase-09-dashboard-console-access.md)       | 08         | ready                             |
+| 10    | [Synchronous risk scoring](phase-10-sync-risk-scoring.md)                  | 06         | ready                             |
+| 11    | [Payment lifecycle and review](phase-11-payment-lifecycle.md)              | 09, 10     | ready                             |
+| 12    | [Background jobs](phase-12-background-jobs.md)                             | 11         | ready                             |
+| 13    | [Kafka event backbone](phase-13-kafka-backbone.md)                         | 11         | ready                             |
+| 14    | [Card vault](phase-14-card-vault.md)                                       | 11         | ready                             |
+| 15    | [Hosted checkout, catalog and payment links](phase-15-checkout-catalog.md) | 12, 14     | ready                             |
+| 16    | [Webhooks and request logs](phase-16-webhooks-request-logs.md)             | 13, 15     | ready                             |
+| 17    | [End-to-end tests and CI](phase-17-e2e-ci.md)                              | 16         | ready                             |
+| 18    | [Visual identity refresh](phase-18-visual-identity.md)                     | 09         | **blocked: owner design session** |
 
 Phase 10 can run in parallel with 07 to 09. Phases 12, 13 and 14 can run in parallel after 11.
 
@@ -39,12 +39,13 @@ Later, without a spec yet: observability, AWS deployment with Terraform, ledger,
    - what the phase **removes** (routes, columns, rules in `AGENTS.md`), not only what it adds.
 
    Every answer that names a risk becomes a test in the plan.
+
 4. **Contracts first.** Change `libs/contracts/http/*.openapi.yaml` and `libs/contracts/events/**`, run `make gen-contracts`, then write code against the generated types.
 5. **Implement** in small commits, one concern each. Commit messages follow Conventional Commits with the context as scope (`feat(payments): ...`, `fix(identity): ...`). Never skip the lefthook hooks.
 6. **Verify.** Run every command in "Verify before you finish" of `AGENTS.md` that applies, plus each acceptance criterion of the spec. A phase is not done while any of them fails.
 7. **Document.** Update `AGENTS.md` where the phase changed a documented behavior, the README if a user-visible command or flow changed, and write an ADR (`docs/adr/NNNN-*.md`) for every decision the spec leaves to the implementer. Set the phase status to `done`.
 8. **Track on Trello** as `AGENTS.md` ("Track the work on Trello") describes, from the moment the plan exists:
-   - create one Backlog card per plan task, then move each card through WIP to Done (or Review, when a human must look) in real time, with a commit-SHA comment on completion;
+   - create one Backlog card per plan task, then move it to WIP when work starts. When the pull request is open and CI is green, move the card to Review, comment the pull request link, and assign the owner. A coding agent does not move a card to Done; the orchestrator closes it after the owner merges;
    - create a Backlog card assigned to the owner for anything only a human can do: a decision the spec does not cover, a conflict between documents, a credential, a design review, the merge of the phase PR;
    - when the phase ends, comment a final summary on its last card (what changed, tests added, ADRs written, known limits) and link the PR.
 
