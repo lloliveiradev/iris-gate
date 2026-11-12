@@ -46,7 +46,7 @@ func (a *fakeAcquirer) Authorize(_ context.Context, in application.AuthorizeInpu
 func seedIntent(t *testing.T, repo *fakeRepo, status domain.PaymentIntentStatus) domain.PaymentIntent {
 	t.Helper()
 	amt, _ := domain.NewMoney(12990, "BRL")
-	pi, err := domain.NewPaymentIntent(uuid.New(), uuid.New(), amt, "tok_abcdef12", "", time.Now())
+	pi, err := domain.NewPaymentIntent(uuid.New(), uuid.New(), amt, "tok_test_visa", "", time.Now())
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}

@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	createBody    = `{"amount":{"amount_cents":1000,"currency":"BRL"},"card_token":"tok_abcdef12"}`
-	otherBody     = `{"amount":{"amount_cents":2000,"currency":"BRL"},"card_token":"tok_abcdef12"}`
+	createBody    = `{"amount":{"amount_cents":1000,"currency":"BRL"},"card_token":"tok_test_visa"}`
+	otherBody     = `{"amount":{"amount_cents":2000,"currency":"BRL"},"card_token":"tok_test_visa"}`
 	notFoundTitle = "payment_intent_not_found"
 )
 

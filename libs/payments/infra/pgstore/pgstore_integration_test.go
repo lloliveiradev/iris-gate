@@ -61,7 +61,7 @@ func TestIntegration_GetByID_IsScopedToMerchant(t *testing.T) {
 	owner, other := seedMerchant(t, pool), seedMerchant(t, pool)
 
 	amount, _ := domain.NewMoney(1000, "BRL")
-	pi, err := domain.NewPaymentIntent(uuid.New(), owner, amount, "tok_abcdef12", "", time.Now().UTC())
+	pi, err := domain.NewPaymentIntent(uuid.New(), owner, amount, "tok_test_visa", "", time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
