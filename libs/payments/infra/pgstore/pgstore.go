@@ -1,5 +1,5 @@
-// Package pgstore implementa PaymentIntentRepo + IdempotencyStore (port do
-// middleware HTTP) sobre Postgres usando pgx v5.
+// Package pgstore implements PaymentIntentRepo and the idempotency Store (the
+// HTTP middleware port) on Postgres with pgx v5.
 package pgstore
 
 import (
@@ -33,8 +33,8 @@ type Repo struct{ pool *pgxpool.Pool }
 
 func New(pool *pgxpool.Pool) *Repo { return &Repo{pool: pool} }
 
-// CreateWithOutbox abre uma transação e escreve o intent + a mensagem de
-// outbox atomicamente — invariante do Outbox pattern.
+// CreateWithOutbox writes the intent and its outbox message in one
+// transaction (Outbox pattern invariant).
 func (r *Repo) CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev application.OutboxMessage) error {
 	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		if err := insertPaymentIntent(ctx, tx, p); err != nil {
@@ -44,16 +44,16 @@ func (r *Repo) CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev 
 	})
 }
 
-// UpdateWithOutbox atualiza status (+ timestamps) do intent e escreve o
-// evento de transição na outbox **na mesma tx**.
+// UpdateWithOutbox updates the intent status and timestamps, scoped to its
+// merchant, and writes the transition event to the outbox in the same tx.
 func (r *Repo) UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev application.OutboxMessage) error {
 	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		const q = `
 			UPDATE payment_intents
 			SET status = $2, authorized_at = $3, captured_at = $4
-			WHERE id = $1
+			WHERE id = $1 AND merchant_id = $5
 		`
-		tag, err := tx.Exec(ctx, q, p.ID, string(p.Status), p.AuthorizedAt, p.CapturedAt)
+		tag, err := tx.Exec(ctx, q, p.ID, string(p.Status), p.AuthorizedAt, p.CapturedAt, p.MerchantID)
 		if err != nil {
 			return err
 		}
@@ -64,8 +64,8 @@ func (r *Repo) UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev 
 	})
 }
 
-// MarkPublished é chamado pelo relay worker depois que o evento foi
-// confirmado pelo broker.
+// MarkPublished is called by the relay worker once the broker has
+// confirmed the event.
 func (r *Repo) MarkPublished(ctx context.Context, ids []uuid.UUID, at time.Time) error {
 	if len(ids) == 0 {
 		return nil
@@ -101,25 +101,19 @@ func insertOutbox(ctx context.Context, db DBTX, ev application.OutboxMessage) er
 	return err
 }
 
-// GetByID lê um intent.
-func (r *Repo) GetByID(ctx context.Context, id uuid.UUID) (domain.PaymentIntent, error) {
+// GetByID loads an intent owned by merchantID. Another merchant's intent
+// yields ErrPaymentIntentNotFound, the same as a missing id.
+func (r *Repo) GetByID(ctx context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error) {
 	const q = `
 		SELECT id, merchant_id, amount_cents, currency, status, card_token, description,
 		       created_at, authorized_at, captured_at
-		FROM payment_intents WHERE id = $1
+		FROM payment_intents WHERE id = $1 AND merchant_id = $2
 	`
-	row := r.pool.QueryRow(ctx, q, id)
+	row := r.pool.QueryRow(ctx, q, id, merchantID)
 	return scanIntent(row)
 }
 
-// GetByMerchantAndIdempotencyKey existe pra simetria com o port — a checagem
-// de idempotência real acontece no middleware contra `idempotency_records`,
-// não na tabela payment_intents.
-func (r *Repo) GetByMerchantAndIdempotencyKey(_ context.Context, _ uuid.UUID, _ string) (domain.PaymentIntent, error) {
-	return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
-}
-
-// ListByMerchant retorna os intents do merchant, mais recentes primeiro.
+// ListByMerchant returns the merchant's intents, newest first.
 func (r *Repo) ListByMerchant(ctx context.Context, merchantID uuid.UUID, limit int) ([]domain.PaymentIntent, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -170,7 +164,7 @@ func scanIntent(row pgx.Row) (domain.PaymentIntent, error) {
 
 // ---------- Outbox: relay worker (stub) ----------
 
-// PullUnpublished devolve até `limit` mensagens não publicadas em ordem FIFO.
+// PullUnpublished returns up to `limit` unpublished messages in FIFO order.
 // Implementa kafkarelay.Source.
 func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]kafkarelay.PendingMessage, error) {
 	const q = `
@@ -204,16 +198,16 @@ type IdempotencyStore struct{ pool *pgxpool.Pool }
 
 func NewIdempotencyStore(pool *pgxpool.Pool) *IdempotencyStore { return &IdempotencyStore{pool: pool} }
 
-// Existing devolve um registro armazenado pra (scope, key). Se não existir,
-// devolve (nil, nil) — chamador decide o que fazer.
-func (s *IdempotencyStore) Existing(ctx context.Context, scope, key string) (*idempotency.Record, error) {
+// Existing returns the stored record for (merchantID, scope, key), or
+// (nil, nil) when there is none. Records are never shared across merchants.
+func (s *IdempotencyStore) Existing(ctx context.Context, merchantID uuid.UUID, scope, key string) (*idempotency.Record, error) {
 	const q = `
 		SELECT request_hash, response_status, response_body
 		FROM idempotency_records
-		WHERE scope = $1 AND key = $2
+		WHERE merchant_id = $1 AND scope = $2 AND key = $3
 	`
 	var rec idempotency.Record
-	if err := s.pool.QueryRow(ctx, q, scope, key).Scan(&rec.RequestHash, &rec.ResponseStatus, &rec.ResponseBody); err != nil {
+	if err := s.pool.QueryRow(ctx, q, merchantID, scope, key).Scan(&rec.RequestHash, &rec.ResponseStatus, &rec.ResponseBody); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
@@ -222,15 +216,15 @@ func (s *IdempotencyStore) Existing(ctx context.Context, scope, key string) (*id
 	return &rec, nil
 }
 
-// Save insere o resultado de uma operação. Retorna (alreadyExists=true) quando
-// outra request paralela já gravou — chamador deve consultar Existing.
-func (s *IdempotencyStore) Save(ctx context.Context, scope, key string, requestHash []byte, status int, body []byte) (alreadyExists bool, err error) {
+// Save stores the result of an operation for (merchantID, scope, key). It
+// returns alreadyExists=true when a parallel request stored it first.
+func (s *IdempotencyStore) Save(ctx context.Context, merchantID uuid.UUID, scope, key string, requestHash []byte, status int, body []byte) (alreadyExists bool, err error) {
 	const q = `
-		INSERT INTO idempotency_records (scope, key, request_hash, response_status, response_body)
-		VALUES ($1,$2,$3,$4,$5)
-		ON CONFLICT (scope, key) DO NOTHING
+		INSERT INTO idempotency_records (merchant_id, scope, key, request_hash, response_status, response_body)
+		VALUES ($1,$2,$3,$4,$5,$6)
+		ON CONFLICT (merchant_id, scope, key) DO NOTHING
 	`
-	tag, err := s.pool.Exec(ctx, q, scope, key, requestHash, status, body)
+	tag, err := s.pool.Exec(ctx, q, merchantID, scope, key, requestHash, status, body)
 	if err != nil {
 		return false, err
 	}

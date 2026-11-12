@@ -64,7 +64,7 @@ func TestAuthorize_Approved(t *testing.T) {
 	pi := seedIntent(t, repo, domain.PaymentIntentPending)
 
 	uc := application.NewAuthorizePaymentUseCase(repo, acq, fixedClock{t: time.Now()}, &seqIDs{})
-	got, err := uc.Execute(context.Background(), pi.ID)
+	got, err := uc.Execute(context.Background(), pi.MerchantID, pi.ID)
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestAuthorize_Rejected(t *testing.T) {
 	pi := seedIntent(t, repo, domain.PaymentIntentPending)
 
 	uc := application.NewAuthorizePaymentUseCase(repo, acq, fixedClock{t: time.Now()}, &seqIDs{})
-	_, err := uc.Execute(context.Background(), pi.ID)
+	_, err := uc.Execute(context.Background(), pi.MerchantID, pi.ID)
 	if !errors.Is(err, domain.ErrAcquirerRejected) {
 		t.Fatalf("err = %v, want ErrAcquirerRejected", err)
 	}
@@ -102,7 +102,7 @@ func TestAuthorize_Idempotent(t *testing.T) {
 	pi := seedIntent(t, repo, domain.PaymentIntentAuthorized)
 
 	uc := application.NewAuthorizePaymentUseCase(repo, acq, fixedClock{t: time.Now()}, &seqIDs{})
-	if _, err := uc.Execute(context.Background(), pi.ID); err != nil {
+	if _, err := uc.Execute(context.Background(), pi.MerchantID, pi.ID); err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
 	if acq.calls != 0 {
@@ -116,7 +116,7 @@ func TestCapture_OK(t *testing.T) {
 	pi := seedIntent(t, repo, domain.PaymentIntentAuthorized)
 
 	uc := application.NewCapturePaymentUseCase(repo, fixedClock{t: time.Now()}, &seqIDs{})
-	got, err := uc.Execute(context.Background(), pi.ID)
+	got, err := uc.Execute(context.Background(), pi.MerchantID, pi.ID)
 	if err != nil {
 		t.Fatalf("capture: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestCapture_FailsFromPending(t *testing.T) {
 	pi := seedIntent(t, repo, domain.PaymentIntentPending)
 
 	uc := application.NewCapturePaymentUseCase(repo, fixedClock{t: time.Now()}, &seqIDs{})
-	_, err := uc.Execute(context.Background(), pi.ID)
+	_, err := uc.Execute(context.Background(), pi.MerchantID, pi.ID)
 	if !errors.Is(err, domain.ErrInvalidStatusTransition) {
 		t.Fatalf("err = %v, want ErrInvalidStatusTransition", err)
 	}
@@ -146,10 +146,50 @@ func TestCapture_Idempotent(t *testing.T) {
 	pi := seedIntent(t, repo, domain.PaymentIntentCaptured)
 
 	uc := application.NewCapturePaymentUseCase(repo, fixedClock{t: time.Now()}, &seqIDs{})
-	if _, err := uc.Execute(context.Background(), pi.ID); err != nil {
+	if _, err := uc.Execute(context.Background(), pi.MerchantID, pi.ID); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
 	if len(repo.outbox) != 0 {
 		t.Errorf("outbox tem evento em retry — não é idempotente")
+	}
+}
+
+func TestAuthorize_OtherMerchant_NotFoundAndUntouched(t *testing.T) {
+	t.Parallel()
+	repo := newFakeRepo()
+	acq := &fakeAcquirer{approve: true}
+	pi := seedIntent(t, repo, domain.PaymentIntentPending)
+
+	uc := application.NewAuthorizePaymentUseCase(repo, acq, fixedClock{t: time.Now()}, &seqIDs{})
+	_, err := uc.Execute(context.Background(), uuid.New(), pi.ID)
+	if !errors.Is(err, domain.ErrPaymentIntentNotFound) {
+		t.Fatalf("err = %v, want ErrPaymentIntentNotFound", err)
+	}
+	if acq.calls != 0 {
+		t.Errorf("acquirer called %d times for a foreign intent", acq.calls)
+	}
+	if got := repo.intents[pi.ID]; got.Status != domain.PaymentIntentPending {
+		t.Errorf("status = %v, want pending", got.Status)
+	}
+	if len(repo.outbox) != 0 {
+		t.Errorf("outbox = %d, want 0", len(repo.outbox))
+	}
+}
+
+func TestCapture_OtherMerchant_NotFoundAndUntouched(t *testing.T) {
+	t.Parallel()
+	repo := newFakeRepo()
+	pi := seedIntent(t, repo, domain.PaymentIntentAuthorized)
+
+	uc := application.NewCapturePaymentUseCase(repo, fixedClock{t: time.Now()}, &seqIDs{})
+	_, err := uc.Execute(context.Background(), uuid.New(), pi.ID)
+	if !errors.Is(err, domain.ErrPaymentIntentNotFound) {
+		t.Fatalf("err = %v, want ErrPaymentIntentNotFound", err)
+	}
+	if got := repo.intents[pi.ID]; got.Status != domain.PaymentIntentAuthorized {
+		t.Errorf("status = %v, want authorized", got.Status)
+	}
+	if len(repo.outbox) != 0 {
+		t.Errorf("outbox = %d, want 0", len(repo.outbox))
 	}
 }

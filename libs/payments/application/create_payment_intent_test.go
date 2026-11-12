@@ -31,18 +31,14 @@ func (r *fakeRepo) CreateWithOutbox(_ context.Context, p domain.PaymentIntent, e
 	return nil
 }
 
-func (r *fakeRepo) GetByID(_ context.Context, id uuid.UUID) (domain.PaymentIntent, error) {
+func (r *fakeRepo) GetByID(_ context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p, ok := r.intents[id]
-	if !ok {
+	if !ok || p.MerchantID != merchantID {
 		return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
 	}
 	return p, nil
-}
-
-func (r *fakeRepo) GetByMerchantAndIdempotencyKey(_ context.Context, _ uuid.UUID, _ string) (domain.PaymentIntent, error) {
-	return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
 }
 
 func (r *fakeRepo) ListByMerchant(_ context.Context, merchantID uuid.UUID, limit int) ([]domain.PaymentIntent, error) {

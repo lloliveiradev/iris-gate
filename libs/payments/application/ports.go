@@ -9,19 +9,21 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
 )
 
-// PaymentIntentRepo persiste e lê PaymentIntents.
+// PaymentIntentRepo persists and reads PaymentIntents.
 //
-// Operações que mudam estado **devem** escrever o evento na outbox na mesma
-// transação — invariante crítica do padrão Outbox (ADR-0002).
+// Operations that change state must write the event to the outbox in the same
+// transaction (Outbox pattern, ADR-0002).
 type PaymentIntentRepo interface {
 	CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev OutboxMessage) error
 	UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev OutboxMessage) error
-	GetByID(ctx context.Context, id uuid.UUID) (domain.PaymentIntent, error)
-	GetByMerchantAndIdempotencyKey(ctx context.Context, merchantID uuid.UUID, key string) (domain.PaymentIntent, error)
+	// GetByID loads an intent owned by merchantID. An intent that belongs to
+	// another merchant is reported as domain.ErrPaymentIntentNotFound, exactly
+	// like an id that does not exist, so callers cannot probe other tenants.
+	GetByID(ctx context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error)
 	ListByMerchant(ctx context.Context, merchantID uuid.UUID, limit int) ([]domain.PaymentIntent, error)
 }
 
-// OutboxMessage descreve uma mensagem a ser publicada via relay worker.
+// OutboxMessage describes a message the relay worker publishes.
 type OutboxMessage struct {
 	Topic   string
 	Key     string
@@ -29,8 +31,8 @@ type OutboxMessage struct {
 	Headers map[string]string
 }
 
-// Acquirer é o port de adquirente (Stone, Cielo, etc.).
-// FakeAcquirer no MVP devolve sempre Approved.
+// Acquirer is the acquirer port (Stone, Cielo, etc.).
+// The fake acquirer always approves.
 type Acquirer interface {
 	Authorize(ctx context.Context, in AuthorizeInput) (AuthorizeOutput, error)
 }

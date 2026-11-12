@@ -133,6 +133,8 @@ The sections below describe current behavior. When a phase changes one of them, 
 - `Money` is `AmountCents int64` plus ISO-4217 alpha-3. Amount must be `> 0`. No floats. No mixed currencies.
 - Transitions that exist: `pending → authorized → captured`, and `pending → failed`. `MarkAuthorized` and `MarkCaptured` are no-ops when already in the target status. `refunded` and `canceled` have no methods; do not wire them without a domain change and a contract change.
 - `card_token` is opaque, length 8–256. Do not add PAN, CVV, expiry or `card_number` to a handler, schema, fixture or log.
+- Every repository read by id takes the merchant: `GetByID(ctx, merchantID, id)`. Get, authorize and capture load through it, with the merchant taken from the authenticated principal, never from the request. An intent of another merchant answers 404 `payment_intent_not_found`, the same as a missing id. Do not add an id-only lookup.
+- Idempotency records are keyed by `(merchant_id, scope, key)`. The scope is the route (`create_payment_intent`); the middleware reads the merchant from the principal and must be mounted after authentication (no principal → 401). `GetByMerchantAndIdempotencyKey` was removed: replay lives in the middleware, not in `payment_intents`.
 - `POST /v1/payment-intents` requires `Idempotency-Key`. Authorize and capture are idempotent in the domain; do not add a second side effect on retry.
 - Insert the aggregate and the outbox row in the same transaction. Publishing belongs to `libs/payments/infra/kafkarelay`. Use cases do not call Kafka.
 - Empty `ACQUIRER_URL` selects the fake acquirer. Do not point that default at a real processor.

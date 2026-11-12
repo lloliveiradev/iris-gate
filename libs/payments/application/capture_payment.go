@@ -22,11 +22,10 @@ func NewCapturePaymentUseCase(repo PaymentIntentRepo, clock Clock, ids IDGen) *C
 	return &CapturePaymentUseCase{repo: repo, clock: clock, ids: ids}
 }
 
-// Execute captura um intent autorizado.
-// Idempotente: chamar duas vezes não duplica eventos (segunda chamada
-// observa Status=captured e short-circuita).
-func (uc *CapturePaymentUseCase) Execute(ctx context.Context, id uuid.UUID) (domain.PaymentIntent, error) {
-	pi, err := uc.repo.GetByID(ctx, id)
+// Execute captures an authorized intent owned by merchantID.
+// Idempotent: a second call sees Status=captured and returns without a new event.
+func (uc *CapturePaymentUseCase) Execute(ctx context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error) {
+	pi, err := uc.repo.GetByID(ctx, merchantID, id)
 	if err != nil {
 		return domain.PaymentIntent{}, err
 	}
