@@ -20,12 +20,16 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/httpapi"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/idempotency"
+	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
 )
 
 const (
-	createBody    = `{"amount":{"amount_cents":1000,"currency":"BRL"},"card_token":"tok_test_visa"}`
-	otherBody     = `{"amount":{"amount_cents":2000,"currency":"BRL"},"card_token":"tok_test_visa"}`
 	notFoundTitle = "payment_intent_not_found"
+)
+
+var (
+	createBody = `{"amount":{"amount_cents":1000,"currency":"BRL"},"card_token":"` + testfixtures.TokenApproved + `"}`
+	otherBody  = `{"amount":{"amount_cents":2000,"currency":"BRL"},"card_token":"` + testfixtures.TokenApproved + `"}`
 )
 
 // ---------- identity stubs: real RequireAPIKey, in-memory principals ----------

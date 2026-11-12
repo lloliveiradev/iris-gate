@@ -11,6 +11,7 @@ import (
 
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
+	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
 )
 
 // Extend fakeRepo with UpdateWithOutbox.
@@ -46,7 +47,7 @@ func (a *fakeAcquirer) Authorize(_ context.Context, in application.AuthorizeInpu
 func seedIntent(t *testing.T, repo *fakeRepo, status domain.PaymentIntentStatus) domain.PaymentIntent {
 	t.Helper()
 	amt, _ := domain.NewMoney(12990, "BRL")
-	pi, err := domain.NewPaymentIntent(uuid.New(), uuid.New(), amt, "tok_test_visa", "", time.Now())
+	pi, err := domain.NewPaymentIntent(uuid.New(), uuid.New(), amt, testfixtures.TokenApproved, "", time.Now())
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}

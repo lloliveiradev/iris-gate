@@ -16,6 +16,7 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/pgstore"
+	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
 )
 
 // newPool connects to DATABASE_URL, applies identity then payments migrations
@@ -61,7 +62,7 @@ func TestIntegration_GetByID_IsScopedToMerchant(t *testing.T) {
 	owner, other := seedMerchant(t, pool), seedMerchant(t, pool)
 
 	amount, _ := domain.NewMoney(1000, "BRL")
-	pi, err := domain.NewPaymentIntent(uuid.New(), owner, amount, "tok_test_visa", "", time.Now().UTC())
+	pi, err := domain.NewPaymentIntent(uuid.New(), owner, amount, testfixtures.TokenApproved, "", time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

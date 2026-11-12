@@ -8,3 +8,8 @@
 # Payments use-case tests: placeholder card token literals.
 d7c88a63a4b4b9a5a6d2ddff8140e30b58e152c8:libs/payments/application/create_payment_intent_test.go:generic-api-key:75
 d7c88a63a4b4b9a5a6d2ddff8140e30b58e152c8:libs/payments/application/create_payment_intent_test.go:generic-api-key:106
+
+# Payments HTTP tests: card token fixtures in the first commit of PR #10
+# (later replaced by libs/payments/testfixtures constants).
+a12aaf52c59176367919c60263087f993e42ba0d:libs/payments/infra/httpapi/handlers_test.go:generic-api-key:26
+a12aaf52c59176367919c60263087f993e42ba0d:libs/payments/infra/httpapi/handlers_test.go:generic-api-key:27

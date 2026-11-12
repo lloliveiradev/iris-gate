@@ -11,6 +11,7 @@ import (
 
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
+	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
 )
 
 type fakeRepo struct {
@@ -83,7 +84,7 @@ func TestCreatePaymentIntent_OK(t *testing.T) {
 	pi, err := uc.Execute(context.Background(), application.CreatePaymentIntentInput{
 		MerchantID:  uuid.New(),
 		Amount:      amt,
-		CardToken:   "tok_abcdef12", // gitleaks:allow fixture: not a real card token
+		CardToken:   testfixtures.TokenApproved,
 		Description: "ACME order",
 	})
 	if err != nil {
@@ -114,7 +115,7 @@ func TestCreatePaymentIntent_ValidationFails(t *testing.T) {
 	_, err := uc.Execute(context.Background(), application.CreatePaymentIntentInput{
 		MerchantID: uuid.Nil, // invalid
 		Amount:     amt,
-		CardToken:  "tok_abcdef12", // gitleaks:allow fixture: not a real card token
+		CardToken:  testfixtures.TokenApproved,
 	})
 	if err == nil {
 		t.Fatalf("expected validation error, got nil")
