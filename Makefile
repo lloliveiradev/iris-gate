@@ -96,6 +96,13 @@ dev: up ## Start the stack, then run the API (:8080) and the dashboard (:3000) o
 	done; \
 	wait
 
+# Operator CLI for merchants and API keys (replaces the closed bootstrap routes).
+# Example: make irisctl ARGS="issue-api-key --merchant-id <uuid>"
+# Needs the stack up (make up) and the API migrated at least once.
+.PHONY: irisctl
+irisctl: ## Run the operator CLI: make irisctl ARGS="create-merchant --legal-name ..."
+	@cd apps/api && go run ./cmd/irisctl $(ARGS)
+
 ##@ Packages
 
 # `make app-<name> CMD=<target>` runs one target in apps/<name>.

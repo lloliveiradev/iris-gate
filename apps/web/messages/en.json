@@ -169,7 +169,7 @@
     "form": {
       "eyebrow": "Restricted access",
       "title": "Sign in to the console",
-      "description": "Use the API key issued at <code>/v1/api-keys</code>. Your key stays in an encrypted cookie — it never goes back to the browser.",
+      "description": "Use the API key issued by your operator with <code>irisctl issue-api-key</code>. Your key stays in an encrypted cookie — it never goes back to the browser.",
       "api_key_label": "API key",
       "api_key_placeholder": "irk_xxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "hint": "The <code>irk_</code> prefix identifies sandbox keys; <code>irl_</code> are live.",

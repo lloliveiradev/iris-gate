@@ -1,10 +1,11 @@
 openapi: 3.1.0
 info:
   title: Iris Gate — Identity API
-  version: 0.2.0
+  version: 0.3.0
   description: |
-    Merchant identity, API keys, operators.
-    Phase 2 do roadmap implementa CreateMerchant + IssueApiKey + AuthenticateApiKey + RevokeApiKey.
+    Merchant identity and API key authentication.
+    Merchants and API keys are created and revoked by the operator CLI
+    (apps/api/cmd/irisctl), not over HTTP.
   license:
     name: MIT
 servers:
@@ -15,78 +16,6 @@ tags:
   - name: identity
 
 paths:
-  /v1/merchants:
-    post:
-      operationId: createMerchant
-      summary: Create a new merchant
-      tags: [identity]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateMerchantRequest'
-      responses:
-        '201':
-          description: Merchant created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Merchant'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
-  /v1/api-keys:
-    post:
-      operationId: issueApiKey
-      summary: Issue a new API key for a merchant
-      description: |
-        Retorna o segredo em texto-claro **uma única vez** no campo `secret`.
-        Após esta resposta, apenas o `prefix` permanece consultável; o secret é
-        armazenado como hash Argon2id.
-      tags: [identity]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/IssueApiKeyRequest'
-      responses:
-        '201':
-          description: API key issued
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IssueApiKeyResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /v1/api-keys/{id}/revoke:
-    post:
-      operationId: revokeApiKey
-      summary: Revoke an API key
-      tags: [identity]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: API key revoked
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiKey'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /v1/me:
     get:
       operationId: getCurrentMerchant
@@ -117,23 +46,6 @@ components:
       bearerFormat: irk_<prefix>.<secret>
 
   schemas:
-    CreateMerchantRequest:
-      type: object
-      additionalProperties: false
-      required: [legal_name, document, contact_email]
-      properties:
-        legal_name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        document:
-          type: string
-          pattern: '^[0-9]{14}$'
-          description: 'CNPJ, somente dígitos.'
-        contact_email:
-          type: string
-          format: email
-
     Merchant:
       type: object
       additionalProperties: false
@@ -160,64 +72,6 @@ components:
       type: string
       enum: [pending, active, suspended]
 
-    IssueApiKeyRequest:
-      type: object
-      additionalProperties: false
-      required: [merchant_id]
-      properties:
-        merchant_id:
-          type: string
-          format: uuid
-        scopes:
-          type: array
-          items:
-            type: string
-          default: []
-
-    IssueApiKeyResponse:
-      type: object
-      additionalProperties: false
-      required: [api_key, secret]
-      properties:
-        api_key:
-          $ref: '#/components/schemas/ApiKey'
-        secret:
-          type: string
-          description: 'Token completo `irk_<prefix>.<secret>`. Só aparece nesta resposta.'
-
-    ApiKey:
-      type: object
-      additionalProperties: false
-      required: [id, merchant_id, prefix, status, scopes, created_at]
-      properties:
-        id:
-          type: string
-          format: uuid
-        merchant_id:
-          type: string
-          format: uuid
-        prefix:
-          type: string
-        status:
-          $ref: '#/components/schemas/ApiKeyStatus'
-        scopes:
-          type: array
-          items:
-            type: string
-        created_at:
-          type: string
-          format: date-time
-        last_used_at:
-          type: string
-          format: date-time
-        revoked_at:
-          type: string
-          format: date-time
-
-    ApiKeyStatus:
-      type: string
-      enum: [active, revoked]
-
     Problem:
       type: object
       additionalProperties: true
@@ -239,24 +93,6 @@ components:
           format: uri
 
   responses:
-    BadRequest:
-      description: 'Requisição inválida.'
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
-    Conflict:
-      description: 'Conflito (ex.: documento já cadastrado).'
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
-    NotFound:
-      description: 'Recurso não encontrado.'
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: 'API key ausente, malformada ou inválida.'
       content:
