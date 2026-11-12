@@ -167,6 +167,16 @@ CORS uses an explicit allowlist; `*` is never allowed. The vault's tokenization 
 - gitleaks (implemented); govulncheck and `yarn npm audit` blocking on high severity (phase 17).
 - Distroless runtime image for apps/api (implemented).
 
+### Advisory baseline (2026-11-12)
+
+`yarn npm audit` at the repo root only inspects the root workspace's direct dependencies and reports no suggestions. `yarn npm audit --all --recursive` reports the three advisories below. Re-checked on 2026-11-12. Each patched release sits outside the range declared by the current Jest 30.5.2 and ESLint 10.14.0 (the latest releases of those majors), so no compatible fix was applied. Both tools are devDependencies. This baseline is the input for the blocking audit in phase 17. It does not change the status of the controls above.
+
+| Package | Advisory | Severity | Installed | Why it stays |
+| --- | --- | --- | --- | --- |
+| `deepmerge` | [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (`mergeObject` prototype poisoning) | low | 4.3.1 | `jest-config@30.5.2` requires `^4.3.1`. 4.3.1 is the latest 4.x release and is still inside `>=4.2.0 <=4.3.1`. |
+| `glob` | [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) (AbortSignal cancellation bypass) | moderate | 10.5.0, 13.0.7 | The patched line starts at 14.0.2. Jest 30.5.2 requires `^13.0.6` (latest in range: 13.0.7, via `jest-config` and `@jest/reporters`). `test-exclude@7.0.2` requires `^10.4.1` (latest in range: 10.5.0). |
+| `minimatch` | [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) (globparts denial of service) | moderate | 9.0.9, 10.2.6 | The patched line starts at 11.0.1. ESLint 10.14.0 and `typescript-eslint` require `^10.2.x` (installed 10.2.6). `glob@10.5.0` requires `^9.0.4` (installed 9.0.9). `@nestjs/cli` already depends on 11.0.5, which is outside the advisory. |
+
 ## 15. Threat model (STRIDE)
 
 | Threat | Example | Mitigations |
