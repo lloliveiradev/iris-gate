@@ -66,16 +66,20 @@ Compose names the project `ig`. Containers are `ig-postgres`, `ig-kafka`, `ig-ka
 | API        | `8080`    | host process, not Compose                        |
 | dashboard  | `3000`    | host process, not Compose                        |
 
-Open the dashboard at [http://localhost:3000/en](http://localhost:3000/en). Create a merchant and an API key against the API, then sign in with that `irk_` token.
+Open the dashboard at [http://localhost:3000/en](http://localhost:3000/en). Create a merchant and an API key with the operator CLI, then sign in with that `irk_` token:
+
+```bash
+make irisctl ARGS="create-merchant --legal-name 'Acme Pagamentos LTDA' --document 12345678000100 --contact-email ops@acme.example.com"
+make irisctl ARGS="issue-api-key --merchant-id <merchant id from the previous output>"
+```
+
+`issue-api-key` prints the secret once, on stdout. Copy it then; it is not stored. `make irisctl ARGS="revoke-api-key --id <key id>"` revokes a key. The API has no HTTP routes for these tasks.
 
 ### Calls worth trying
 
 | Method | Path                                              | Auth                       |
 | ------ | ------------------------------------------------- | -------------------------- |
 | `GET`  | `/healthz`, `/readyz`                             | no                         |
-| `POST` | `/v1/merchants`                                   | no (local bootstrap)       |
-| `POST` | `/v1/api-keys`                                    | no (local bootstrap)       |
-| `POST` | `/v1/api-keys/{id}/revoke`                        | no (local bootstrap)       |
 | `GET`  | `/v1/me`                                          | bearer                     |
 | `GET`  | `/v1/payment-intents`, `/v1/payment-intents/{id}` | bearer                     |
 | `POST` | `/v1/payment-intents`                             | bearer + `Idempotency-Key` |

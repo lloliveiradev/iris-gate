@@ -11,81 +11,25 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for ApiKeyStatus.
-const (
-	ApiKeyStatusActive  ApiKeyStatus = "active"
-	ApiKeyStatusRevoked ApiKeyStatus = "revoked"
-)
-
-// Valid indicates whether the value is a known member of the ApiKeyStatus enum.
-func (e ApiKeyStatus) Valid() bool {
-	switch e {
-	case ApiKeyStatusActive:
-		return true
-	case ApiKeyStatusRevoked:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for MerchantStatus.
 const (
-	MerchantStatusActive    MerchantStatus = "active"
-	MerchantStatusPending   MerchantStatus = "pending"
-	MerchantStatusSuspended MerchantStatus = "suspended"
+	Active    MerchantStatus = "active"
+	Pending   MerchantStatus = "pending"
+	Suspended MerchantStatus = "suspended"
 )
 
 // Valid indicates whether the value is a known member of the MerchantStatus enum.
 func (e MerchantStatus) Valid() bool {
 	switch e {
-	case MerchantStatusActive:
+	case Active:
 		return true
-	case MerchantStatusPending:
+	case Pending:
 		return true
-	case MerchantStatusSuspended:
+	case Suspended:
 		return true
 	default:
 		return false
 	}
-}
-
-// ApiKey defines model for ApiKey.
-type ApiKey struct {
-	CreatedAt  time.Time          `json:"created_at"`
-	Id         openapi_types.UUID `json:"id"`
-	LastUsedAt *time.Time         `json:"last_used_at,omitempty"`
-	MerchantId openapi_types.UUID `json:"merchant_id"`
-	Prefix     string             `json:"prefix"`
-	RevokedAt  *time.Time         `json:"revoked_at,omitempty"`
-	Scopes     []string           `json:"scopes"`
-	Status     ApiKeyStatus       `json:"status"`
-}
-
-// ApiKeyStatus defines model for ApiKeyStatus.
-type ApiKeyStatus string
-
-// CreateMerchantRequest defines model for CreateMerchantRequest.
-type CreateMerchantRequest struct {
-	ContactEmail openapi_types.Email `json:"contact_email"`
-
-	// Document CNPJ, somente dígitos.
-	Document  string `json:"document"`
-	LegalName string `json:"legal_name"`
-}
-
-// IssueApiKeyRequest defines model for IssueApiKeyRequest.
-type IssueApiKeyRequest struct {
-	MerchantId openapi_types.UUID `json:"merchant_id"`
-	Scopes     *[]string          `json:"scopes,omitempty"`
-}
-
-// IssueApiKeyResponse defines model for IssueApiKeyResponse.
-type IssueApiKeyResponse struct {
-	ApiKey ApiKey `json:"api_key"`
-
-	// Secret Token completo `irk_<prefix>.<secret>`. Só aparece nesta resposta.
-	Secret string `json:"secret"`
 }
 
 // Merchant defines model for Merchant.
@@ -111,26 +55,11 @@ type Problem struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
-// BadRequest defines model for BadRequest.
-type BadRequest = Problem
-
-// Conflict defines model for Conflict.
-type Conflict = Problem
-
 // Forbidden defines model for Forbidden.
 type Forbidden = Problem
 
-// NotFound defines model for NotFound.
-type NotFound = Problem
-
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Problem
-
-// IssueApiKeyJSONRequestBody defines body for IssueApiKey for application/json ContentType.
-type IssueApiKeyJSONRequestBody = IssueApiKeyRequest
-
-// CreateMerchantJSONRequestBody defines body for CreateMerchant for application/json ContentType.
-type CreateMerchantJSONRequestBody = CreateMerchantRequest
 
 // Getter for additional properties for Problem. Returns the specified
 // element and whether it was found

@@ -1,287 +1,121 @@
 ### =============================================================
-### Identity — full coverage HTTP test suite
-### Covers every endpoint, validation rule and error path exposed
-### by libs/identity/infra/httpapi/handlers.go +
-### libs/identity/infra/httpapi/middleware.go.
+### Identity — HTTP test suite
+### Covers GET /v1/me, its auth gate, and the proof that the old
+### bootstrap routes are gone (phase 06, defect D8).
 ###
 ### Endpoints under test:
-###   POST /v1/merchants                   (public, bootstrap)
-###   POST /v1/api-keys                    (public, bootstrap)
-###   POST /v1/api-keys/{id}/revoke        (public, bootstrap)
 ###   GET  /v1/me                          (auth: Bearer irk_*.*)
+###
+### Merchants and API keys are NOT managed over HTTP. Create them with
+### the operator CLI from the repo root:
+###
+###   make irisctl ARGS="create-merchant --legal-name 'Acme' --document 12345678000100 --contact-email ops@acme.example.com"
+###   make irisctl ARGS="issue-api-key --merchant-id <merchant id>"
+###   make irisctl ARGS="revoke-api-key --id <api key id>"
+###
+### `issue-api-key` prints the secret once. Paste it into @api_key_token
+### below; paste the secret of a key you revoked into @revoked_token.
 ###
 ### Token format: irk_<prefix>.<secret>
 ### Error format: application/problem+json (RFC 7807)
-###
-### Re-run note: POST /v1/merchants enforces document uniqueness
-### (409 document_exists). Either run `make -C infra/docker nuke`
-### between runs or change @test_cnpj to a new 14-digit value.
 ### =============================================================
 
 ### Variables
 @base_url = http://localhost:8080
-@test_cnpj = 12345678000100
-@nonexistent_id = 00000000-0000-0000-0000-000000000000
-@malformed_uuid = not-a-uuid
-
-### Chained from earlier responses
-@merchant_id = {{ createMerchant.response.body.id }}
-@api_key_id = {{ issueApiKey.response.body.id }}
-@api_key_token = {{ issueApiKey.response.body.secret }}
+@api_key_token = irk_PASTE_ACTIVE_KEY_HERE
+@revoked_token = irk_PASTE_REVOKED_KEY_HERE
+@some_id = 00000000-0000-0000-0000-000000000000
 
 ### =============================================================
-### 1. BOOTSTRAP (merchant + api key + me)
-### This is the auth bootstrap flow. No JWT signin — the plaintext
-### secret returned by 1.2 is the bearer token for every authed
-### endpoint downstream.
+### 1. GET /v1/me with an active key
 ### =============================================================
 
-### 1.1 Create merchant (success)
-# @name createMerchant
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "Acme Pagamentos LTDA",
-    "document": "{{ test_cnpj }}",
-    "contact_email": "ops@acme.example.com"
-}
-
-### 1.2 Issue API key for the merchant (success)
-# Response includes `secret` in plain-text exactly once — never returned again.
-# @name issueApiKey
-POST {{ base_url }}/v1/api-keys
-Content-Type: application/json
-
-{
-    "merchant_id": "{{ merchant_id }}"
-}
-
-### 1.3 GET /v1/me with the issued key (expect 200, returns merchant)
-# @name me
+### 1.1 GET /v1/me with the issued key (expect 200, returns merchant)
 GET {{ base_url }}/v1/me
 Authorization: Bearer {{ api_key_token }}
 
 ### =============================================================
-### 2. CREATE MERCHANT — validation surface
-### POST /v1/merchants
-### Validates: legal_name (1..200 trimmed), document (^[0-9]{14}$),
-### contact_email (^[^@\s]+@[^@\s]+\.[^@\s]+$). All sentinel errors
-### map to ErrValidation → 400 "validation".
-### =============================================================
-
-### 2.1 Missing legal_name (expect 400 validation)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "document": "98765432000100",
-    "contact_email": "ops@example.com"
-}
-
-### 2.2 Empty legal_name (expect 400 — trim → length 0 < 1)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "   ",
-    "document": "98765432000100",
-    "contact_email": "ops@example.com"
-}
-
-### 2.3 legal_name longer than 200 chars (expect 400)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "document": "98765432000100",
-    "contact_email": "ops@example.com"
-}
-
-### 2.4 Document with non-digits (expect 400)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "Bad Doc Inc",
-    "document": "12.345.678/0001-00",
-    "contact_email": "ops@example.com"
-}
-
-### 2.5 Document with wrong length (expect 400)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "Short Doc Inc",
-    "document": "12345",
-    "contact_email": "ops@example.com"
-}
-
-### 2.6 Invalid email — no '@' (expect 400)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "Bad Email Inc",
-    "document": "98765432000100",
-    "contact_email": "not-an-email"
-}
-
-### 2.7 Invalid email — no TLD dot (expect 400)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "Bad Email Inc",
-    "document": "98765432000100",
-    "contact_email": "ops@example"
-}
-
-### 2.8 Malformed JSON body (expect 400 invalid_body)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{not-json}
-
-### 2.9 Empty body (expect 400)
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-### 2.10 Duplicate document (expect 409 document_exists)
-# Reuses @test_cnpj from 1.1 — second insert with the same CNPJ.
-POST {{ base_url }}/v1/merchants
-Content-Type: application/json
-
-{
-    "legal_name": "Duplicate Doc Inc",
-    "document": "{{ test_cnpj }}",
-    "contact_email": "dup@example.com"
-}
-
-### =============================================================
-### 3. ISSUE API KEY — validation surface
-### POST /v1/api-keys
-### Validates merchant_id (uuid + must exist).
-### =============================================================
-
-### 3.1 Issue with malformed merchant_id (expect 400 validation)
-POST {{ base_url }}/v1/api-keys
-Content-Type: application/json
-
-{
-    "merchant_id": "{{ malformed_uuid }}"
-}
-
-### 3.2 Issue for non-existent merchant (expect 404 not_found)
-POST {{ base_url }}/v1/api-keys
-Content-Type: application/json
-
-{
-    "merchant_id": "{{ nonexistent_id }}"
-}
-
-### 3.3 Missing merchant_id (expect 400)
-POST {{ base_url }}/v1/api-keys
-Content-Type: application/json
-
-{}
-
-### 3.4 Issue with explicit scopes (success — repeat to confirm prefix differs)
-# Each call must produce a brand-new token with a distinct prefix.
-# @name issueApiKey2
-POST {{ base_url }}/v1/api-keys
-Content-Type: application/json
-
-{
-    "merchant_id": "{{ merchant_id }}",
-    "scopes": ["payments:read", "payments:write"]
-}
-
-### =============================================================
-### 4. REVOKE API KEY
-### POST /v1/api-keys/{id}/revoke
-### Idempotent: revoking an already-revoked key returns the same
-### shape; reusing the revoked token for /v1/me yields 403.
-### =============================================================
-
-### 4.1 Revoke the secondary key (success) — uses @issueApiKey2.id
-@api_key_id_2 = {{ issueApiKey2.response.body.id }}
-POST {{ base_url }}/v1/api-keys/{{ api_key_id_2 }}/revoke
-
-### 4.2 Revoke the same key again (expect 200 — idempotent revoke OR 400/409 depending on domain rules)
-POST {{ base_url }}/v1/api-keys/{{ api_key_id_2 }}/revoke
-
-### 4.3 Revoke with non-existent id (expect 404 not_found)
-POST {{ base_url }}/v1/api-keys/{{ nonexistent_id }}/revoke
-
-### 4.4 Revoke with malformed uuid (expect 400 validation)
-POST {{ base_url }}/v1/api-keys/{{ malformed_uuid }}/revoke
-
-### =============================================================
-### 5. GET /v1/me — auth gate surface
+### 2. GET /v1/me — auth gate surface
 ### Validates RequireAPIKey middleware behavior:
 ###   missing/malformed header → 401 missing_credentials
 ###   token doesn't decode or hash mismatch → 401 invalid_credentials
 ###   key was revoked → 403 revoked
 ### =============================================================
 
-### 5.1 No Authorization header (expect 401 missing_credentials)
+### 2.1 No Authorization header (expect 401 missing_credentials)
 GET {{ base_url }}/v1/me
 
-### 5.2 Authorization without "Bearer " prefix (expect 401)
+### 2.2 Authorization without "Bearer " prefix (expect 401)
 GET {{ base_url }}/v1/me
 Authorization: {{ api_key_token }}
 
-### 5.3 Bearer with empty token (expect 401)
+### 2.3 Bearer with empty token (expect 401)
 GET {{ base_url }}/v1/me
 Authorization: Bearer
 
-### 5.4 Bearer with garbage token — wrong format (expect 401 invalid_credentials)
+### 2.4 Bearer with garbage token — wrong format (expect 401 invalid_credentials)
 GET {{ base_url }}/v1/me
 Authorization: Bearer not-a-real-token
 
-### 5.5 Bearer with valid format but wrong secret (expect 401)
+### 2.5 Bearer with valid format but wrong secret (expect 401)
 # Prefix shape ok, secret part forged — hash won't match.
 GET {{ base_url }}/v1/me
 Authorization: Bearer irk_aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
-### 5.6 Bearer with unknown prefix (expect 401)
+### 2.6 Bearer with unknown prefix (expect 401)
 GET {{ base_url }}/v1/me
 Authorization: Bearer irk_0000000000000000.0000000000000000000000000000000000
 
-### 5.7 Bearer using the revoked key (expect 403 revoked)
-# Requires 4.1 to have run successfully.
-@revoked_token = {{ issueApiKey2.response.body.secret }}
+### 2.7 Bearer using a revoked key (expect 403 revoked)
+# Revoke first: make irisctl ARGS="revoke-api-key --id <api key id>"
 GET {{ base_url }}/v1/me
 Authorization: Bearer {{ revoked_token }}
 
-### 5.8 Valid key still works after we revoked a *different* one (expect 200)
-GET {{ base_url }}/v1/me
-Authorization: Bearer {{ api_key_token }}
-
 ### =============================================================
-### 6. AUTH / METHOD ERRORS
+### 3. METHOD ERRORS
 ### =============================================================
 
-### 6.1 OPTIONS on a protected route (expect 200/204 — chi default OPTIONS)
+### 3.1 OPTIONS on a protected route (expect 200/204 — chi default OPTIONS)
 OPTIONS {{ base_url }}/v1/me
 Authorization: Bearer {{ api_key_token }}
 
-### 6.2 HEAD on /v1/me (expect 200 with no body — auth still enforced)
+### 3.2 HEAD on /v1/me (expect 200 with no body — auth still enforced)
 HEAD {{ base_url }}/v1/me
 Authorization: Bearer {{ api_key_token }}
 
-### 6.3 HEAD on /v1/me without auth (expect 401)
+### 3.3 HEAD on /v1/me without auth (expect 401)
 HEAD {{ base_url }}/v1/me
 
-### 6.4 PUT on /v1/me (expect 405 — only GET is routed)
+### 3.4 PUT on /v1/me (expect 405 — only GET is routed)
 PUT {{ base_url }}/v1/me
 Authorization: Bearer {{ api_key_token }}
 
-### 6.5 DELETE on /v1/api-keys/{id}/revoke (expect 405 — only POST is routed)
-DELETE {{ base_url }}/v1/api-keys/{{ api_key_id }}/revoke
+### =============================================================
+### 4. REMOVED BOOTSTRAP ROUTES (AC6, defect D8)
+### These paths no longer exist. Every request below expects 404
+### (or 405) and must not create or revoke anything.
+### =============================================================
 
-### 6.6 GET on /v1/merchants (expect 405 — list endpoint not yet exposed)
+### 4.1 POST /v1/merchants (expect 404)
+POST {{ base_url }}/v1/merchants
+Content-Type: application/json
+
+{
+    "legal_name": "Acme Pagamentos LTDA",
+    "document": "12345678000100",
+    "contact_email": "ops@acme.example.com"
+}
+
+### 4.2 POST /v1/api-keys (expect 404)
+POST {{ base_url }}/v1/api-keys
+Content-Type: application/json
+
+{
+    "merchant_id": "{{ some_id }}"
+}
+
+### 4.3 POST /v1/api-keys/{id}/revoke (expect 404)
+POST {{ base_url }}/v1/api-keys/{{ some_id }}/revoke
+
+### 4.4 GET /v1/merchants (expect 404)
 GET {{ base_url }}/v1/merchants

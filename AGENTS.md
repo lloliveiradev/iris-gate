@@ -142,7 +142,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Token shape is `irk_<prefix>.<secret>`. Persist only the Argon2id PHC hash. Return the plaintext secret once, at issue time.
 - Bearer missing or invalid → 401. Revoked key → 403.
 - New merchants start `pending`. `document` is 14 digits.
-- `POST /v1/merchants`, `POST /v1/api-keys` and revoke are public local bootstrap (defect D8). Payment routes are not. Do not copy that openness onto other routes. Phase 6 replaces these routes with the `irisctl` CLI.
+- Merchants and API keys are managed by the operator CLI `apps/api/cmd/irisctl` (`make irisctl ARGS=...`: `create-merchant`, `issue-api-key`, `revoke-api-key`), which reuses the identity use cases. There are no HTTP routes for them; do not add any (defect D8 is closed). The CLI prints a new secret once, on stdout, and never logs. User accounts and roles come in phase 8.
 - The dashboard posts the key to a server action and stores it in the iron-session cookie (defect D9, replaced by user accounts in phase 9). Do not put it in `localStorage`, client state or logs.
 - Never log PAN, CVV, `card_token`, API keys, passwords, tokens, raw email or raw document. Never commit `.env` or a real secret. `iris`/`iris` and the dev session password stay local.
 

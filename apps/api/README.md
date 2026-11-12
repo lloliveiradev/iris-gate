@@ -36,16 +36,21 @@ Errors use `application/problem+json`. Contracts are `libs/contracts/http/identi
 | Method | Path                                              | Auth                         |
 | ------ | ------------------------------------------------- | ---------------------------- |
 | `GET`  | `/healthz`, `/readyz`                             | no                           |
-| `POST` | `/v1/merchants`                                   | no, local bootstrap (D8)     |
-| `POST` | `/v1/api-keys`                                    | no, local bootstrap (D8)     |
-| `POST` | `/v1/api-keys/{id}/revoke`                        | no, local bootstrap (D8)     |
 | `GET`  | `/v1/me`                                          | bearer                       |
 | `GET`  | `/v1/payment-intents`, `/v1/payment-intents/{id}` | bearer                       |
 | `POST` | `/v1/payment-intents`                             | bearer and `Idempotency-Key` |
 | `POST` | `/v1/payment-intents/{id}/authorize`              | bearer                       |
 | `POST` | `/v1/payment-intents/{id}/capture`                | bearer                       |
 
-Create merchant body: `legal_name`, `document` (14 digits), `contact_email`. A repeated document returns 409 `document_exists`. Issue key body: `merchant_id`. The response field `secret` is the bearer token and is not stored.
+Merchants and API keys are managed with `irisctl`, not over HTTP (`POST /v1/merchants`, `POST /v1/api-keys` and the revoke route answer 404). From the repo root:
+
+```bash
+make irisctl ARGS="create-merchant --legal-name <name> --document <14 digits> --contact-email <email>"
+make irisctl ARGS="issue-api-key --merchant-id <uuid> [--scopes a,b]"
+make irisctl ARGS="revoke-api-key --id <uuid>"
+```
+
+Each command prints one JSON object on stdout. `issue-api-key` is the only one that prints a secret (field `secret`, the bearer token); it appears once and is not stored. A repeated document fails with `document already exists`. `irisctl` reads `DATABASE_URL` (default: local Compose Postgres) and expects the API to have migrated the database at least once.
 
 `POST /v1/payment-intents` without `Idempotency-Key` returns 400. The same key and body replay the stored response and set `Idempotent-Replay`. The same key with a different body returns 409. Authorize and capture are idempotent in the domain: repeating the current status is a no-op. `pending → authorized → captured`; any other transition is 409. When the acquirer rejects, the domain marks the intent `failed` in memory, but the row stays `pending` and no event is written. `GET /v1/payment-intents/{id}` returns 404 for an intent owned by another merchant; authorize and capture do not check ownership yet. These are defects D1 and D3 in [`docs/design/as-is.md`](../../docs/design/as-is.md), fixed in phase 6.
 

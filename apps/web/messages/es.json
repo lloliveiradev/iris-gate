@@ -169,7 +169,7 @@
     "form": {
       "eyebrow": "Acceso restringido",
       "title": "Iniciar sesión en la consola",
-      "description": "Usa la API key emitida en <code>/v1/api-keys</code>. Tu key queda en una cookie cifrada — nunca vuelve al navegador.",
+      "description": "Usa la API key emitida por tu operador con <code>irisctl issue-api-key</code>. Tu key queda en una cookie cifrada — nunca vuelve al navegador.",
       "api_key_label": "API key",
       "api_key_placeholder": "irk_xxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "hint": "El prefijo <code>irk_</code> identifica keys del entorno sandbox; <code>irl_</code> son live.",
