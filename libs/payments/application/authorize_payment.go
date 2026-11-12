@@ -23,24 +23,24 @@ func NewAuthorizePaymentUseCase(repo PaymentIntentRepo, acquirer Acquirer, clock
 	return &AuthorizePaymentUseCase{repo: repo, acquirer: acquirer, clock: clock, ids: ids}
 }
 
-// Execute autoriza um intent existente:
+// Execute authorizes an existing intent:
 //
-//   1. Lê do repo.
-//   2. Garante estado válido (pending; idempotente se já authorized).
-//   3. Chama Acquirer.Authorize.
-//   4. Aplica transição de status + escreve evento na outbox (mesma tx).
+//  1. Loads it from the repo, scoped to the merchant.
+//  2. Checks the status (pending; idempotent when already authorized).
+//  3. Chama Acquirer.Authorize.
+//  4. Applies the status transition and writes the event to the outbox (same tx).
 //
 // Errors:
-//   - ErrPaymentIntentNotFound — id não existe
-//   - ErrInvalidStatusTransition — intent já capturado/cancelado
-//   - ErrAcquirerRejected — adquirente recusou
-func (uc *AuthorizePaymentUseCase) Execute(ctx context.Context, id uuid.UUID) (domain.PaymentIntent, error) {
-	pi, err := uc.repo.GetByID(ctx, id)
+//   - ErrPaymentIntentNotFound — id does not exist or belongs to another merchant
+//   - ErrInvalidStatusTransition — intent already captured or canceled
+//   - ErrAcquirerRejected — the acquirer declined
+func (uc *AuthorizePaymentUseCase) Execute(ctx context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error) {
+	pi, err := uc.repo.GetByID(ctx, merchantID, id)
 	if err != nil {
 		return domain.PaymentIntent{}, err
 	}
 
-	// Idempotência: se já authorized, devolve sem chamar adquirente de novo.
+	// Idempotent: when already authorized, return without calling the acquirer again.
 	if pi.Status == domain.PaymentIntentAuthorized {
 		return pi, nil
 	}
@@ -59,9 +59,8 @@ func (uc *AuthorizePaymentUseCase) Execute(ctx context.Context, id uuid.UUID) (d
 		if err := pi.MarkFailed(); err != nil {
 			return domain.PaymentIntent{}, err
 		}
-		// Persistimos a falha sem evento por enquanto (evento .failed.v1 é trabalho futuro).
-		// Reuse UpdateWithOutbox com mensagem vazia exigiria refactor; mantemos
-		// semântica: failed é registrado mas não publicado.
+		// The decline is not persisted yet: the failed event and its outbox row
+		// belong to a later task (D3).
 		return pi, fmt.Errorf("%w: %s", domain.ErrAcquirerRejected, out.Reason)
 	}
 

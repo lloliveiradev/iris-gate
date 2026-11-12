@@ -11,6 +11,7 @@ import (
 
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
+	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
 )
 
 type fakeRepo struct {
@@ -31,18 +32,14 @@ func (r *fakeRepo) CreateWithOutbox(_ context.Context, p domain.PaymentIntent, e
 	return nil
 }
 
-func (r *fakeRepo) GetByID(_ context.Context, id uuid.UUID) (domain.PaymentIntent, error) {
+func (r *fakeRepo) GetByID(_ context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p, ok := r.intents[id]
-	if !ok {
+	if !ok || p.MerchantID != merchantID {
 		return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
 	}
 	return p, nil
-}
-
-func (r *fakeRepo) GetByMerchantAndIdempotencyKey(_ context.Context, _ uuid.UUID, _ string) (domain.PaymentIntent, error) {
-	return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
 }
 
 func (r *fakeRepo) ListByMerchant(_ context.Context, merchantID uuid.UUID, limit int) ([]domain.PaymentIntent, error) {
@@ -87,7 +84,7 @@ func TestCreatePaymentIntent_OK(t *testing.T) {
 	pi, err := uc.Execute(context.Background(), application.CreatePaymentIntentInput{
 		MerchantID:  uuid.New(),
 		Amount:      amt,
-		CardToken:   "tok_abcdef12", // gitleaks:allow fixture: not a real card token
+		CardToken:   testfixtures.TokenApproved,
 		Description: "ACME order",
 	})
 	if err != nil {
@@ -118,7 +115,7 @@ func TestCreatePaymentIntent_ValidationFails(t *testing.T) {
 	_, err := uc.Execute(context.Background(), application.CreatePaymentIntentInput{
 		MerchantID: uuid.Nil, // invalid
 		Amount:     amt,
-		CardToken:  "tok_abcdef12", // gitleaks:allow fixture: not a real card token
+		CardToken:  testfixtures.TokenApproved,
 	})
 	if err == nil {
 		t.Fatalf("expected validation error, got nil")

@@ -1,4 +1,4 @@
-// Package httpapi expõe Payments como handlers chi.
+// Package httpapi exposes Payments as chi handlers.
 package httpapi
 
 import (
@@ -18,28 +18,28 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
 )
 
-// Deps agrupa o que os handlers consomem.
+// Deps groups what the handlers consume.
 type Deps struct {
 	CreatePaymentIntent *application.CreatePaymentIntentUseCase
 	AuthorizePayment    *application.AuthorizePaymentUseCase
 	CapturePayment      *application.CapturePaymentUseCase
 	Repo                application.PaymentIntentRepo
 
-	// AuthRequired/IdempotencyMW são plugados pelo composer (apps/api).
-	// Mantemos como middlewares opacos pra evitar dependência circular.
+	// AuthRequired and IdempotencyMW are plugged in by the composition root
+	// (apps/api). IdempotencyMW reads the merchant set by AuthRequired.
 	AuthRequired  func(http.Handler) http.Handler
 	IdempotencyMW func(http.Handler) http.Handler
 }
 
-// Mount registra rotas em `r`.
+// Mount registers the routes on `r`.
 //
-//   GET  /v1/payment-intents               (auth)            — list
-//   POST /v1/payment-intents               (auth + idempotency) — create
-//   GET  /v1/payment-intents/{id}          (auth)            — detail
-//   POST /v1/payment-intents/{id}/authorize (auth)
-//   POST /v1/payment-intents/{id}/capture   (auth)
+//	GET  /v1/payment-intents               (auth)            — list
+//	POST /v1/payment-intents               (auth + idempotency) — create
+//	GET  /v1/payment-intents/{id}          (auth)            — detail
+//	POST /v1/payment-intents/{id}/authorize (auth)
+//	POST /v1/payment-intents/{id}/capture   (auth)
 //
-// No-op se CreatePaymentIntent / AuthRequired estiverem nil.
+// No-op when CreatePaymentIntent or AuthRequired is nil.
 func Mount(r chi.Router, d Deps) {
 	if d.CreatePaymentIntent == nil || d.AuthRequired == nil {
 		return
@@ -54,8 +54,8 @@ func Mount(r chi.Router, d Deps) {
 		})
 	}
 
-	// /authorize, /capture, GET list, GET detail — naturalmente idempotentes ou
-	// puramente leitura.
+	// /authorize, /capture, GET list and GET detail are naturally idempotent or
+	// read-only.
 	r.Group(func(r chi.Router) {
 		r.Use(d.AuthRequired)
 		if d.AuthorizePayment != nil {
@@ -75,7 +75,7 @@ func handleListPaymentIntents(repo application.PaymentIntentRepo) http.HandlerFu
 	return func(w http.ResponseWriter, r *http.Request) {
 		merchant, ok := identityhttp.MerchantFromContext(r.Context())
 		if !ok {
-			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant ausente")
+			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant missing from context")
 			return
 		}
 		limit := 50
@@ -101,7 +101,7 @@ func handleGetPaymentIntent(repo application.PaymentIntentRepo) http.HandlerFunc
 	return func(w http.ResponseWriter, r *http.Request) {
 		merchant, ok := identityhttp.MerchantFromContext(r.Context())
 		if !ok {
-			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant ausente")
+			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant missing from context")
 			return
 		}
 		id, err := parseIDParam(r, "id")
@@ -109,13 +109,9 @@ func handleGetPaymentIntent(repo application.PaymentIntentRepo) http.HandlerFunc
 			problem(w, r, http.StatusBadRequest, "invalid_id", err.Error())
 			return
 		}
-		pi, err := repo.GetByID(r.Context(), id)
+		pi, err := repo.GetByID(r.Context(), merchant.ID, id)
 		if err != nil {
 			mapError(w, r, err)
-			return
-		}
-		if pi.MerchantID != merchant.ID {
-			problem(w, r, http.StatusNotFound, "not_found", "payment intent não encontrado")
 			return
 		}
 		writeJSON(w, http.StatusOK, toContract(pi))
@@ -126,7 +122,7 @@ func handleCreatePaymentIntent(uc *application.CreatePaymentIntentUseCase) http.
 	return func(w http.ResponseWriter, r *http.Request) {
 		merchant, ok := identityhttp.MerchantFromContext(r.Context())
 		if !ok {
-			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant ausente")
+			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant missing from context")
 			return
 		}
 
@@ -163,12 +159,17 @@ func handleCreatePaymentIntent(uc *application.CreatePaymentIntentUseCase) http.
 
 func handleAuthorize(uc *application.AuthorizePaymentUseCase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		merchant, ok := identityhttp.MerchantFromContext(r.Context())
+		if !ok {
+			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant missing from context")
+			return
+		}
 		id, err := parseIDParam(r, "id")
 		if err != nil {
 			problem(w, r, http.StatusBadRequest, "invalid_id", err.Error())
 			return
 		}
-		pi, err := uc.Execute(r.Context(), id)
+		pi, err := uc.Execute(r.Context(), merchant.ID, id)
 		if err != nil {
 			mapError(w, r, err)
 			return
@@ -179,12 +180,17 @@ func handleAuthorize(uc *application.AuthorizePaymentUseCase) http.HandlerFunc {
 
 func handleCapture(uc *application.CapturePaymentUseCase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		merchant, ok := identityhttp.MerchantFromContext(r.Context())
+		if !ok {
+			problem(w, r, http.StatusUnauthorized, "no_principal", "merchant missing from context")
+			return
+		}
 		id, err := parseIDParam(r, "id")
 		if err != nil {
 			problem(w, r, http.StatusBadRequest, "invalid_id", err.Error())
 			return
 		}
-		pi, err := uc.Execute(r.Context(), id)
+		pi, err := uc.Execute(r.Context(), merchant.ID, id)
 		if err != nil {
 			mapError(w, r, err)
 			return
@@ -250,7 +256,7 @@ func mapError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, domain.ErrIdempotencyConflict):
 		problem(w, r, http.StatusConflict, "idempotency_conflict", err.Error())
 	case errors.Is(err, domain.ErrPaymentIntentNotFound):
-		problem(w, r, http.StatusNotFound, "not_found", err.Error())
+		problem(w, r, http.StatusNotFound, "payment_intent_not_found", "payment intent not found")
 	default:
 		slog.LogAttrs(r.Context(), slog.LevelError, "http.unhandled", slog.Any("err", err))
 		problem(w, r, http.StatusInternalServerError, "internal", "internal error")

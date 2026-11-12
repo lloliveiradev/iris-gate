@@ -1,12 +1,14 @@
-// Package idempotency é um middleware HTTP backed por Postgres.
+// Package idempotency is an HTTP middleware backed by a Store (Postgres in
+// production).
 //
-// Comportamento (alinha com Stripe-style idempotency):
+// Behavior (Stripe-style idempotency), per (merchant, scope, key):
 //
-//   1. Sem header → 400.
-//   2. Header presente, key nova → executa request, persiste (status, body)
-//      antes de devolver. Próximas requests com mesma key + body devolvem
-//      a mesma resposta sem reexecução.
-//   3. Mesma key, body diferente → 409 (request_hash não bate).
+//  1. No authenticated merchant → 401.
+//  2. No header → 400.
+//  3. Header present, new key → run the request and store (status, body)
+//     before returning. Later requests with the same key and body replay the
+//     stored response without re-running the handler.
+//  4. Same key, different body → 409 (request_hash mismatch).
 package idempotency
 
 import (
@@ -17,12 +19,16 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/google/uuid"
+
+	identityhttp "github.com/iris-gate/iris-gate/libs/identity/infra/httpapi"
 )
 
-// Store é o port consumido pelo middleware (Postgres-backed em prod).
+// Store is the port the middleware consumes (Postgres in production).
 type Store interface {
-	Existing(ctx context.Context, scope, key string) (*Record, error)
-	Save(ctx context.Context, scope, key string, requestHash []byte, status int, body []byte) (alreadyExists bool, err error)
+	Existing(ctx context.Context, merchantID uuid.UUID, scope, key string) (*Record, error)
+	Save(ctx context.Context, merchantID uuid.UUID, scope, key string, requestHash []byte, status int, body []byte) (alreadyExists bool, err error)
 }
 
 type Record struct {
@@ -31,15 +37,24 @@ type Record struct {
 	ResponseBody   []byte
 }
 
-// Middleware retorna um http.Handler middleware com o `scope` dado (ex.:
-// "create_payment_intent"). Header configurável; default `Idempotency-Key`.
+// Middleware returns an http.Handler middleware for the given route `scope`
+// (e.g. "create_payment_intent"). Records are keyed by (merchant, scope, key):
+// the merchant comes from the authenticated principal, so it must be mounted
+// after the authentication middleware. Without a principal it answers 401.
 func Middleware(store Store, scope string) func(http.Handler) http.Handler {
 	const header = "Idempotency-Key"
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			merchant, ok := identityhttp.MerchantFromContext(r.Context())
+			if !ok {
+				writeProblem(w, http.StatusUnauthorized, "no_principal", "authenticated merchant required")
+				return
+			}
+			merchantID := merchant.ID
+
 			key := r.Header.Get(header)
 			if key == "" {
-				writeProblem(w, http.StatusBadRequest, "missing_idempotency_key", "header Idempotency-Key obrigatório")
+				writeProblem(w, http.StatusBadRequest, "missing_idempotency_key", "Idempotency-Key header required")
 				return
 			}
 
@@ -53,13 +68,13 @@ func Middleware(store Store, scope string) func(http.Handler) http.Handler {
 
 			hash := sha256.Sum256(body)
 
-			if existing, err := store.Existing(r.Context(), scope, key); err != nil {
+			if existing, err := store.Existing(r.Context(), merchantID, scope, key); err != nil {
 				slog.LogAttrs(r.Context(), slog.LevelError, "idempotency.lookup", slog.Any("err", err))
-				writeProblem(w, http.StatusInternalServerError, "internal", "idempotency lookup falhou")
+				writeProblem(w, http.StatusInternalServerError, "internal", "idempotency lookup failed")
 				return
 			} else if existing != nil {
 				if !bytes.Equal(existing.RequestHash, hash[:]) {
-					writeProblem(w, http.StatusConflict, "idempotency_conflict", "key reutilizada com body diferente")
+					writeProblem(w, http.StatusConflict, "idempotency_conflict", "key reused with a different body")
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
@@ -73,7 +88,7 @@ func Middleware(store Store, scope string) func(http.Handler) http.Handler {
 			next.ServeHTTP(rec, r)
 
 			if rec.status >= 200 && rec.status < 300 {
-				if _, err := store.Save(r.Context(), scope, key, hash[:], rec.status, rec.body.Bytes()); err != nil {
+				if _, err := store.Save(r.Context(), merchantID, scope, key, hash[:], rec.status, rec.body.Bytes()); err != nil {
 					slog.LogAttrs(r.Context(), slog.LevelError, "idempotency.save", slog.Any("err", err))
 				}
 			}

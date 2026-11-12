@@ -25,6 +25,10 @@ tidy: ## go mod tidy
 test: ## go test -race
 	$(GO) test -race -count=1 $(PKG)
 
+.PHONY: test-int
+test-int: ## go test -race with the integration tag (needs Postgres, DATABASE_URL)
+	$(GO) test -race -count=1 -tags=integration $(PKG)
+
 .PHONY: cover
 cover: ## go test with coverage
 	$(GO) test -race -coverprofile=coverage.out $(PKG)
