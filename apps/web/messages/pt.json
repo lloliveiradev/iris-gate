@@ -169,7 +169,7 @@
     "form": {
       "eyebrow": "Acesso restrito",
       "title": "Entrar no painel",
-      "description": "Use a API key emitida em <code>/v1/api-keys</code>. Sua chave fica em cookie criptografado — nunca volta ao navegador.",
+      "description": "Use a API key emitida pelo seu operador com <code>irisctl issue-api-key</code>. Sua chave fica em cookie criptografado — nunca volta ao navegador.",
       "api_key_label": "API key",
       "api_key_placeholder": "irk_xxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "hint": "O prefixo <code>irk_</code> identifica chaves do ambiente sandbox; <code>irl_</code> são live.",

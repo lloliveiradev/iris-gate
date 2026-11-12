@@ -4,11 +4,11 @@ Deployable processes. Each directory here is one process you can run. Domain rul
 
 There are three apps. Nothing else under this folder is a service.
 
-| App                         | Process              | Port   | What it owns                                                               |
-| --------------------------- | -------------------- | ------ | -------------------------------------------------------------------------- |
-| [`api`](api/)               | Go 1.27, chi, `slog` | `8080` | HTTP composition, Postgres pool, startup migrations, payments outbox relay |
+| App                         | Process                  | Port   | What it owns                                                               |
+| --------------------------- | ------------------------ | ------ | -------------------------------------------------------------------------- |
+| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080` | HTTP composition, Postgres pool, startup migrations, payments outbox relay |
 | [`web`](web/)               | Next.js 16.4, React 19.3 | `3000` | Merchant UI, i18n, iron-session                                            |
-| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7  | `3001` | Kafka consumer, Prisma, inbox and outbox                                   |
+| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7      | `3001` | Kafka consumer, Prisma, inbox and outbox                                   |
 
 An app may depend on `libs/`. A lib must not import an app. One app must not import another. If a rule is being written under `apps/`, it belongs in the matching `libs/<context>`.
 
@@ -36,14 +36,13 @@ Defaults, overridable by env: `HTTP_ADDR=:8080`, `DATABASE_URL=postgres://iris:i
 
 Routes this process exposes:
 
-| Method | Path                                                        | Auth                         |
-| ------ | ----------------------------------------------------------- | ---------------------------- |
-| `GET`  | `/healthz`, `/readyz`                                       | no                           |
-| `POST` | `/v1/merchants`, `/v1/api-keys`, `/v1/api-keys/{id}/revoke` | no, local bootstrap          |
-| `GET`  | `/v1/me`                                                    | bearer                       |
-| `GET`  | `/v1/payment-intents`, `/v1/payment-intents/{id}`           | bearer                       |
-| `POST` | `/v1/payment-intents`                                       | bearer and `Idempotency-Key` |
-| `POST` | `/v1/payment-intents/{id}/authorize`, `/capture`            | bearer                       |
+| Method | Path                                              | Auth                         |
+| ------ | ------------------------------------------------- | ---------------------------- |
+| `GET`  | `/healthz`, `/readyz`                             | no                           |
+| `GET`  | `/v1/me`                                          | bearer                       |
+| `GET`  | `/v1/payment-intents`, `/v1/payment-intents/{id}` | bearer                       |
+| `POST` | `/v1/payment-intents`                             | bearer and `Idempotency-Key` |
+| `POST` | `/v1/payment-intents/{id}/authorize`, `/capture`  | bearer                       |
 
 `/readyz` does not yet check Postgres or Kafka.
 
