@@ -1,15 +1,15 @@
-name: iris-gate
+name: ig
 
 x-logging: &default-logging
   driver: json-file
   options:
-    max-size: "10m"
-    max-file: "3"
+    max-size: '10m'
+    max-file: '3'
 
 services:
   postgres:
     image: postgres:18.6-alpine
-    container_name: iris-postgres
+    container_name: ig-postgres
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -18,20 +18,20 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-iris}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - '${POSTGRES_PORT:-15432}:5432'
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ig-postgres-data:/var/lib/postgresql/data
       - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iris} -d ${POSTGRES_DB:-iris}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-iris} -d ${POSTGRES_DB:-iris}']
       interval: 5s
       timeout: 5s
       retries: 10
-    networks: [iris]
+    networks: [ig]
 
   kafka:
     image: apache/kafka:4.4.0
-    container_name: iris-kafka
+    container_name: ig-kafka
     restart: unless-stopped
     logging: *default-logging
     ports:
@@ -41,14 +41,14 @@ services:
       # resolvable inside the docker network. Host clients reach Kafka via
       # localhost:${KAFKA_PORT}, which lands on PLAINTEXT_HOST (advertised as
       # localhost:${KAFKA_PORT}) so subsequent metadata round-trips work.
-      - "${KAFKA_PORT:-9092}:29092"
+      - '${KAFKA_PORT:-19092}:29092'
     environment:
       # KRaft (no Zookeeper) — single-node combined controller+broker
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9092}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-19092}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
@@ -56,19 +56,23 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_LOG_RETENTION_HOURS: 24
       KAFKA_LOG_RETENTION_BYTES: 536870912
       CLUSTER_ID: ${KAFKA_CLUSTER_ID:-iris-local-cluster-0001}
     volumes:
-      - kafka-data:/var/lib/kafka/data
+      - ig-kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      test:
+        [
+          'CMD-SHELL',
+          '/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1',
+        ]
       interval: 10s
       timeout: 10s
       retries: 10
-    networks: [iris]
+    networks: [ig]
 
   # One-shot topic provisioner. Runs after kafka is healthy, creates every
   # topic in kafka/topics.txt with --if-not-exists (idempotent), then exits.
@@ -76,29 +80,29 @@ services:
   # you ship a new event contract.
   kafka-init:
     image: apache/kafka:4.4.0
-    container_name: iris-kafka-init
+    container_name: ig-kafka-init
     logging: *default-logging
     depends_on:
       kafka:
         condition: service_healthy
-    restart: "no"
+    restart: 'no'
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
     volumes:
       - ./kafka:/opt/iris/kafka:ro
-    entrypoint: ["/bin/sh", "/opt/iris/kafka/create-topics.sh"]
-    networks: [iris]
+    entrypoint: ['/bin/sh', '/opt/iris/kafka/create-topics.sh']
+    networks: [ig]
 
   karapace:
     image: ghcr.io/aiven-open/karapace:6.2.4
-    container_name: iris-karapace
+    container_name: ig-karapace
     restart: unless-stopped
     logging: *default-logging
     depends_on:
       kafka:
         condition: service_healthy
     ports:
-      - "${KARAPACE_PORT:-8081}:8081"
+      - '${KARAPACE_PORT:-18081}:8081'
     environment:
       KARAPACE_BOOTSTRAP_URI: kafka:9092
       KARAPACE_PORT: 8081
@@ -107,10 +111,10 @@ services:
       KARAPACE_COMPATIBILITY: BACKWARD
       KARAPACE_CLIENT_ID: karapace
       KARAPACE_GROUP_ID: karapace-registry
-      KARAPACE_MASTER_ELIGIBILITY: "true"
+      KARAPACE_MASTER_ELIGIBILITY: 'true'
       KARAPACE_TOPIC_NAME: _schemas
       KARAPACE_LOG_LEVEL: WARNING
-      KARAPACE_KARAPACE_REGISTRY: "true"
+      KARAPACE_KARAPACE_REGISTRY: 'true'
     entrypoint:
       - /bin/sh
       - -c
@@ -131,18 +135,18 @@ services:
         EOF
         exec python3 -m karapace /opt/karapace/registry.config.json
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/_health || exit 1"]
+      test: ['CMD-SHELL', 'wget -q -O- http://localhost:8081/_health || exit 1']
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [iris]
+    networks: [ig]
 
   anti-fraud:
     build:
       # Context is the monorepo root so yarn workspaces resolve correctly.
       context: ../..
       dockerfile: apps/anti-fraud/Dockerfile.dev
-    container_name: iris-anti-fraud
+    container_name: ig-anti-fraud
     restart: unless-stopped
     logging: *default-logging
     depends_on:
@@ -153,13 +157,13 @@ services:
       kafka-init:
         condition: service_completed_successfully
     ports:
-      - "${ANTI_FRAUD_PORT:-3001}:3001"
+      - '${ANTI_FRAUD_PORT:-13001}:3001'
     environment:
       # Internal hostnames — kafkajs metadata advertises kafka:9092 inside the network.
       DATABASE_URL: postgresql://${POSTGRES_USER:-iris}:${POSTGRES_PASSWORD:-iris}@postgres:5432/${ANTI_FRAUD_DB:-antifraud}?schema=public
       KAFKA_BROKERS: kafka:9092
       KAFKA_CLIENT_ID: anti-fraud
-      KAFKAJS_NO_PARTITIONER_WARNING: "1"
+      KAFKAJS_NO_PARTITIONER_WARNING: '1'
       PORT: 3001
       NODE_ENV: development
     volumes:
@@ -170,12 +174,15 @@ services:
       - ../../apps/anti-fraud/tsconfig.json:/repo/apps/anti-fraud/tsconfig.json
       - ../../apps/anti-fraud/prisma.config.ts:/repo/apps/anti-fraud/prisma.config.ts
       - ../../configs:/repo/configs:ro
-    networks: [iris]
+    networks: [ig]
 
 volumes:
-  postgres-data:
-  kafka-data:
+  ig-postgres-data:
+    name: ig-postgres-data
+  ig-kafka-data:
+    name: ig-kafka-data
 
 networks:
-  iris:
+  ig:
+    name: ig
     driver: bridge

@@ -4,11 +4,11 @@ Deployable processes. Each directory here is one process you can run. Domain rul
 
 There are three apps. Nothing else under this folder is a service.
 
-| App                         | Process              | Port   | What it owns                                                               |
-| --------------------------- | -------------------- | ------ | -------------------------------------------------------------------------- |
-| [`api`](api/)               | Go 1.27, chi, `slog` | `8080` | HTTP composition, Postgres pool, startup migrations, payments outbox relay |
-| [`web`](web/)               | Next.js 16.4, React 19.3 | `3000` | Merchant UI, i18n, iron-session                                            |
-| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7  | `3001` | Kafka consumer, Prisma, inbox and outbox                                   |
+| App                         | Process                  | Port    | What it owns                                                                       |
+| --------------------------- | ------------------------ | ------- | ---------------------------------------------------------------------------------- |
+| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080`  | HTTP composition, Postgres pool, startup migrations, payments outbox relay         |
+| [`web`](web/)               | Next.js 16.4, React 19.3 | `3000`  | Merchant UI, i18n, iron-session                                                    |
+| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7      | `13001` | Kafka consumer, Prisma, inbox and outbox. Host port; the process listens on `3001` |
 
 An app may depend on `libs/`. A lib must not import an app. One app must not import another. If a rule is being written under `apps/`, it belongs in the matching `libs/<context>`.
 
@@ -32,7 +32,7 @@ With an empty `ACQUIRER_URL`, the process uses the in-memory fake acquirer. The 
 | Image         | `apps/api/Dockerfile` (`make -C apps/api docker-build`) |
 | HTTP examples | `apps/api/tests/*.http`                                 |
 
-Defaults, overridable by env: `HTTP_ADDR=:8080`, `DATABASE_URL=postgres://iris:iris@localhost:5432/iris?sslmode=disable`, `KAFKA_BROKER=localhost:9092`, `ENV=dev`, `MIGRATE_ON_STARTUP=true`, `RELAY_ENABLED=true`.
+Defaults, overridable by env: `HTTP_ADDR=:8080`, `DATABASE_URL=postgres://iris:iris@localhost:15432/iris?sslmode=disable`, `KAFKA_BROKER=localhost:19092`, `ENV=dev`, `MIGRATE_ON_STARTUP=true`, `RELAY_ENABLED=true`.
 
 Routes this process exposes:
 
@@ -77,9 +77,9 @@ NestJS worker. `libs/fraud` holds the specification rules; this app wires Prisma
 
 It consumes `fraud.assessment.requested.v1`, deduplicates by message id, and publishes `fraud.assessment.completed.v1`. Failures go to `fraud.assessment.failed.dlq`. No code in this repo produces the request topic yet.
 
-`GET /healthz` and `GET /readyz` respond on port `3001`. Readiness does not yet check Postgres or Kafka.
+`GET /healthz` and `GET /readyz` respond on port `3001` inside the container and on host port `13001`. Readiness does not yet check Postgres or Kafka.
 
-Compose already runs this app (`iris-anti-fraud`) and mounts `src/` for reload. A second `make -C apps/anti-fraud dev` collides on port 3001. For a host process, stop the container and copy `apps/anti-fraud/.env.example` to `.env`. That file expects a separate `antifraud` database on the same Postgres:
+Compose already runs this app (`ig-anti-fraud`) and mounts `src/` for reload. A second `make -C apps/anti-fraud dev` collides on host port 13001. For a host process, stop the container and copy `apps/anti-fraud/.env.example` to `.env`. That file expects a separate `antifraud` database on the same Postgres:
 
 ```bash
 docker compose -f infra/docker/docker-compose.yml exec postgres \

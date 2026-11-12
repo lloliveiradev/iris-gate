@@ -51,9 +51,20 @@ docker compose -f infra/docker/docker-compose.yml exec postgres \
 make -C apps/anti-fraud prisma-deploy
 ```
 
-`make up` already starts the anti-fraud container on port `3001` and hot-reloads its source, so `make dev` does not start it on the host. Run `make -C apps/anti-fraud dev` only after stopping that container, with `apps/anti-fraud/.env` copied from `.env.example`.
+`make up` already starts the anti-fraud container and publishes it on host port `13001` (the process inside the container still listens on `3001`) and hot-reloads its source, so `make dev` does not start it on the host. Run `make -C apps/anti-fraud dev` only after stopping that container, with `apps/anti-fraud/.env` copied from `.env.example`.
 
-The API listens on `:8080` with `postgres://iris:iris@localhost:5432/iris?sslmode=disable` and `localhost:9092`. Leave `ACQUIRER_URL` empty to use the fake acquirer. Migrations run on startup (`MIGRATE_ON_STARTUP=true`).
+The API listens on `:8080` with `postgres://iris:iris@localhost:15432/iris?sslmode=disable` and `localhost:19092`. Leave `ACQUIRER_URL` empty to use the fake acquirer. Migrations run on startup (`MIGRATE_ON_STARTUP=true`).
+
+Compose names the project `ig`. Containers are `ig-postgres`, `ig-kafka`, `ig-kafka-init`, `ig-karapace`, and `ig-anti-fraud`. The network is `ig`. Volumes are `ig-postgres-data` and `ig-kafka-data`. Host ports come from `infra/docker/.env` and stay off the well-known defaults so this stack does not collide with another Postgres or Kafka on the same machine:
+
+| Service    | Host port | Container port                                   |
+| ---------- | --------- | ------------------------------------------------ |
+| Postgres   | `15432`   | `5432`                                           |
+| Kafka      | `19092`   | `29092` published; `9092` for in-network clients |
+| Karapace   | `18081`   | `8081`                                           |
+| anti-fraud | `13001`   | `3001`                                           |
+| API        | `8080`    | host process, not Compose                        |
+| dashboard  | `3000`    | host process, not Compose                        |
 
 Open the dashboard at [http://localhost:3000/en](http://localhost:3000/en). Create a merchant and an API key against the API, then sign in with that `irk_` token.
 
@@ -157,7 +168,7 @@ Setup, branches, commits, and pull requests are in [CONTRIBUTING.md](CONTRIBUTIN
 
 ## Troubleshooting
 
-- **Port 3001 is taken.** Compose already runs anti-fraud. Stop it before a host `make -C apps/anti-fraud dev`.
-- **Port 5432 or 9092 is taken by another stack.** Set `POSTGRES_PORT` or `KAFKA_PORT` in `infra/docker/.env` and point `DATABASE_URL` or `KAFKA_BROKER` of the API at the new port.
+- **Port 13001 is taken.** Compose already publishes anti-fraud there. Stop that container before a host `make -C apps/anti-fraud dev`.
+- **A host port is still taken.** Change `POSTGRES_PORT`, `KAFKA_PORT`, `KARAPACE_PORT`, or `ANTI_FRAUD_PORT` in `infra/docker/.env`, then point `DATABASE_URL` or `KAFKA_BROKER` of the API at the Postgres and Kafka ports you chose. `KAFKA_ADVERTISED_LISTENERS` follows `KAFKA_PORT`.
 - **Contract check fails.** Run `make gen-contracts` and commit the generated files together with the spec.
-- **API cannot reach Postgres or Kafka.** `make ps` should show healthy `iris-postgres` and the Kafka container. Defaults assume `localhost:5432` and `localhost:9092`.
+- **API cannot reach Postgres or Kafka.** `make ps` should show healthy `ig-postgres` and `ig-kafka`. Defaults assume `localhost:15432` and `localhost:19092`. An `infra/docker/.env` created before those defaults still has the old ports; update it or delete it and run `make up` again. `make down` and `make nuke` affect only the `ig` project.

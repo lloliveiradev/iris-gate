@@ -2,7 +2,7 @@
 
 NestJS 12 worker that scores one fraud assessment per Kafka message. The rules live in `@iris-gate/fraud`. This app wires Prisma, KafkaJS, the inbox, and the outbox. It does not decide a payment and it does not serve the dashboard.
 
-`make up` already builds `apps/anti-fraud/Dockerfile.dev` and runs the container `iris-anti-fraud` on port `3001`, with `src/` and `prisma/` mounted for reload. A host `make -C apps/anti-fraud dev` uses the same port.
+`make up` already builds `apps/anti-fraud/Dockerfile.dev` and runs the container `ig-anti-fraud`. The process listens on port `3001`; Compose publishes host port `13001`. `src/` and `prisma/` are mounted for reload. A host `make -C apps/anti-fraud dev` listens on `13001` as well.
 
 Nothing in this repo publishes `fraud.assessment.requested.v1` yet. The process still boots, listens, and answers `/healthz`.
 
@@ -57,7 +57,7 @@ Prisma 7 specifics:
 
 ## Run on the host
 
-Stop the Compose service first, or port `3001` is already taken. `yarn dev` loads `apps/anti-fraud/.env` when that file exists.
+Stop the Compose service first, or host port `13001` is already taken. `yarn dev` loads `apps/anti-fraud/.env` when that file exists.
 
 ```bash
 cp apps/anti-fraud/.env.example apps/anti-fraud/.env
@@ -70,18 +70,18 @@ The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). Th
 
 `src/config/kafka.config.ts` is the source of these names. The group variable is `KAFKA_CONSUMER_GROUP`, as in `.env.example`; the Compose service leaves it unset, so the default applies.
 
-| Variable                  | Default in code                 | Used for                                              |
-| ------------------------- | ------------------------------- | ----------------------------------------------------- |
-| `PORT`                    | `3001`                          | HTTP listen                                           |
-| `DATABASE_URL`            | required by Prisma              | `antifraud` database                                  |
-| `KAFKA_BROKERS`           | `localhost:9092`                | comma-separated                                       |
-| `KAFKA_CLIENT_ID`         | `iris-anti-fraud`               | KafkaJS client                                        |
-| `KAFKA_CONSUMER_GROUP`    | `iris-anti-fraud`               | consumer group                                        |
-| `KAFKA_TOPIC_REQUEST`     | `fraud.assessment.requested.v1` | subscribe                                             |
-| `KAFKA_TOPIC_COMPLETED`   | `fraud.assessment.completed.v1` | configured; the use case publishes this name directly |
-| `KAFKA_TOPIC_DLQ`         | `fraud.assessment.failed.dlq`   | invalid messages                                      |
-| `OUTBOX_POLL_INTERVAL_MS` | `1000`                          | relay delay                                           |
-| `OUTBOX_BATCH_SIZE`       | `50`                            | rows per tick                                         |
+| Variable                  | Default in code                 | Used for                                                          |
+| ------------------------- | ------------------------------- | ----------------------------------------------------------------- |
+| `PORT`                    | `13001`                         | HTTP listen on the host. Compose sets `3001` inside the container |
+| `DATABASE_URL`            | required by Prisma              | `antifraud` database                                              |
+| `KAFKA_BROKERS`           | `localhost:19092`               | comma-separated host listener. Compose sets `kafka:9092`          |
+| `KAFKA_CLIENT_ID`         | `iris-anti-fraud`               | KafkaJS client                                                    |
+| `KAFKA_CONSUMER_GROUP`    | `iris-anti-fraud`               | consumer group                                                    |
+| `KAFKA_TOPIC_REQUEST`     | `fraud.assessment.requested.v1` | subscribe                                                         |
+| `KAFKA_TOPIC_COMPLETED`   | `fraud.assessment.completed.v1` | configured; the use case publishes this name directly             |
+| `KAFKA_TOPIC_DLQ`         | `fraud.assessment.failed.dlq`   | invalid messages                                                  |
+| `OUTBOX_POLL_INTERVAL_MS` | `1000`                          | relay delay                                                       |
+| `OUTBOX_BATCH_SIZE`       | `50`                            | rows per tick                                                     |
 
 Inside Compose the broker hostname is `kafka:9092`, not `localhost`.
 

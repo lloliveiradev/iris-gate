@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
-  const port = Number(process.env.PORT ?? 3001);
+  const port = Number(process.env.PORT ?? 13001);
 
   app.enableShutdownHooks();
   await app.listen(port);

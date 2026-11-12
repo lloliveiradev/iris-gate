@@ -9,20 +9,20 @@ type Config struct {
 	Env              string
 	MigrateOnStartup bool
 
-	// Acquirer: se AcquirerURL for vazio, apps/api usa FakeAcquirer (dev/CI).
-	// Apontar pro Stone (ou outro) sandbox quando a integração real entrar.
+	// AcquirerURL empty selects FakeAcquirer (dev and CI).
+	// Point it at a sandbox when a real acquirer integration lands.
 	AcquirerURL   string
 	AcquirerToken string
 
-	// Relay worker: pode ser desligado em ambientes sem Kafka (CI unit, etc.).
+	// Relay worker: turn it off in environments without Kafka (CI unit tests).
 	RelayEnabled bool
 }
 
 func Load() (Config, error) {
 	return Config{
 		HTTPAddr:         env("HTTP_ADDR", ":8080"),
-		DatabaseURL:      env("DATABASE_URL", "postgres://iris:iris@localhost:5432/iris?sslmode=disable"),
-		KafkaBroker:      env("KAFKA_BROKER", "localhost:9092"),
+		DatabaseURL:      env("DATABASE_URL", "postgres://iris:iris@localhost:15432/iris?sslmode=disable"),
+		KafkaBroker:      env("KAFKA_BROKER", "localhost:19092"),
 		Env:              env("ENV", "dev"),
 		MigrateOnStartup: env("MIGRATE_ON_STARTUP", "true") == "true",
 		AcquirerURL:      env("ACQUIRER_URL", ""),
