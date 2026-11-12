@@ -183,15 +183,11 @@ func newRig(t *testing.T) (*rig, application.IssueAPIKeyOutput) {
 
 	createMerchant := application.NewCreateMerchantUseCase(merchants, clock, ids)
 	issueAPIKey := application.NewIssueAPIKeyUseCase(merchants, keys, hasher, secrets, clock, ids)
-	revokeAPIKey := application.NewRevokeAPIKeyUseCase(keys, clock)
 	auth := application.NewAuthenticateAPIKeyUseCase(keys, merchants, hasher, clock)
 
 	r := chi.NewRouter()
 	httpapi.Mount(r, httpapi.Deps{
-		CreateMerchant: createMerchant,
-		IssueAPIKey:    issueAPIKey,
-		RevokeAPIKey:   revokeAPIKey,
-		Authenticate:   auth,
+		Authenticate: auth,
 	})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
@@ -266,7 +262,7 @@ func TestAuth_RevokedKey_Returns403(t *testing.T) {
 	t.Parallel()
 	r, issued := newRig(t)
 
-	// Revoke through the fake directly (POST /v1/api-keys/{id}/revoke would also work).
+	// Revoke through the repository: no HTTP route revokes keys any more.
 	if _, err := r.keys.Revoke(context.Background(), issued.APIKey.ID, time.Now()); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
@@ -277,21 +273,56 @@ func TestAuth_RevokedKey_Returns403(t *testing.T) {
 	}
 }
 
-func TestAuth_RevokedKey_Via_HTTP_Endpoint_Returns403(t *testing.T) {
+// TestBootstrapRoutes_AreNotMounted covers AC6 of phase 06 (defect D8): the
+// merchant and API key management routes are gone from HTTP. They answer 404
+// (or 405) for every method and never run a use case.
+func TestBootstrapRoutes_AreNotMounted(t *testing.T) {
 	t.Parallel()
 	r, issued := newRig(t)
 
-	// Revoke through the public endpoint.
-	revokeURL := r.server.URL + "/v1/api-keys/" + issued.APIKey.ID.String() + "/revoke"
-	resp, err := http.Post(revokeURL, "application/json", bytes.NewReader([]byte(`{}`)))
-	if err != nil || resp.StatusCode != http.StatusOK {
-		t.Fatalf("revoke endpoint: err=%v status=%d", err, resp.StatusCode)
+	revokePath := "/v1/api-keys/" + issued.APIKey.ID.String() + "/revoke"
+	cases := []struct{ method, path string }{
+		{http.MethodPost, "/v1/merchants"},
+		{http.MethodGet, "/v1/merchants"},
+		{http.MethodPost, "/v1/api-keys"},
+		{http.MethodGet, "/v1/api-keys"},
+		{http.MethodPost, revokePath},
+		{http.MethodDelete, revokePath},
+	}
+	for _, c := range cases {
+		t.Run(c.method+" "+c.path, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequest(c.method, r.server.URL+c.path, bytes.NewReader([]byte(`{}`)))
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := r.server.Client().Do(req)
+			if err != nil {
+				t.Fatalf("%s %s: %v", c.method, c.path, err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusMethodNotAllowed {
+				t.Fatalf("status = %d, want 404 or 405", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestBootstrapRoutes_DoNotRevokeKey proves the removed revoke route has no
+// side effect: the key still authenticates after the call.
+func TestBootstrapRoutes_DoNotRevokeKey(t *testing.T) {
+	t.Parallel()
+	r, issued := newRig(t)
+
+	resp, err := http.Post(r.server.URL+"/v1/api-keys/"+issued.APIKey.ID.String()+"/revoke", "application/json", bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		t.Fatalf("post revoke: %v", err)
 	}
 	_ = resp.Body.Close()
 
-	code, _ := r.get(t, "/v1/me", issued.Token)
-	if code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403", code)
+	if code, body := r.get(t, "/v1/me", issued.Token); code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (key must stay active); body=%s", code, body)
 	}
 }
 

@@ -1,18 +1,16 @@
-// Package httpapi expõe Identity como handlers chi.
+// Package httpapi exposes Identity as chi handlers.
 //
-// Toda a tradução entre DTOs gerados pelo OpenAPI (libs/contracts/...) e
-// objetos de domínio mora aqui. apps/api só compõe.
+// The translation between the OpenAPI-generated DTOs (libs/contracts/...) and
+// domain objects lives here. apps/api only composes.
 package httpapi
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	contracts "github.com/iris-gate/iris-gate/libs/contracts/generated/go/identity"
@@ -20,31 +18,22 @@ import (
 	"github.com/iris-gate/iris-gate/libs/identity/domain"
 )
 
-// Deps agrupa os use cases consumidos pelos handlers.
+// Deps groups the use cases consumed by the handlers. Merchant and API key
+// management are operator tasks (apps/api/cmd/irisctl), not HTTP routes.
 type Deps struct {
-	CreateMerchant *application.CreateMerchantUseCase
-	IssueAPIKey    *application.IssueAPIKeyUseCase
-	RevokeAPIKey   *application.RevokeAPIKeyUseCase
-	Authenticate   *application.AuthenticateAPIKeyUseCase
+	Authenticate *application.AuthenticateAPIKeyUseCase
 }
 
-// Mount registra as rotas de Identity em `r`.
+// Mount registers the Identity routes on r.
 //
-// /v1/merchants                   POST  (público — bootstrap)
-// /v1/api-keys                    POST  (público — bootstrap)
-// /v1/api-keys/{id}/revoke        POST  (público — bootstrap)
-// /v1/me                          GET   (protegido por RequireAPIKey)
+//	/v1/me    GET  (protected by RequireAPIKey)
 //
-// Hardening (require admin) entra na Fase 7.
+// There is no route to create merchants or to issue or revoke API keys (D8).
 func Mount(r chi.Router, d Deps) {
-	// No-op se nenhum use case foi cabeado (apps/api podem testar healthz
-	// sem precisar trazer Identity junto).
-	if d.CreateMerchant == nil && d.IssueAPIKey == nil && d.RevokeAPIKey == nil && d.Authenticate == nil {
+	// No-op when nothing is wired, so apps/api can serve healthz without Identity.
+	if d.Authenticate == nil {
 		return
 	}
-	r.Post("/v1/merchants", handleCreateMerchant(d.CreateMerchant))
-	r.Post("/v1/api-keys", handleIssueAPIKey(d.IssueAPIKey))
-	r.Post("/v1/api-keys/{id}/revoke", handleRevokeAPIKey(d.RevokeAPIKey))
 
 	r.Group(func(r chi.Router) {
 		r.Use(RequireAPIKey(d.Authenticate))
@@ -52,84 +41,16 @@ func Mount(r chi.Router, d Deps) {
 	})
 }
 
-func handleCreateMerchant(uc *application.CreateMerchantUseCase) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var body contracts.CreateMerchantRequest
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			problem(w, r, http.StatusBadRequest, "invalid_body", "body inválido")
-			return
-		}
-		m, err := uc.Execute(r.Context(), application.CreateMerchantInput{
-			LegalName:    body.LegalName,
-			Document:     body.Document,
-			ContactEmail: string(body.ContactEmail),
-		})
-		if err != nil {
-			mapError(w, r, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, toContractMerchant(m))
-	}
-}
-
-func handleIssueAPIKey(uc *application.IssueAPIKeyUseCase) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var body contracts.IssueApiKeyRequest
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			problem(w, r, http.StatusBadRequest, "invalid_body", "body inválido")
-			return
-		}
-		merchantID, err := uuid.Parse(body.MerchantId.String())
-		if err != nil {
-			problem(w, r, http.StatusBadRequest, "invalid_merchant_id", err.Error())
-			return
-		}
-		scopes := []string{}
-		if body.Scopes != nil {
-			scopes = *body.Scopes
-		}
-		out, err := uc.Execute(r.Context(), application.IssueAPIKeyInput{
-			MerchantID: merchantID,
-			Scopes:     scopes,
-		})
-		if err != nil {
-			mapError(w, r, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, contracts.IssueApiKeyResponse{
-			ApiKey: toContractAPIKey(out.APIKey),
-			Secret: out.Token,
-		})
-	}
-}
-
-func handleRevokeAPIKey(uc *application.RevokeAPIKeyUseCase) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		raw := chi.URLParam(r, "id")
-		id, err := uuid.Parse(raw)
-		if err != nil {
-			problem(w, r, http.StatusBadRequest, "invalid_id", err.Error())
-			return
-		}
-		k, err := uc.Execute(r.Context(), id)
-		if err != nil {
-			mapError(w, r, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, toContractAPIKey(k))
-	}
-}
-
 func handleMe(w http.ResponseWriter, r *http.Request) {
 	m, ok := MerchantFromContext(r.Context())
 	if !ok {
-		problem(w, r, http.StatusUnauthorized, "no_principal", "merchant ausente do contexto")
+		problem(w, r, http.StatusUnauthorized, "no_principal", "merchant missing from context")
 		return
 	}
 	writeJSON(w, http.StatusOK, toContractMerchant(m))
 }
 
-// ---------- mapeamento DTO ↔ domain ----------
+// ---------- DTO mapping ----------
 
 func toContractMerchant(m domain.Merchant) contracts.Merchant {
 	return contracts.Merchant{
@@ -139,23 +60,6 @@ func toContractMerchant(m domain.Merchant) contracts.Merchant {
 		ContactEmail: openapi_types.Email(m.ContactEmail),
 		Status:       contracts.MerchantStatus(m.Status),
 		CreatedAt:    m.CreatedAt,
-	}
-}
-
-func toContractAPIKey(k domain.APIKey) contracts.ApiKey {
-	scopes := k.Scopes
-	if scopes == nil {
-		scopes = []string{}
-	}
-	return contracts.ApiKey{
-		Id:         openapi_types.UUID(k.ID),
-		MerchantId: openapi_types.UUID(k.MerchantID),
-		Prefix:     k.Prefix,
-		Status:     contracts.ApiKeyStatus(k.Status),
-		Scopes:     scopes,
-		CreatedAt:  k.CreatedAt,
-		LastUsedAt: k.LastUsedAt,
-		RevokedAt:  k.RevokedAt,
 	}
 }
 
@@ -184,25 +88,6 @@ func problem(w http.ResponseWriter, r *http.Request, code int, title, detail str
 		slog.String("detail", detail),
 		slog.String("path", r.URL.Path),
 	)
-}
-
-// mapError traduz erros de domínio para responses HTTP problem+json.
-func mapError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, domain.ErrValidation):
-		problem(w, r, http.StatusBadRequest, "validation", err.Error())
-	case errors.Is(err, domain.ErrDocumentExists):
-		problem(w, r, http.StatusConflict, "document_exists", err.Error())
-	case errors.Is(err, domain.ErrMerchantNotFound), errors.Is(err, domain.ErrAPIKeyNotFound):
-		problem(w, r, http.StatusNotFound, "not_found", err.Error())
-	case errors.Is(err, domain.ErrAPIKeyInvalid):
-		problem(w, r, http.StatusUnauthorized, "invalid_credentials", err.Error())
-	case errors.Is(err, domain.ErrAPIKeyRevoked):
-		problem(w, r, http.StatusForbidden, "revoked", err.Error())
-	default:
-		slog.LogAttrs(r.Context(), slog.LevelError, "http.unhandled", slog.Any("err", err))
-		problem(w, r, http.StatusInternalServerError, "internal", "internal error")
-	}
 }
 
 // ---------- ctx helpers ----------

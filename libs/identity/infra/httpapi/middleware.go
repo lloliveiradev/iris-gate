@@ -10,19 +10,19 @@ import (
 	"github.com/iris-gate/iris-gate/libs/identity/domain"
 )
 
-// RequireAPIKey lê `Authorization: Bearer <token>`, autentica via use case
-// e injeta merchant + api key no contexto.
+// RequireAPIKey reads `Authorization: Bearer <token>`, authenticates it through
+// the use case and puts the merchant and API key in the request context.
 //
-// Mapeamento de erros (atende critério da Fase 2):
-//   - header ausente / malformado → 401
-//   - token inválido / hash não bate → 401
-//   - api key revogada → 403
+// Error mapping (phase 2 acceptance criterion):
+//   - missing or malformed header → 401
+//   - invalid token or hash mismatch → 401
+//   - revoked API key → 403
 func RequireAPIKey(uc *application.AuthenticateAPIKeyUseCase) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, ok := bearerToken(r)
 			if !ok {
-				problem(w, r, http.StatusUnauthorized, "missing_credentials", "Authorization header ausente ou malformado")
+				problem(w, r, http.StatusUnauthorized, "missing_credentials", "Authorization header missing or malformed")
 				return
 			}
 

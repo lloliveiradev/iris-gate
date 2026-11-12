@@ -1,12 +1,5 @@
 import { IrisApiError } from './errors';
-import type {
-  CreateMerchantRequest,
-  CreatePaymentIntentRequest,
-  IssueApiKeyRequest,
-  IssueApiKeyResponse,
-  Merchant,
-  PaymentIntent,
-} from './types';
+import type { CreatePaymentIntentRequest, Merchant, PaymentIntent } from './types';
 
 export interface IrisClientOptions {
   baseUrl: string;
@@ -29,20 +22,8 @@ export class IrisClient {
     return new IrisClient({ baseUrl: this.baseUrl, apiKey, fetch: this.fetchImpl });
   }
 
-  async createMerchant(input: CreateMerchantRequest): Promise<Merchant> {
-    return this.request<Merchant>('POST', '/v1/merchants', input);
-  }
-
   async me(): Promise<Merchant> {
     return this.request<Merchant>('GET', '/v1/me');
-  }
-
-  async issueApiKey(input: IssueApiKeyRequest): Promise<IssueApiKeyResponse> {
-    return this.request<IssueApiKeyResponse>('POST', '/v1/api-keys', input);
-  }
-
-  async revokeApiKey(id: string): Promise<void> {
-    await this.request<unknown>('POST', `/v1/api-keys/${encodeURIComponent(id)}/revoke`);
   }
 
   async createPaymentIntent(

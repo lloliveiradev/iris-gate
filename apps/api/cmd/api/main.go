@@ -61,19 +61,12 @@ func main() {
 		slog.Info("migrations applied")
 	}
 
-	// Identity wiring (Phase 2).
+	// Identity wiring. Merchants and API keys are managed by cmd/irisctl, not HTTP.
 	identityRepo := identitypg.New(pool)
 	merchants, keys := identityRepo.Repos()
-	hasher := identityhasher.NewDefault()
-	identityClock := identityapp.SystemClock{}
-	identityIDs := identityapp.UUIDGen{}
-	secrets := identityhasher.SecretGenerator{}
-
 	identityDeps := identityhttp.Deps{
-		CreateMerchant: identityapp.NewCreateMerchantUseCase(merchants, identityClock, identityIDs),
-		IssueAPIKey:    identityapp.NewIssueAPIKeyUseCase(merchants, keys, hasher, secrets, identityClock, identityIDs),
-		RevokeAPIKey:   identityapp.NewRevokeAPIKeyUseCase(keys, identityClock),
-		Authenticate:   identityapp.NewAuthenticateAPIKeyUseCase(keys, merchants, hasher, identityClock),
+		Authenticate: identityapp.NewAuthenticateAPIKeyUseCase(
+			keys, merchants, identityhasher.NewDefault(), identityapp.SystemClock{}),
 	}
 
 	// Payments wiring (Phase 3).

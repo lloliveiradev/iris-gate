@@ -4,6 +4,5 @@
 import type { Identity } from '@iris-gate/contracts';
 
 export type Merchant = Identity.Merchant;
-export type CreateMerchantRequest = Identity.CreateMerchantRequest;
 export type MerchantStatus = Identity.MerchantStatus;
 export type Problem = Identity.Problem;
