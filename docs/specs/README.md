@@ -8,7 +8,7 @@ The design was approved by the project owner on 2026-11-10. The overall picture,
 
 | Phase | Spec                                                                       | Depends on | Status                            |
 | ----- | -------------------------------------------------------------------------- | ---------- | --------------------------------- |
-| 06    | [Security baseline](phase-06-security-baseline.md)                         | none       | ready                             |
+| 06    | [Security baseline](phase-06-security-baseline.md)                         | none       | in progress                       |
 | 07    | [Database roles and tenant isolation](phase-07-tenant-isolation.md)        | 06         | ready                             |
 | 08    | [Identity and access API](phase-08-identity-access-api.md)                 | 07         | ready                             |
 | 09    | [Dashboard and console access](phase-09-dashboard-console-access.md)       | 08         | ready                             |
@@ -51,7 +51,7 @@ Later, without a spec yet: observability, AWS deployment with Terraform, ledger,
 
 ## Branches and merges
 
-- Work on `phase/<NN>-<slug>`, branched from `main`. Open one pull request per phase.
+- Work on `phase/<NN>-<slug>` (or `phase/<NN>-<task-slug>` when the plan splits the phase into tasks), branched from `main`. Open one pull request per task: tasks of a phase run in parallel, each with its own branch, card and pull request.
 - CI must be green before the PR is ready for review.
 - The project owner merges. While a PR waits, the next phase may start on a branch stacked on the previous one.
 
