@@ -23,7 +23,7 @@ make install-hooks
 
 To install Node dependencies without starting the stack, run `yarn` from the repository root. Go modules resolve through `go.work`. Do not add pnpm, npm, or Turborepo.
 
-`make dev` starts the stack, then the API (`:8080`) and the dashboard (`:3000`). The anti-fraud service is already the Compose container on `:3001`. See [`README.md`](README.md) for ports, the first-run antifraud database, and troubleshooting. `make help` lists the root targets.
+`make dev` starts the stack, then the API (`:8080`) and the dashboard (`:3000`). The anti-fraud service is already the Compose container, published on `:13001`. See [`README.md`](README.md) for ports, the first-run antifraud database, and troubleshooting. `make help` lists the root targets.
 
 ## Branch naming
 

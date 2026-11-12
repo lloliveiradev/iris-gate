@@ -58,16 +58,16 @@ REST Client files in `tests/` exercise this surface. Run `tests/identity.http` b
 
 ## Environment
 
-| Variable             | Default                                                    |
-| -------------------- | ---------------------------------------------------------- |
-| `HTTP_ADDR`          | `:8080`                                                    |
-| `DATABASE_URL`       | `postgres://iris:iris@localhost:5432/iris?sslmode=disable` |
-| `KAFKA_BROKER`       | `localhost:9092` (comma-separated)                         |
-| `ENV`                | `dev` (log field only)                                     |
-| `MIGRATE_ON_STARTUP` | `true`                                                     |
-| `ACQUIRER_URL`       | empty, which selects the fake acquirer                     |
-| `ACQUIRER_TOKEN`     | empty, sent only with the HTTP acquirer                    |
-| `RELAY_ENABLED`      | `true`                                                     |
+| Variable             | Default                                                     |
+| -------------------- | ----------------------------------------------------------- |
+| `HTTP_ADDR`          | `:8080`                                                     |
+| `DATABASE_URL`       | `postgres://iris:iris@localhost:15432/iris?sslmode=disable` |
+| `KAFKA_BROKER`       | `localhost:19092` (comma-separated)                         |
+| `ENV`                | `dev` (log field only)                                      |
+| `MIGRATE_ON_STARTUP` | `true`                                                      |
+| `ACQUIRER_URL`       | empty, which selects the fake acquirer                      |
+| `ACQUIRER_TOKEN`     | empty, sent only with the HTTP acquirer                     |
+| `RELAY_ENABLED`      | `true`                                                      |
 
 ## Layout
 

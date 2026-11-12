@@ -158,7 +158,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 ## Toolchain
 
 - Run `yarn` from the repo root. Go modules resolve through `go.work`.
-- `make test`, `make lint` and `make build` run in every package (`PACKAGES` in the root Makefile) that defines the target. `make dev` starts the stack, then `apps/api` and `apps/web` on the host; anti-fraud is already the Compose service on `:3001`.
+- `make test`, `make lint` and `make build` run in every package (`PACKAGES` in the root Makefile) that defines the target. `make dev` starts the stack, then `apps/api` and `apps/web` on the host; anti-fraud is already the Compose service, published on `:13001` (the container process listens on `3001`). The Compose project is `ig` (containers `ig-*`, network `ig`, host ports Postgres `15432`, Kafka `19092`, Karapace `18081`).
 - Go tests use `-race`. `make -C libs/identity test-int` needs Postgres.
 - Format with `gofumpt` and Prettier. Lint with golangci-lint v2 and ESLint. Lefthook rejects commits that are not `type(scope): subject`. Do not skip hooks unless the owner asks.
 - Shared tool configs live in `configs/` (see `configs/README.md`): `typescript/` bases that every `tsconfig.json` extends, `eslint/node.mjs`, and `go/golangci.yml`. Their architecture rules (depguard in Go, `no-restricted-imports` in TypeScript) enforce the clean-architecture and context boundaries above. Never silence them with `//nolint` or `eslint-disable`; fix the dependency. A new Go module or context gets its isolation rule in `configs/go/golangci.yml`.

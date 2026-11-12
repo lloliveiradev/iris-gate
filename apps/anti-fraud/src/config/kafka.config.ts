@@ -14,7 +14,7 @@ export interface KafkaConfig {
 }
 
 export function loadKafkaConfig(): KafkaConfig {
-  const brokers = (process.env.KAFKA_BROKERS ?? 'localhost:9092')
+  const brokers = (process.env.KAFKA_BROKERS ?? 'localhost:19092')
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
