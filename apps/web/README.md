@@ -12,7 +12,7 @@ Open [http://localhost:3000/en](http://localhost:3000/en). Webpack is the defaul
 
 ## Screens
 
-Locales are `en`, `pt`, and `es`. The default is `en`. `src/middleware.ts` only applies the `next-intl` prefix, so every page lives under `/[locale]`. `<html lang>` uses `pt-BR`, `en`, and `es`.
+Locales are `en`, `pt`, and `es`. The default is `en`. `src/proxy.ts` only applies the `next-intl` prefix, so every page lives under `/[locale]`. `<html lang>` uses `pt-BR`, `en`, and `es`.
 
 | Route                                      | What it does                                                    |
 | ------------------------------------------ | --------------------------------------------------------------- |
