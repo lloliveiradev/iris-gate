@@ -4,11 +4,11 @@ Deployable processes. Each directory here is one process you can run. Domain rul
 
 There are three apps. Nothing else under this folder is a service.
 
-| App                         | Process                  | Port   | What it owns                                                               |
-| --------------------------- | ------------------------ | ------ | -------------------------------------------------------------------------- |
-| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080` | HTTP composition, Postgres pool, startup migrations, payments outbox relay |
-| [`web`](web/)               | Next.js 16.4, React 19.3 | `3000` | Merchant UI, i18n, iron-session                                            |
-| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7      | `3001` | Kafka consumer, Prisma, inbox and outbox                                   |
+| App                         | Process                  | Port    | What it owns                                                                       |
+| --------------------------- | ------------------------ | ------- | ---------------------------------------------------------------------------------- |
+| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080`  | HTTP composition, Postgres pool, startup migrations, payments outbox relay         |
+| [`web`](web/)               | Next.js 16.4, React 19.3 | `3000`  | Merchant UI, i18n, iron-session                                                    |
+| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7      | `13001` | Kafka consumer, Prisma, inbox and outbox. Host port; the process listens on `3001` |
 
 An app may depend on `libs/`. A lib must not import an app. One app must not import another. If a rule is being written under `apps/`, it belongs in the matching `libs/<context>`.
 
