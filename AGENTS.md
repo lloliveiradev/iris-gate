@@ -10,6 +10,7 @@ Product overview, ports and the quickstart are in `README.md`. Design intent is 
 2. Minimum code that solves the problem. Nothing speculative.
 3. Touch only what the task needs. Clean up only your own mess, plus the conventions pass below.
 4. Define success criteria. Loop until verified.
+5. Keep tasks and pull requests small and focused: one objective, a few files.
 
 ### Delivery phases
 
@@ -17,7 +18,7 @@ Planned work is spec-driven. Before implementing a phase, read `docs/specs/READM
 
 ### Track the work on Trello
 
-Every agent that implements work here (Cursor, Codex, Claude, Antigravity or any other) tracks it on the Trello board **IrisGate**, in autonomous mode, through the `pm-tasks-trello` skill (the Trello adapter) and the `pm-tasks-core` skill (the vocabulary and the autonomous-mode contract). Read both skills before the first Trello call.
+Coding agents do not touch Trello. The orchestrator owns the board **IrisGate** and is the only agent that creates, moves, comments on, assigns, or closes cards. It does that in autonomous mode, through the `pm-tasks-trello` skill (the Trello adapter) and the `pm-tasks-core` skill (the vocabulary and the autonomous-mode contract). The notes below are for the orchestrator. Read both skills before the first Trello call.
 
 - **Identity.** Agents act as the Trello member **Enki** (username `enki1`, alias `me`); its token lives in the Trello MCP server configuration. The project owner is **Leonardo** (alias `owner`). Never ask for, print or commit the token.
 - **Config.** `.trello.json` at the repo root (local and gitignored; never commit it) holds the board, list, label and member ids, `defaults.escalateToAlias: owner`, and the `autonomous` block (enabled, allowlist, scope, audit-log path). Refer to lists, labels and members by alias, never by hard-coded id.
@@ -28,8 +29,8 @@ Board flow: **Backlog → WIP → Review → Done**. A coding agent never moves 
 | List    | A card goes there when                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Backlog | it is created from the phase plan: one card per plan task, named `Phase NN · <task>` with no `[area]` prefix (the area goes in labels), with the task's steps as a checklist, labels for the area (`api`, `web`, `antifraud`, `core`, `messaging`, `infra`, `ci`, `security`, `identity`, `payments`, `contracts`, `docs`), plus `blocker`, plus one agent label per card (`agent:cursor`, `agent:claude`, `agent:agy`), and links to the plan and the spec in the description |
-| WIP     | work on that task starts; this is the first Trello call of the task                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Review  | the pull request is open and CI is green: the coding agent moves the card here, comments the pull request link, assigns `owner`, and stops. A decision the spec does not cover, a conflict between documents, a visual change, or an owner gate also stays here                                                                                                                                                                                                                |
+| WIP     | work on that task starts; the orchestrator moves the card here                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Review  | the pull request is open and CI is green: the orchestrator moves the card here, comments the pull request link, and assigns `owner`. A decision the spec does not cover, a conflict between documents, a visual change, or an owner gate also stays here                                                                                                                                                                                                                       |
 | Done    | the owner has merged the pull request. Only the orchestrator moves the card here and closes it. A coding agent never does                                                                                                                                                                                                                                                                                                                                                      |
 
 - Mirror every transition as it happens, never in a sweep at the end. Check each checklist item as soon as that step is verified.
@@ -51,6 +52,7 @@ Board flow: **Backlog → WIP → Review → Done**. A coding agent never moves 
 - Never push to `main` directly (protected by a ruleset) and never force-push; work on a branch and open a PR.
 - Never merge your own PR; the owner reviews and merges.
 - Pull request title and body are written in English and filled from [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). Pass that filled file to `gh pr create --body-file`, or open the pull request in the GitHub UI so the template is inserted. Code, comments, docs, commits and pull requests are all in English.
+- **Run metrics.** Fill the `## Run metrics` section in every pull request you open, and update it if you push fixes. Record the agent, model, effort, wall time, tokens or cost, and fix rounds. Write `n/a` for a value the agent cannot see.
 
 ### Explore with CodeGraph first
 
@@ -98,6 +100,7 @@ Project skills live in `.agents/skills/` (symlinked from `.claude/skills`). Each
 - Small functions with one level of abstraction. Return early instead of nesting.
 - No dead code, commented-out code, unused parameters or speculative options.
 - No magic numbers or strings: name them as constants or configuration.
+- Fake test values (tokens, keys) live in shared named constants or fixtures, never as repeated literals.
 - Comments explain why, not what. Exported Go identifiers and public TypeScript APIs have doc comments.
 - Errors are wrapped with context (`fmt.Errorf("load intent: %w", err)` in Go) and never swallowed.
 - Go: `context.Context` is the first parameter of anything that does I/O; no `panic` outside `main` and tests; table-driven tests.
@@ -163,6 +166,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - `make test`, `make lint` and `make build` run in every package (`PACKAGES` in the root Makefile) that defines the target. `make dev` starts the stack, then `apps/api` and `apps/web` on the host; anti-fraud is already the Compose service, published on `:13001` (the container process listens on `3001`). The Compose project is `ig` (containers `ig-*`, network `ig`, host ports Postgres `15432`, Kafka `19092`, Karapace `18081`).
 - Go tests use `-race`. `make -C libs/identity test-int` needs Postgres.
 - Format with `gofumpt` and Prettier. Lint with golangci-lint v2 and ESLint. Lefthook rejects commits that are not `type(scope): subject`. Do not skip hooks unless the owner asks.
+- Gitleaks false positives are handled with narrow `.gitleaksignore` fingerprints or a single-file allowlist, never by rewriting history.
 - Shared tool configs live in `configs/` (see `configs/README.md`): `typescript/` bases that every `tsconfig.json` extends, `eslint/node.mjs`, and `go/golangci.yml`. Their architecture rules (depguard in Go, `no-restricted-imports` in TypeScript) enforce the clean-architecture and context boundaries above. Never silence them with `//nolint` or `eslint-disable`; fix the dependency. A new Go module or context gets its isolation rule in `configs/go/golangci.yml`.
 - Infra files go in `infra/`, developer scripts in `tools/` behind a root `make` target, design docs in `docs/design/` (the web design system is in `docs/design/design-system/`).
 - New dashboard copy goes in `apps/web/messages/en.json`, `pt.json` and `es.json`. Default locale is `en`. Routes always wear a prefix.
