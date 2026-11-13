@@ -4,17 +4,11 @@ NestJS 12 worker that scores one fraud assessment per Kafka message. The rules l
 
 `make up` already builds `apps/anti-fraud/Dockerfile.dev` and runs the container `ig-anti-fraud`. The process listens on port `3001`; Compose publishes host port `13001`. `src/` and `prisma/` are mounted for reload. A host `make -C apps/anti-fraud dev` listens on `13001` as well.
 
-Nothing in this repo publishes `fraud.assessment.requested.v1` yet. The process still boots, listens, and answers `/healthz`.
+The Kafka assessment request topic was retired in phase 10; synchronous scoring is defined by `libs/contracts/http/fraud-internal.openapi.yaml`. The process boots, runs the outbox relay, and answers `/healthz`.
 
 ## What a message does
 
-The consumer subscribes to `fraud.assessment.requested.v1` from the end of the log (`fromBeginning: false`).
-
-1. The idempotency id is the `event-id` header, or the Kafka message key when the header is absent. A message with neither goes to `fraud.assessment.failed.dlq`.
-2. The body must be JSON with `event_id`, `occurred_at`, `assessment_id`, `payment_intent_id`, `merchant_id`, `account_ref`, `amount_cents` (positive integer), and `currency` (`A-Z` × 3). A bad body or a failed parse goes to the DLQ. The consumer keeps running.
-3. `AssessRiskUseCase` inserts the id into `InboxMessage`. A duplicate id returns the previous decision and does not score again.
-4. Rules from `libs/fraud` run against `Account` and `InvoiceAttempt`. The result is stored on `RiskAssessment` and enqueued in `OutboxMessage` in the same database transaction.
-5. `OutboxRelayService` polls unpublished rows (default every `1000` ms, batches of `50`) and publishes `fraud.assessment.completed.v1` with headers `event-id`, `event-type`, `published-at`, and `traceparent` when the request had one.
+The Kafka request consumer was removed in phase 10; scoring moves to a synchronous internal endpoint (`POST /internal/v1/risk-assessments`). `OutboxRelayService` polls unpublished rows (default every `1000` ms, batches of `50`) and publishes `fraud.assessment.completed.v1` with headers `event-id`, `event-type`, `published-at`, and `traceparent` when the request had one.
 
 `GET /healthz` returns `{ "status": "ok" }`. `GET /readyz` returns `{ "status": "ready" }`. Neither checks Postgres or Kafka.
 
@@ -77,7 +71,6 @@ The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). Th
 | `KAFKA_BROKERS`           | `localhost:19092`               | comma-separated host listener. Compose sets `kafka:9092`          |
 | `KAFKA_CLIENT_ID`         | `iris-anti-fraud`               | KafkaJS client                                                    |
 | `KAFKA_CONSUMER_GROUP`    | `iris-anti-fraud`               | consumer group                                                    |
-| `KAFKA_TOPIC_REQUEST`     | `fraud.assessment.requested.v1` | subscribe                                                         |
 | `KAFKA_TOPIC_COMPLETED`   | `fraud.assessment.completed.v1` | configured; the use case publishes this name directly             |
 | `KAFKA_TOPIC_DLQ`         | `fraud.assessment.failed.dlq`   | invalid messages                                                  |
 | `OUTBOX_POLL_INTERVAL_MS` | `1000`                          | relay delay                                                       |
@@ -100,16 +93,16 @@ prisma/                     schema and SQL migrations
 
 From the repo root:
 
-| Target               | Effect                                                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `dev`                | rebuild `@iris-gate/fraud`, then `nest start --watch`                                                         |
-| `build` / `start`    | compile the lib and this app; start runs `node dist/main.js`                                                  |
-| `test`               | Jest. Current specs cover `parseAssessmentRequest` and the health controller. Rule tests live in `libs/fraud` |
-| `lint` / `typecheck` | ESLint and `tsc --noEmit`                                                                                     |
-| `prisma-generate`    | Prisma client                                                                                                 |
-| `prisma-migrate`     | `prisma migrate dev`                                                                                          |
-| `prisma-deploy`      | `prisma migrate deploy`                                                                                       |
-| `clean`              | `node_modules`, `dist`, coverage, `tsconfig.tsbuildinfo`                                                      |
+| Target               | Effect                                                                           |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `dev`                | rebuild `@iris-gate/fraud`, then `nest start --watch`                            |
+| `build` / `start`    | compile the lib and this app; start runs `node dist/main.js`                     |
+| `test`               | Jest. Current specs cover the health controller. Rule tests live in `libs/fraud` |
+| `lint` / `typecheck` | ESLint and `tsc --noEmit`                                                        |
+| `prisma-generate`    | Prisma client                                                                    |
+| `prisma-migrate`     | `prisma migrate dev`                                                             |
+| `prisma-deploy`      | `prisma migrate deploy`                                                          |
+| `clean`              | `node_modules`, `dist`, coverage, `tsconfig.tsbuildinfo`                         |
 
 ## Boundaries
 

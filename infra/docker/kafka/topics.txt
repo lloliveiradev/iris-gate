@@ -8,6 +8,5 @@ payments.payment_intent.authorized.v1 3
 payments.payment_intent.captured.v1 3
 
 # fraud
-fraud.assessment.requested.v1 3
 fraud.assessment.completed.v1 3
 fraud.assessment.failed.dlq 1

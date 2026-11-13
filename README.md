@@ -108,7 +108,7 @@ capture:   authorized → captured    (a repeat call is a no-op)
 fail:      pending → failed
 ```
 
-`apps/anti-fraud` consumes `fraud.assessment.requested.v1`, deduplicates with its inbox, runs the rules in `libs/fraud`, and publishes `fraud.assessment.completed.v1` through its own outbox. The AsyncAPI file defines the request topic. No producer in this repo writes it yet.
+`apps/anti-fraud` runs the rules in `libs/fraud` and publishes `fraud.assessment.completed.v1` through its own outbox. The Kafka assessment request topic was retired in phase 10; synchronous risk scoring is defined in `libs/contracts/http/fraud-internal.openapi.yaml`.
 
 `refunded` and `canceled` are status names only. There is no use case for them yet.
 

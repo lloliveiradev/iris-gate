@@ -50,7 +50,6 @@ Kafka has two listeners. Inside the Compose network clients use `kafka:9092`. On
 payments.payment_intent.created.v1
 payments.payment_intent.authorized.v1
 payments.payment_intent.captured.v1
-fraud.assessment.requested.v1
 fraud.assessment.completed.v1
 fraud.assessment.failed.dlq
 ```

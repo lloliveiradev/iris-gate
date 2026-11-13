@@ -9,10 +9,11 @@
   "exports": {
     ".": "./index.ts",
     "./identity": "./generated/ts/identity.d.ts",
-    "./payments": "./generated/ts/payments.d.ts"
+    "./payments": "./generated/ts/payments.d.ts",
+    "./fraud-internal": "./generated/ts/fraud-internal.d.ts"
   },
   "scripts": {
-    "gen": "openapi-typescript http/identity.openapi.yaml -o generated/ts/identity.d.ts && openapi-typescript http/payments.openapi.yaml -o generated/ts/payments.d.ts",
+    "gen": "openapi-typescript http/identity.openapi.yaml -o generated/ts/identity.d.ts && openapi-typescript http/payments.openapi.yaml -o generated/ts/payments.d.ts && openapi-typescript http/fraud-internal.openapi.yaml -o generated/ts/fraud-internal.d.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
