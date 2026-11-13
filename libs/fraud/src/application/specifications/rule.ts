@@ -1,11 +1,10 @@
 import { FraudReasonCode } from '../../domain/reason';
-import { AccountSnapshot, InvoiceHistoryRepo } from '../ports';
+import { FeatureSnapshot } from '../feature-snapshot';
 
+/** Everything a rule may read. Rules do no I/O: history arrives through `features`. */
 export interface RuleContext {
-  account: AccountSnapshot;
+  features: FeatureSnapshot;
   amountCents: number;
-  paymentIntentId: string;
-  history: InvoiceHistoryRepo;
   now: Date;
 }
 
@@ -17,5 +16,11 @@ export interface RuleOutcome {
 
 export interface FraudSpecification {
   readonly code: FraudReasonCode;
-  evaluate(ctx: RuleContext): Promise<RuleOutcome>;
+  evaluate(ctx: RuleContext): RuleOutcome;
 }
+
+export const NO_MATCH: RuleOutcome = Object.freeze({
+  matched: false,
+  baseScore: 0,
+  description: '',
+});

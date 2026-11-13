@@ -1,8 +1,6 @@
+import { ABOVE_INT32_AMOUNT_CENTS, UNSAFE_AMOUNT_CENTS } from '../application/fixtures';
 import { Decision } from './decision';
-import {
-  AssessmentAlreadyCompletedError,
-  InvalidAssessmentInputError,
-} from './errors';
+import { AssessmentAlreadyCompletedError, InvalidAssessmentInputError } from './errors';
 import { FraudReasonCode, FraudReason } from './reason';
 import { AssessmentStatus, RiskAssessment } from './risk-assessment';
 
@@ -31,6 +29,7 @@ describe('RiskAssessment', () => {
     ['negative amount', { amountCents: -1 }],
     ['fractional amount', { amountCents: 1.5 }],
     ['zero amount', { amountCents: 0 }],
+    ['unsafe integer amount', { amountCents: UNSAFE_AMOUNT_CENTS }],
     ['lowercase currency', { currency: 'brl' }],
     ['short currency', { currency: 'BR' }],
   ])('rejects invalid input: %s', (_label, override) => {
@@ -39,10 +38,15 @@ describe('RiskAssessment', () => {
     );
   });
 
+  it('accepts amounts above the 32-bit integer range', () => {
+    const a = RiskAssessment.create({ ...baseInput(), amountCents: ABOVE_INT32_AMOUNT_CENTS });
+    expect(a.amountCents).toBe(ABOVE_INT32_AMOUNT_CENTS);
+  });
+
   it('completes with decision/score/reasons', () => {
     const a = RiskAssessment.create(baseInput());
     const reasons: FraudReason[] = [
-      { code: FraudReasonCode.SUSPICIOUS_ACCOUNT, weight: 1, score: 100, description: 'flag' },
+      { code: FraudReasonCode.BLOCKED_CARD, weight: 1, score: 100, description: 'flag' },
     ];
     const completedAt = new Date('2026-05-10T12:00:01Z');
     a.complete(Decision.REJECT, 100, reasons, completedAt);

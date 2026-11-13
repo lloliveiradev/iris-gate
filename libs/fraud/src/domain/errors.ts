@@ -9,3 +9,5 @@ export class InvalidScoreError extends FraudDomainError {}
 export class InvalidThresholdsError extends FraudDomainError {}
 export class AssessmentAlreadyCompletedError extends FraudDomainError {}
 export class InvalidAssessmentInputError extends FraudDomainError {}
+export class InvalidFeatureSnapshotError extends FraudDomainError {}
+export class InvalidRuleConfigError extends FraudDomainError {}
