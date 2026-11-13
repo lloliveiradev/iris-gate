@@ -153,7 +153,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 
 ## Fraud
 
-- The payments outbox publishes only `payments.payment_intent.{created,authorized,captured}.v1`. `apps/anti-fraud` consumes `fraud.assessment.requested.v1` and publishes `fraud.assessment.completed.v1`. Nothing in the tree produces the request topic; phase 10 replaces it with a synchronous endpoint. Do not build that bridge.
+- The payments outbox publishes only `payments.payment_intent.{created,authorized,captured}.v1`. `apps/anti-fraud` no longer consumes `fraud.assessment.requested.v1` and publishes `fraud.assessment.completed.v1`; the topic is retired (phase 10) and the synchronous contract is `libs/contracts/http/fraud-internal.openapi.yaml` (endpoint lands in a later task).
 - Rules are specifications in `libs/fraud`, configured by code and weight. Defaults: `SUSPICIOUS_ACCOUNT` 1.0, `UNUSUAL_AMOUNT` 0.6, `FREQUENT_HIGH_VALUE` 0.5. Thresholds default to review 30 and reject 70, both in `0..100`, with review `<=` reject.
 - Uncertainty fails closed: `REVIEW` or `REJECT`, never a fallback `APPROVE`.
 - `apps/anti-fraud` is the Nest composition root (Prisma, Kafka, inbox, outbox). It runs the built `@iris-gate/fraud` package. Change a rule in the lib. Yarn 4 does not run `pre*` scripts, so the `dev`, `build` and `typecheck` scripts build `@iris-gate/fraud` and run `prisma generate` themselves.
