@@ -1,13 +1,13 @@
 # libs/contracts — codegen pipeline
 #
-# Tudo é declarado pra rodar a partir do diretório `libs/contracts/`.
-# As specs OpenAPI (`http/*.yaml`) são single source of truth — gerar tipos é mecânico.
+# Everything is declared to run from `libs/contracts/`.
+# OpenAPI specs (`http/*.yaml`) are the single source of truth — generating types is mechanical.
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
-# Specs com paths reais (skeletons sem `paths` são pulados automaticamente).
+# Specs with concrete paths (skeletons without `paths` are skipped automatically).
 HTTP_SPECS := http/identity.openapi.yaml http/payments.openapi.yaml http/fraud-internal.openapi.yaml
 
 C_RST := \033[0m
@@ -15,17 +15,17 @@ C_BLD := \033[1m
 C_CYN := \033[36m
 
 .PHONY: help
-help: ## Mostra esta ajuda
-	@awk 'BEGIN {FS = ":.*##"; printf "\n$(C_BLD)libs/contracts$(C_RST) — alvos:\n"} \
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\n$(C_BLD)libs/contracts$(C_RST) — targets:\n"} \
 		/^[a-zA-Z_0-9-]+:.*?##/ { printf "  $(C_CYN)%-14s$(C_RST) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: gen
-gen: gen-go gen-ts ## Gera tipos Go + TS
+gen: gen-go gen-ts ## Generate Go + TS types
 
 .PHONY: gen-go
-gen-go: ## Gera tipos Go (oapi-codegen) — registrado como tool em generated/go/go.mod
+gen-go: ## Generate Go types (oapi-codegen) — registered as a tool in generated/go/go.mod
 	@mkdir -p generated/go/identity generated/go/payments generated/go/fraudinternal
-	@# Filtra o WARNING conhecido de OpenAPI 3.1.x (oapi-codegen v2 ainda não suporta nativamente).
+	@# Filter out the known OpenAPI 3.1.x warning (oapi-codegen v2 does not support it natively yet).
 	go -C generated/go tool oapi-codegen \
 		--config ../../codegen/identity.go.yaml \
 		../../http/identity.openapi.yaml \
@@ -41,17 +41,17 @@ gen-go: ## Gera tipos Go (oapi-codegen) — registrado como tool em generated/go
 	go -C generated/go mod tidy
 
 .PHONY: gen-ts
-gen-ts: ## Gera tipos TS (openapi-typescript)
+gen-ts: ## Generate TS types (openapi-typescript)
 	@mkdir -p generated/ts
 	yarn run gen
 
 .PHONY: check
-check: ## Roda gen + falha se houver drift (CI gate)
+check: ## Run gen + fail if generated files drifted (CI gate)
 	$(MAKE) gen
 	@if ! git diff --exit-code -- generated/ ; then \
 		echo ""; \
-		echo "✗ tipos gerados estão fora de sync com as specs."; \
-		echo "  rode 'make gen-contracts' na raiz e comite generated/."; \
+		echo "✗ generated types are out of sync with the specs."; \
+		echo "  run 'make gen-contracts' at the root and commit generated/."; \
 		exit 1; \
 	fi
 	@echo "✓ contratos em sync."
@@ -61,5 +61,5 @@ typecheck: ## tsc --noEmit (libs/contracts)
 	yarn run typecheck
 
 .PHONY: clean
-clean: ## Limpa código gerado
+clean: ## Remove generated code
 	rm -rf generated/go/identity generated/go/payments generated/go/fraudinternal generated/ts
