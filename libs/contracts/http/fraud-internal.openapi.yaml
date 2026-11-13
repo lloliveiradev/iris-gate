@@ -1,0 +1,186 @@
+openapi: 3.1.0
+info:
+  title: Iris Gate — Fraud Internal API
+  version: 0.1.0
+  description: |
+    Internal synchronous risk-scoring API served by apps/anti-fraud and called
+    by apps/api during payment confirmation. Not exposed to browsers.
+
+servers:
+  - url: http://localhost:13001
+    description: dev (host port; container listens on 3001)
+
+tags:
+  - name: fraud-internal
+
+paths:
+  /internal/v1/risk-assessments:
+    post:
+      operationId: createRiskAssessment
+      summary: Score a payment intent synchronously
+      description: |
+        Idempotent by `payment_intent_id`: a repeated call for the same
+        `payment_intent_id` returns the stored assessment unchanged without
+        recording a duplicate attempt.
+      tags: [fraud-internal]
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskAssessmentRequest'
+      responses:
+        '200':
+          description: Risk assessment result (also returned unchanged on a repeat for the same payment_intent_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskAssessmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: service token from env; not exposed to browsers
+
+  schemas:
+    RiskAssessmentRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - payment_intent_id
+        - merchant_id
+        - amount_cents
+        - currency
+        - card_fingerprint
+        - card_brand
+      properties:
+        payment_intent_id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        amount_cents:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Payment amount in minor units (64-bit integer; amounts above 2^31 are valid).
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO-4217 alpha-3 currency code.
+        card_fingerprint:
+          type: string
+          minLength: 1
+          description: Opaque card fingerprint; never a PAN.
+        card_brand:
+          type: string
+        customer_ref:
+          type: string
+        test_scenario:
+          type: string
+          enum: [blocked, review]
+          description: Deterministic test scenario honored only when the service runs with FRAUD_TEST_HOOKS=true.
+
+    RiskAssessmentResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - assessment_id
+        - decision
+        - score
+        - reasons
+        - latency_ms
+      properties:
+        assessment_id:
+          type: string
+          format: uuid
+        decision:
+          $ref: '#/components/schemas/RiskDecision'
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskReason'
+        latency_ms:
+          type: integer
+          minimum: 0
+
+    RiskDecision:
+      type: string
+      enum: [APPROVE, REVIEW, REJECT]
+
+    RiskReason:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - weight
+        - score
+        - description
+      properties:
+        code:
+          $ref: '#/components/schemas/RiskReasonCode'
+        weight:
+          type: number
+          minimum: 0
+          maximum: 1
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+        description:
+          type: string
+
+    RiskReasonCode:
+      type: string
+      enum:
+        - BLOCKED_CARD
+        - UNUSUAL_AMOUNT
+        - VELOCITY
+        - DECLINE_BURST
+        - TEST_SCENARIO
+        - RISK_UNAVAILABLE
+
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+
+  responses:
+    BadRequest:
+      description: Invalid request body.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing or invalid service token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

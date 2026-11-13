@@ -3,6 +3,7 @@
 
 import type * as IdentityRaw from './generated/ts/identity.js';
 import type * as PaymentsRaw from './generated/ts/payments.js';
+import type * as FraudInternalRaw from './generated/ts/fraud-internal.js';
 
 export namespace Identity {
   type Schemas = IdentityRaw.components['schemas'];
@@ -24,4 +25,17 @@ export namespace Payments {
   export type Problem = Schemas['Problem'];
 
   export type Paths = PaymentsRaw.paths;
+}
+
+export namespace FraudInternal {
+  type Schemas = FraudInternalRaw.components['schemas'];
+
+  export type RiskAssessmentRequest = Schemas['RiskAssessmentRequest'];
+  export type RiskAssessmentResponse = Schemas['RiskAssessmentResponse'];
+  export type RiskReason = Schemas['RiskReason'];
+  export type RiskReasonCode = Schemas['RiskReasonCode'];
+  export type RiskDecision = Schemas['RiskDecision'];
+  export type Problem = Schemas['Problem'];
+
+  export type Paths = FraudInternalRaw.paths;
 }

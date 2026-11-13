@@ -1,0 +1,14 @@
+# oapi-codegen config for libs/contracts/http/fraud-internal.openapi.yaml.
+# Paths are relative to libs/contracts/generated/go/.
+
+package: fraudinternal
+output: fraudinternal/types.gen.go
+
+generate:
+  models: true
+  embedded-spec: false
+  client: false
+  std-http-server: false
+
+output-options:
+  skip-prune: true

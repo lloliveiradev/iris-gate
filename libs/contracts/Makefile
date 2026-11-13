@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # Specs com paths reais (skeletons sem `paths` são pulados automaticamente).
-HTTP_SPECS := http/identity.openapi.yaml http/payments.openapi.yaml
+HTTP_SPECS := http/identity.openapi.yaml http/payments.openapi.yaml http/fraud-internal.openapi.yaml
 
 C_RST := \033[0m
 C_BLD := \033[1m
@@ -24,7 +24,7 @@ gen: gen-go gen-ts ## Gera tipos Go + TS
 
 .PHONY: gen-go
 gen-go: ## Gera tipos Go (oapi-codegen) — registrado como tool em generated/go/go.mod
-	@mkdir -p generated/go/identity generated/go/payments
+	@mkdir -p generated/go/identity generated/go/payments generated/go/fraudinternal
 	@# Filtra o WARNING conhecido de OpenAPI 3.1.x (oapi-codegen v2 ainda não suporta nativamente).
 	go -C generated/go tool oapi-codegen \
 		--config ../../codegen/identity.go.yaml \
@@ -33,6 +33,10 @@ gen-go: ## Gera tipos Go (oapi-codegen) — registrado como tool em generated/go
 	go -C generated/go tool oapi-codegen \
 		--config ../../codegen/payments.go.yaml \
 		../../http/payments.openapi.yaml \
+		2> >(grep -v "OpenAPI 3.1.x specification" >&2 || true)
+	go -C generated/go tool oapi-codegen \
+		--config ../../codegen/fraud-internal.go.yaml \
+		../../http/fraud-internal.openapi.yaml \
 		2> >(grep -v "OpenAPI 3.1.x specification" >&2 || true)
 	go -C generated/go mod tidy
 
@@ -58,4 +62,4 @@ typecheck: ## tsc --noEmit (libs/contracts)
 
 .PHONY: clean
 clean: ## Limpa código gerado
-	rm -rf generated/go/identity generated/ts
+	rm -rf generated/go/identity generated/go/payments generated/go/fraudinternal generated/ts
