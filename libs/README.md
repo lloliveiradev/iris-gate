@@ -36,13 +36,14 @@ Use cases: create, authorize, capture. Authorize calls an `Acquirer` port. An em
 
 Pure TypeScript. No Nest, no Prisma, no Kafka. `apps/anti-fraud` implements the ports and calls `AssessRiskUseCase`.
 
-Rules ship as specifications, with default weights:
+Rules evaluate a `FeatureSnapshot` and ship as specifications, with default weights and parameters (`VELOCITY` and `DECLINE_BURST` are placeholders pending owner review):
 
-| Code                  | Weight |
-| --------------------- | ------ |
-| `SUSPICIOUS_ACCOUNT`  | 1.0    |
-| `UNUSUAL_AMOUNT`      | 0.6    |
-| `FREQUENT_HIGH_VALUE` | 0.5    |
+| Code             | Weight | Default params             | Notes                            |
+| ---------------- | ------ | -------------------------- | -------------------------------- |
+| `BLOCKED_CARD`   | 1.0    | `{}`                       | —                                |
+| `UNUSUAL_AMOUNT` | 0.6    | `{ thresholdPercent: 50 }` | —                                |
+| `VELOCITY`       | 0.5    | `{ maxAttempts24h: 5 }`    | Placeholder pending owner review |
+| `DECLINE_BURST`  | 0.7    | `{ maxDeclines24h: 3 }`    | Placeholder pending owner review |
 
 `DecisionThresholds.defaults()` is review at 30 and reject at 70. A score at or above reject is `REJECT`, at or above review is `REVIEW`, otherwise `APPROVE`. The use case dedupes through an `InboxStore` and writes the result through an outbox port. The package must be built (`make -C libs/fraud build`) before the Nest app runs. `predev` in `apps/anti-fraud` does that.
 
