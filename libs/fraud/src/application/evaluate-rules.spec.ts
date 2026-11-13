@@ -1,6 +1,6 @@
 import { Decision } from '../domain/decision';
 import { InvalidAssessmentInputError, InvalidFeatureSnapshotError } from '../domain/errors';
-import { DecisionThresholds } from '../domain/thresholds';
+import { DEFAULT_REJECT_THRESHOLD, DecisionThresholds } from '../domain/thresholds';
 import { evaluateRules } from './evaluate-rules';
 import { FeatureSnapshot } from './feature-snapshot';
 import {
@@ -30,17 +30,39 @@ describe('evaluateRules with DEFAULT_RULES (phase 10 AC1)', () => {
     });
   });
 
-  it('reviews a card one attempt over the velocity limit', () => {
-    const out = evaluate(firstTimeCardFeatures({ attempts24h: DEFAULT_MAX_ATTEMPTS + 1 }));
-    expect(out.decision).toBe(Decision.REVIEW);
-    expect(out.score).toBe(35);
-    expect(out.reasons.map((r) => r.code)).toEqual(['VELOCITY']);
+  it('approves a card at the velocity limit (attempt maxAttempts24h)', () => {
+    const out = evaluate(firstTimeCardFeatures({ attempts24h: DEFAULT_MAX_ATTEMPTS - 1 }));
+    expect(out).toEqual({
+      decision: Decision.APPROVE,
+      score: 0,
+      reasons: [],
+    });
   });
 
-  it('approves a card at the velocity limit', () => {
+  it('reviews a card on the first velocity overage alone (attempt maxAttempts24h + 1)', () => {
     const out = evaluate(firstTimeCardFeatures({ attempts24h: DEFAULT_MAX_ATTEMPTS }));
-    expect(out.decision).toBe(Decision.APPROVE);
+    expect(out.decision).toBe(Decision.REVIEW);
+    expect(out.score).toBe(35);
+    expect(out.reasons).toEqual([
+      {
+        code: 'VELOCITY',
+        weight: 0.5,
+        score: 70,
+        description: '6 attempts in last 24h (max 5)',
+      },
+    ]);
   });
+
+  it.each([DEFAULT_MAX_ATTEMPTS + 3, DEFAULT_MAX_ATTEMPTS + 50, 10_000])(
+    'never reaches REJECT from velocity alone even at %p prior attempts (max score stays below reject threshold)',
+    (attempts24h) => {
+      const out = evaluate(firstTimeCardFeatures({ attempts24h }));
+      expect(out.decision).toBe(Decision.REVIEW);
+      expect(out.score).toBe(50);
+      expect(out.score).toBeLessThan(DEFAULT_REJECT_THRESHOLD);
+      expect(out.reasons.map((r) => r.code)).toEqual(['VELOCITY']);
+    },
+  );
 
   it('rejects a blocked card', () => {
     const out = evaluate(firstTimeCardFeatures({ blocked: true }));
@@ -49,6 +71,15 @@ describe('evaluateRules with DEFAULT_RULES (phase 10 AC1)', () => {
     expect(out.reasons).toEqual([
       { code: 'BLOCKED_CARD', weight: 1, score: 100, description: 'card is blocked' },
     ]);
+  });
+
+  it('approves a card at the decline-burst limit', () => {
+    const out = evaluate(firstTimeCardFeatures({ declines24h: DEFAULT_MAX_DECLINES }));
+    expect(out).toEqual({
+      decision: Decision.APPROVE,
+      score: 0,
+      reasons: [],
+    });
   });
 
   it('reviews a card one decline over the decline-burst limit', () => {

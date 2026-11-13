@@ -1,8 +1,14 @@
 import { Decision } from './decision';
 import { InvalidThresholdsError } from './errors';
 
+export const DEFAULT_REVIEW_THRESHOLD = 30;
+export const DEFAULT_REJECT_THRESHOLD = 70;
+
 export class DecisionThresholds {
-  private constructor(public readonly review: number, public readonly reject: number) {}
+  private constructor(
+    public readonly review: number,
+    public readonly reject: number,
+  ) {}
 
   static of(review: number, reject: number): DecisionThresholds {
     if (!Number.isFinite(review) || !Number.isFinite(reject)) {
@@ -18,7 +24,7 @@ export class DecisionThresholds {
   }
 
   static defaults(): DecisionThresholds {
-    return DecisionThresholds.of(30, 70);
+    return DecisionThresholds.of(DEFAULT_REVIEW_THRESHOLD, DEFAULT_REJECT_THRESHOLD);
   }
 
   classify(score: number): Decision {

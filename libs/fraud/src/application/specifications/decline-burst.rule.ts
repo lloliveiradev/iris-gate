@@ -6,7 +6,11 @@ export interface DeclineBurstParams {
   maxDeclines24h: number;
 }
 
-/** Matches a card with more declines in the last 24 hours than allowed. */
+/**
+ * Matches a card with more prior declines in the last 24 hours (`declines24h`)
+ * than `maxDeclines24h`. Because scoring happens before the acquirer is called,
+ * the current attempt is not a decline and `declines24h` is compared directly.
+ */
 export class DeclineBurstSpec implements FraudSpecification {
   readonly code = FraudReasonCode.DECLINE_BURST;
 

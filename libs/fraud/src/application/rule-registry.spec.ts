@@ -9,6 +9,14 @@ import { VelocitySpec } from './specifications/velocity.rule';
 
 const UNKNOWN_RULE_CODE = 'NOT_A_RULE';
 
+const blockedCardConfig = (overrides: Partial<RuleConfig> = {}): RuleConfig => ({
+  code: FraudReasonCode.BLOCKED_CARD,
+  weight: 1.0,
+  enabled: true,
+  params: {},
+  ...overrides,
+});
+
 const config = (overrides: Partial<RuleConfig> & Pick<RuleConfig, 'code'>): RuleConfig => ({
   weight: 0.5,
   enabled: true,
@@ -39,23 +47,118 @@ describe('DEFAULT_RULES', () => {
 });
 
 describe('buildRulesFromConfig', () => {
-  it('skips disabled rules', () => {
+  it('skips disabled non-mandatory rules', () => {
     const rules = buildRulesFromConfig([
-      config({ code: FraudReasonCode.BLOCKED_CARD, enabled: false }),
+      blockedCardConfig(),
+      config({ code: FraudReasonCode.VELOCITY, enabled: false }),
     ]);
-    expect(rules).toHaveLength(0);
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.spec).toEqual(new BlockedCardSpec());
   });
 
   it('uses the configured limits', () => {
-    const [rule] = buildRulesFromConfig([
+    const [, rule] = buildRulesFromConfig([
+      blockedCardConfig(),
       config({ code: FraudReasonCode.VELOCITY, params: { maxAttempts24h: 2 } }),
     ]);
     expect(rule?.spec).toEqual(new VelocitySpec({ maxAttempts24h: 2 }));
   });
 
-  it.each([0, 1, 0.25])('accepts weight %p', (weight) => {
-    const [rule] = buildRulesFromConfig([config({ code: FraudReasonCode.BLOCKED_CARD, weight })]);
+  it.each([0, 1, 0.25])('accepts weight %p on non-mandatory rules', (weight) => {
+    const [, rule] = buildRulesFromConfig([
+      blockedCardConfig(),
+      config({ code: FraudReasonCode.VELOCITY, weight, params: { maxAttempts24h: 5 } }),
+    ]);
     expect(rule?.weight).toBe(weight);
+  });
+
+  describe('mandatory BLOCKED_CARD rule (fail-closed)', () => {
+    it.each([0.7, 0.85, 1.0])('accepts a valid BLOCKED_CARD with weight %p', (weight) => {
+      const [rule] = buildRulesFromConfig([blockedCardConfig({ weight })]);
+      expect(rule?.spec).toEqual(new BlockedCardSpec());
+      expect(rule?.weight).toBe(weight);
+    });
+
+    it('rejects a config without BLOCKED_CARD', () => {
+      const withoutBlockedCard = [
+        config({ code: FraudReasonCode.VELOCITY, params: { maxAttempts24h: 5 } }),
+      ];
+      expect(() => buildRulesFromConfig(withoutBlockedCard)).toThrow(InvalidRuleConfigError);
+      expect(() => buildRulesFromConfig(withoutBlockedCard)).toThrow(
+        'rule BLOCKED_CARD is required',
+      );
+      expect(() => buildRulesFromConfig([])).toThrow('rule BLOCKED_CARD is required');
+    });
+
+    it('rejects a config with BLOCKED_CARD disabled', () => {
+      const disabled = [blockedCardConfig({ enabled: false })];
+      expect(() => buildRulesFromConfig(disabled)).toThrow(InvalidRuleConfigError);
+      expect(() => buildRulesFromConfig(disabled)).toThrow('rule BLOCKED_CARD must be enabled');
+    });
+
+    it.each([0, 0.5, 0.69])(
+      'rejects BLOCKED_CARD with weight %p below the reject threshold',
+      (weight) => {
+        const underWeighted = [blockedCardConfig({ weight })];
+        expect(() => buildRulesFromConfig(underWeighted)).toThrow(InvalidRuleConfigError);
+        expect(() => buildRulesFromConfig(underWeighted)).toThrow(
+          'must be >= reject threshold (70)',
+        );
+      },
+    );
+  });
+
+  describe('duplicate rule codes and malformed params', () => {
+    it.each<[string, RuleConfig[]]>([
+      [
+        'duplicate enabled VELOCITY',
+        [
+          blockedCardConfig(),
+          config({ code: FraudReasonCode.VELOCITY, params: { maxAttempts24h: 5 } }),
+          config({ code: FraudReasonCode.VELOCITY, params: { maxAttempts24h: 3 } }),
+        ],
+      ],
+      [
+        'duplicate VELOCITY when second is disabled',
+        [
+          blockedCardConfig(),
+          config({ code: FraudReasonCode.VELOCITY, params: { maxAttempts24h: 5 } }),
+          config({ code: FraudReasonCode.VELOCITY, enabled: false }),
+        ],
+      ],
+      ['duplicate BLOCKED_CARD', [blockedCardConfig(), blockedCardConfig()]],
+    ])('rejects %s', (_label, cfgs) => {
+      expect(() => buildRulesFromConfig(cfgs)).toThrow(InvalidRuleConfigError);
+      expect(() => buildRulesFromConfig(cfgs)).toThrow('duplicate rule code');
+    });
+
+    it.each<[string, unknown]>([
+      ['null params', null],
+      ['missing (undefined) params', undefined],
+      ['array params', []],
+      ['string params', 'thresholdPercent:50'],
+      ['number params', 42],
+    ])('rejects %s with InvalidRuleConfigError (not TypeError)', (_label, badParams) => {
+      const velocityWithBadParams = [
+        blockedCardConfig(),
+        config({
+          code: FraudReasonCode.VELOCITY,
+          params: badParams as Record<string, number>,
+        }),
+      ];
+      expect(() => buildRulesFromConfig(velocityWithBadParams)).toThrow(InvalidRuleConfigError);
+      expect(() => buildRulesFromConfig(velocityWithBadParams)).toThrow(
+        'rule VELOCITY params must be a non-null object',
+      );
+
+      const blockedWithBadParams = [
+        blockedCardConfig({ params: badParams as Record<string, number> }),
+      ];
+      expect(() => buildRulesFromConfig(blockedWithBadParams)).toThrow(InvalidRuleConfigError);
+      expect(() => buildRulesFromConfig(blockedWithBadParams)).toThrow(
+        'rule BLOCKED_CARD params must be a non-null object',
+      );
+    });
   });
 
   it.each<[string, RuleConfig, string]>([

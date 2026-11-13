@@ -1,7 +1,7 @@
 import { FraudReasonCode } from '../../domain/reason';
 import { FraudSpecification, NO_MATCH, RuleContext, RuleOutcome } from './rule';
 
-const BLOCKED_BASE_SCORE = 100;
+export const BLOCKED_BASE_SCORE = 100;
 
 /** Matches a card flagged as blocked in its profile. */
 export class BlockedCardSpec implements FraudSpecification {

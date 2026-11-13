@@ -1,7 +1,8 @@
 import { InvalidRuleConfigError } from '../domain/errors';
 import { FraudReasonCode } from '../domain/reason';
+import { DEFAULT_REJECT_THRESHOLD } from '../domain/thresholds';
 import { RuleConfig } from './ports';
-import { BlockedCardSpec } from './specifications/blocked-card.rule';
+import { BLOCKED_BASE_SCORE, BlockedCardSpec } from './specifications/blocked-card.rule';
 import { DeclineBurstSpec } from './specifications/decline-burst.rule';
 import { FraudSpecification } from './specifications/rule';
 import { UnusualAmountSpec } from './specifications/unusual-amount.rule';
@@ -61,20 +62,60 @@ const SPEC_FACTORIES: ReadonlyMap<string, SpecFactory> = new Map<string, SpecFac
 
 /**
  * Builds the enabled rules from configuration. Throws `InvalidRuleConfigError` on an
- * unknown code, a weight that is not a finite number in [0..1], or a missing or
- * invalid param, so a bad configuration stops startup instead of scoring loosely.
+ * unknown or duplicate code, a weight that is not a finite number in [0..1], a
+ * missing or invalid `params` object or param value, or when `BLOCKED_CARD` is
+ * missing, disabled, or weighted below the reject threshold, so a bad configuration
+ * stops startup instead of scoring loosely.
  */
 export function buildRulesFromConfig(configs: RuleConfig[]): RegisteredRule[] {
+  const seenCodes = new Set<string>();
   const result: RegisteredRule[] = [];
+  let hasBlockedCard = false;
+
   for (const cfg of configs) {
-    if (!cfg.enabled) continue;
     const factory = SPEC_FACTORIES.get(cfg.code);
     if (!factory) {
       throw new InvalidRuleConfigError(`unknown rule code: ${cfg.code}`);
     }
-    result.push({ spec: factory(cfg), weight: validWeight(cfg) });
+    if (seenCodes.has(cfg.code)) {
+      throw new InvalidRuleConfigError(`duplicate rule code: ${cfg.code}`);
+    }
+    seenCodes.add(cfg.code);
+    assertParamsObject(cfg);
+
+    if (!cfg.enabled) {
+      if (cfg.code === FraudReasonCode.BLOCKED_CARD) {
+        throw new InvalidRuleConfigError(`rule ${FraudReasonCode.BLOCKED_CARD} must be enabled`);
+      }
+      continue;
+    }
+
+    const weight = validWeight(cfg);
+    if (cfg.code === FraudReasonCode.BLOCKED_CARD) {
+      const effectiveScore = weight * BLOCKED_BASE_SCORE;
+      if (effectiveScore < DEFAULT_REJECT_THRESHOLD) {
+        throw new InvalidRuleConfigError(
+          `rule ${FraudReasonCode.BLOCKED_CARD} effective score (${effectiveScore}) must be >= reject threshold (${DEFAULT_REJECT_THRESHOLD})`,
+        );
+      }
+      hasBlockedCard = true;
+    }
+
+    result.push({ spec: factory(cfg), weight });
   }
+
+  if (!hasBlockedCard) {
+    throw new InvalidRuleConfigError(`rule ${FraudReasonCode.BLOCKED_CARD} is required`);
+  }
+
   return result;
+}
+
+function assertParamsObject(cfg: RuleConfig): void {
+  const params: unknown = cfg.params;
+  if (params === null || typeof params !== 'object' || Array.isArray(params)) {
+    throw new InvalidRuleConfigError(`rule ${cfg.code} params must be a non-null object`);
+  }
 }
 
 function validWeight(cfg: RuleConfig): number {

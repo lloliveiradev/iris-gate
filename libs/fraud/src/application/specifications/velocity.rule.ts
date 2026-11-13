@@ -6,21 +6,24 @@ export interface VelocityParams {
   maxAttempts24h: number;
 }
 
-/** Matches a card with more payment attempts in the last 24 hours than allowed. */
+/**
+ * Matches a card whose payment attempts in the last 24 hours, counting the current
+ * attempt being scored (`attempts24h + 1`), exceed `maxAttempts24h`.
+ */
 export class VelocitySpec implements FraudSpecification {
   readonly code = FraudReasonCode.VELOCITY;
 
   constructor(private readonly params: VelocityParams) {}
 
   evaluate(ctx: RuleContext): RuleOutcome {
-    const { attempts24h } = ctx.features;
-    const overage = attempts24h - this.params.maxAttempts24h;
+    const attemptsWithCurrent = ctx.features.attempts24h + 1;
+    const overage = attemptsWithCurrent - this.params.maxAttempts24h;
     if (overage <= 0) return NO_MATCH;
 
     return {
       matched: true,
       baseScore: overageScore(overage),
-      description: `${attempts24h} attempts in last 24h (max ${this.params.maxAttempts24h})`,
+      description: `${attemptsWithCurrent} attempts in last 24h (max ${this.params.maxAttempts24h})`,
     };
   }
 }

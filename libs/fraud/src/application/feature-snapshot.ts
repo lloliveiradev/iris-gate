@@ -2,12 +2,25 @@ import { InvalidFeatureSnapshotError } from '../domain/errors';
 
 /**
  * What the rules know about a card when a payment is scored, read in one call.
- * Counts cover the 24 hours before the attempt being scored. Amounts are integer
- * minor units. Build it with `createFeatureSnapshot`, which validates and freezes it.
+ * Both `attempts24h` and `declines24h` cover the trailing 24 hours BEFORE the attempt
+ * being scored and EXCLUDE the current in-flight attempt (`0` for a first-time card).
+ * Amounts are integer minor units. Build it with `createFeatureSnapshot`, which
+ * validates and freezes it.
  */
 export interface FeatureSnapshot {
   readonly cardFingerprint: string;
+  /**
+   * Number of prior payment attempts for the card in the trailing 24 hours, excluding
+   * the attempt currently being scored (`0` for a first-time card). Counting the
+   * current attempt, this request is attempt number `attempts24h + 1` in the window,
+   * so `VelocitySpec` triggers when `attempts24h + 1 > maxAttempts24h`.
+   */
   readonly attempts24h: number;
+  /**
+   * Number of prior declined attempts for the card in the trailing 24 hours, excluding
+   * the attempt currently being scored (which has not reached the acquirer yet; `0`
+   * for a first-time card). `DeclineBurstSpec` triggers when `declines24h > maxDeclines24h`.
+   */
   readonly declines24h: number;
   /** Average captured amount for the card, or `null` when nothing was captured yet. */
   readonly avgCapturedCents: number | null;
