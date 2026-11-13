@@ -1,8 +1,6 @@
+import { assertAmountCents } from './amount';
 import { Decision } from './decision';
-import {
-  AssessmentAlreadyCompletedError,
-  InvalidAssessmentInputError,
-} from './errors';
+import { AssessmentAlreadyCompletedError, InvalidAssessmentInputError } from './errors';
 import { FraudReason } from './reason';
 
 export const AssessmentStatus = {
@@ -58,9 +56,7 @@ export class RiskAssessment {
     if (!input.id || !input.paymentIntentId || !input.merchantId || !input.accountRef) {
       throw new InvalidAssessmentInputError('missing required identifiers');
     }
-    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
-      throw new InvalidAssessmentInputError(`invalid amountCents: ${input.amountCents}`);
-    }
+    assertAmountCents(input.amountCents);
     if (!/^[A-Z]{3}$/.test(input.currency)) {
       throw new InvalidAssessmentInputError(`invalid currency: ${input.currency}`);
     }

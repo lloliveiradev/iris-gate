@@ -1,18 +1,24 @@
 import { Decision } from '../domain/decision';
-import { FraudReason, FraudReasonCode } from '../domain/reason';
+import { FraudReason } from '../domain/reason';
 import { RiskAssessment, RiskAssessmentInput } from '../domain/risk-assessment';
-import { Score } from '../domain/score';
 import { DecisionThresholds } from '../domain/thresholds';
+import { evaluateRules } from './evaluate-rules';
+import { createFeatureSnapshot, FeatureSnapshot } from './feature-snapshot';
 import {
   AccountRepo,
   Clock,
   IDGen,
   InboxStore,
   InvoiceHistoryRepo,
+  InvoiceRecord,
   OutboxEventInput,
   RiskAssessmentRepo,
 } from './ports';
 import { RegisteredRule } from './rule-registry';
+
+const FEATURE_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Invoices averaged by the legacy bridge; the old `historyCount` default. */
+const LEGACY_AVERAGE_SAMPLE_SIZE = 10;
 
 export interface AssessRiskInput {
   messageId: string;
@@ -74,32 +80,16 @@ export class AssessRiskUseCase {
       requestedAt: input.occurredAt,
     } satisfies RiskAssessmentInput);
 
-    const account = await this.accounts.findOrCreate(input.accountRef);
+    const now = this.clock.now();
+    const features = await this.loadLegacyFeatures(input.accountRef, now);
+    const { decision, score, reasons } = evaluateRules(
+      this.rules,
+      { features, amountCents: input.amountCents, now },
+      this.thresholds,
+    );
 
-    let total = Score.zero();
-    const reasons: FraudReason[] = [];
-    for (const { spec, weight } of this.rules) {
-      const outcome = await spec.evaluate({
-        account,
-        amountCents: input.amountCents,
-        paymentIntentId: input.paymentIntentId,
-        history: this.history,
-        now: this.clock.now(),
-      });
-      if (!outcome.matched) continue;
-      const weighted = Score.fromWeighted(outcome.baseScore, weight);
-      total = total.add(weighted);
-      reasons.push({
-        code: spec.code as FraudReasonCode,
-        weight,
-        score: outcome.baseScore,
-        description: outcome.description,
-      });
-    }
-
-    const decision = this.thresholds.classify(total.value);
     const completedAt = this.clock.now();
-    aggregate.complete(decision, total.value, reasons, completedAt);
+    aggregate.complete(decision, score, reasons, completedAt);
 
     const outboxEvent: OutboxEventInput = {
       eventId: this.idGen.newId(),
@@ -114,7 +104,7 @@ export class AssessRiskUseCase {
         payment_intent_id: aggregate.paymentIntentId,
         merchant_id: aggregate.merchantId,
         decision,
-        score: total.value,
+        score,
         reasons: reasons.map((r) => ({
           code: r.code,
           weight: r.weight,
@@ -133,6 +123,35 @@ export class AssessRiskUseCase {
     });
     await this.inbox.attachAssessment(input.messageId, aggregate.id);
 
-    return { decision, score: total.value, reasons, deduplicated: false };
+    return { decision, score, reasons, deduplicated: false };
   }
+
+  /**
+   * Builds a `FeatureSnapshot` from the legacy account and invoice ports so the
+   * Kafka path can run the phase 10 rules. The account ref stands in for the card
+   * fingerprint, and declines are not tracked here.
+   *
+   * @deprecated Bridge for the legacy Kafka path only. Task 10.4 removes it together
+   * with this use case, in favor of a `FeatureSnapshotReader`.
+   */
+  private async loadLegacyFeatures(accountRef: string, now: Date): Promise<FeatureSnapshot> {
+    const account = await this.accounts.findOrCreate(accountRef);
+    const since = new Date(now.getTime() - FEATURE_WINDOW_MS);
+    const recent = await this.history.recentByAccount(accountRef, since);
+    const lastInvoices = await this.history.lastNByAccount(accountRef, LEGACY_AVERAGE_SAMPLE_SIZE);
+    return createFeatureSnapshot({
+      cardFingerprint: accountRef,
+      attempts24h: recent.length,
+      declines24h: 0,
+      avgCapturedCents: averageCents(lastInvoices),
+      blocked: account.isSuspicious,
+    });
+  }
+}
+
+/** Average amount rounded to whole minor units, or `null` without invoices. */
+function averageCents(invoices: readonly InvoiceRecord[]): number | null {
+  if (invoices.length === 0) return null;
+  const total = invoices.reduce((sum, invoice) => sum + invoice.amountCents, 0);
+  return Math.round(total / invoices.length);
 }

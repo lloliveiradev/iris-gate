@@ -1,6 +1,6 @@
 import { Decision } from '../domain/decision';
 import { DecisionThresholds } from '../domain/thresholds';
-import { AssessRiskUseCase } from './assess-risk.use-case';
+import { AssessRiskInput, AssessRiskUseCase } from './assess-risk.use-case';
 import {
   CapturingEventPublisher,
   FixedClock,
@@ -10,19 +10,43 @@ import {
   InMemoryRiskAssessmentRepo,
   SequentialIdGen,
 } from './fakes';
+import { NORMAL_AMOUNT_CENTS } from './fixtures';
 import { buildRulesFromConfig, DEFAULT_RULES } from './rule-registry';
 
-const makeInput = (override: Partial<Parameters<AssessRiskUseCase['execute']>[0]> = {}) => ({
+const ACCOUNT_REF = 'acc_001';
+const OCCURRED_AT = new Date('2026-05-10T12:00:00Z');
+const NOW = new Date('2026-05-10T12:00:01Z');
+const RECENT_INVOICE_AT = new Date('2026-05-10T11:30:00Z');
+const OLD_INVOICE_AT = new Date('2026-05-08T12:00:00Z');
+const DEFAULT_MAX_ATTEMPTS = 5;
+
+const makeInput = (override: Partial<AssessRiskInput> = {}): AssessRiskInput => ({
   messageId: 'msg_001',
   assessmentId: 'assess_001',
   paymentIntentId: 'pi_001',
   merchantId: 'merch_001',
-  accountRef: 'acc_001',
-  amountCents: 1000,
+  accountRef: ACCOUNT_REF,
+  amountCents: NORMAL_AMOUNT_CENTS,
   currency: 'BRL',
-  occurredAt: new Date('2026-05-10T12:00:00Z'),
+  occurredAt: OCCURRED_AT,
   ...override,
 });
+
+const addInvoices = (
+  history: InMemoryInvoiceHistoryRepo,
+  count: number,
+  createdAt: Date,
+  amountCents = NORMAL_AMOUNT_CENTS,
+): void => {
+  for (let i = 0; i < count; i++) {
+    history.add({
+      id: `inv_${createdAt.getTime()}_${i}`,
+      accountRef: ACCOUNT_REF,
+      amountCents,
+      createdAt,
+    });
+  }
+};
 
 const buildSut = () => {
   const inbox = new InMemoryInboxStore();
@@ -30,7 +54,7 @@ const buildSut = () => {
   const history = new InMemoryInvoiceHistoryRepo();
   const assessments = new InMemoryRiskAssessmentRepo();
   const publisher = new CapturingEventPublisher();
-  const clock = new FixedClock(new Date('2026-05-10T12:00:01Z'));
+  const clock = new FixedClock(NOW);
   const idGen = new SequentialIdGen();
   const rules = buildRulesFromConfig(DEFAULT_RULES);
   const sut = new AssessRiskUseCase(
@@ -56,18 +80,18 @@ describe('AssessRiskUseCase', () => {
     expect(out.deduplicated).toBe(false);
   });
 
-  it('rejects suspicious account with high score', async () => {
+  it('rejects a suspicious account through the blocked card rule', async () => {
     const { sut, accounts } = buildSut();
-    accounts.flag('acc_001', true);
+    accounts.flag(ACCOUNT_REF, true);
     const out = await sut.execute(makeInput());
     expect(out.decision).toBe(Decision.REJECT);
     expect(out.score).toBe(100);
-    expect(out.reasons[0]?.code).toBe('SUSPICIOUS_ACCOUNT');
+    expect(out.reasons[0]?.code).toBe('BLOCKED_CARD');
   });
 
   it('persists assessment + outbox atomically', async () => {
     const { sut, accounts, assessments } = buildSut();
-    accounts.flag('acc_001', true);
+    accounts.flag(ACCOUNT_REF, true);
     await sut.execute(makeInput());
     expect(assessments.assessments.size).toBe(1);
     expect(assessments.outbox).toHaveLength(1);
@@ -76,7 +100,7 @@ describe('AssessRiskUseCase', () => {
 
   it('deduplicates redelivery of same messageId (Inbox)', async () => {
     const { sut, accounts, assessments } = buildSut();
-    accounts.flag('acc_001', true);
+    accounts.flag(ACCOUNT_REF, true);
     const first = await sut.execute(makeInput());
     expect(first.deduplicated).toBe(false);
 
@@ -90,16 +114,24 @@ describe('AssessRiskUseCase', () => {
 
   it('reviews when frequent payments push score into review band', async () => {
     const { sut, history } = buildSut();
-    for (let i = 0; i < 7; i++) {
-      history.add({
-        id: `inv_${i}`,
-        accountRef: 'acc_001',
-        amountCents: 1000,
-        createdAt: new Date('2026-05-10T11:30:00Z'),
-      });
-    }
+    addInvoices(history, DEFAULT_MAX_ATTEMPTS + 2, RECENT_INVOICE_AT);
     const out = await sut.execute(makeInput());
-    expect([Decision.REVIEW, Decision.REJECT]).toContain(out.decision);
-    expect(out.reasons.some((r) => r.code === 'FREQUENT_HIGH_VALUE')).toBe(true);
+    expect(out.decision).toBe(Decision.REVIEW);
+    expect(out.reasons.map((r) => r.code)).toEqual(['VELOCITY']);
+  });
+
+  it('counts only invoices from the last 24 hours as attempts', async () => {
+    const { sut, history } = buildSut();
+    addInvoices(history, DEFAULT_MAX_ATTEMPTS + 2, OLD_INVOICE_AT);
+    const out = await sut.execute(makeInput());
+    expect(out.decision).toBe(Decision.APPROVE);
+  });
+
+  it('flags an amount far above the average of past invoices', async () => {
+    const { sut, history } = buildSut();
+    addInvoices(history, 1, OLD_INVOICE_AT);
+    const out = await sut.execute(makeInput({ amountCents: 4 * NORMAL_AMOUNT_CENTS }));
+    expect(out.decision).toBe(Decision.REVIEW);
+    expect(out.reasons.map((r) => r.code)).toEqual(['UNUSUAL_AMOUNT']);
   });
 });
