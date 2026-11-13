@@ -18,7 +18,6 @@ import { PrismaInvoiceHistoryRepo } from '../../infra/prisma/invoice-history.rep
 import { PrismaOutboxStore } from '../../infra/prisma/outbox.store';
 import { PrismaRiskAssessmentRepo } from '../../infra/prisma/risk-assessment.repo';
 import { PrismaRuleConfigStore } from '../../infra/prisma/rule-config.store';
-import { AssessmentConsumer } from '../../infra/kafka/assessment.consumer';
 import { OUTBOX_STORE, OutboxRelayService } from '../../infra/kafka/outbox-relay.service';
 import {
   ACCOUNT_REPO,
@@ -87,7 +86,6 @@ const ID_GEN = Symbol('ID_GEN');
         );
       },
     },
-    AssessmentConsumer,
     OutboxRelayService,
   ],
   exports: [AssessRiskUseCase],

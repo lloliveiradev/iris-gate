@@ -3,7 +3,6 @@ export interface KafkaConfig {
   brokers: string[];
   consumerGroup: string;
   topics: {
-    request: string;
     completed: string;
     dlq: string;
   };
@@ -23,7 +22,6 @@ export function loadKafkaConfig(): KafkaConfig {
     brokers,
     consumerGroup: process.env.KAFKA_CONSUMER_GROUP ?? 'iris-anti-fraud',
     topics: {
-      request: process.env.KAFKA_TOPIC_REQUEST ?? 'fraud.assessment.requested.v1',
       completed: process.env.KAFKA_TOPIC_COMPLETED ?? 'fraud.assessment.completed.v1',
       dlq: process.env.KAFKA_TOPIC_DLQ ?? 'fraud.assessment.failed.dlq',
     },

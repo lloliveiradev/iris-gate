@@ -44,13 +44,6 @@ channels:
       message:
         $ref: '#/components/messages/PaymentIntentCapturedV1'
 
-  fraud.assessment.requested.v1:
-    description: Solicitação assíncrona de avaliação de risco para um PaymentIntent (consumido por anti-fraud).
-    publish:
-      operationId: publishFraudAssessmentRequestedV1
-      message:
-        $ref: '#/components/messages/FraudAssessmentRequestedV1'
-
   fraud.assessment.completed.v1:
     description: Resultado da avaliação de risco (decision + score + reasons).
     publish:
@@ -102,15 +95,6 @@ components:
         $ref: '#/components/schemas/CommonHeaders'
       payload:
         $ref: 'schemas/payments/payment-intent-captured.v1.json'
-
-    FraudAssessmentRequestedV1:
-      name: FraudAssessmentRequestedV1
-      title: Fraud Assessment Requested (v1)
-      contentType: application/json
-      headers:
-        $ref: '#/components/schemas/CommonHeaders'
-      payload:
-        $ref: 'schemas/fraud/assessment-requested.v1.json'
 
     FraudAssessmentCompletedV1:
       name: FraudAssessmentCompletedV1
