@@ -46,3 +46,15 @@ Expected result:
 - [ ] No secrets in the diff
 - [ ] Docs updated when visible behavior changed
 - [ ] `AGENTS.md` followed
+
+## Run metrics
+
+<!-- Used to calibrate model choice against task complexity and cost. Fill every field. Write n/a when a value is not visible. Update this section if you push fixes. -->
+
+- Agent (tool):
+- Model:
+- Effort/reasoning level:
+- Wall time (start to PR ready, approx.):
+- Tokens in/out or cost:
+- Attempts / fix rounds:
+- Notes:
