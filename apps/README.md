@@ -4,11 +4,11 @@ Deployable processes. Each directory here is one process you can run. Domain rul
 
 There are three apps. Nothing else under this folder is a service.
 
-| App                         | Process                  | Port    | What it owns                                                                       |
-| --------------------------- | ------------------------ | ------- | ---------------------------------------------------------------------------------- |
-| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080`  | HTTP composition, Postgres pool, startup migrations, payments outbox relay         |
-| [`web`](web/)               | Next.js 16.4, React 19.3 | `3000`  | Merchant UI, i18n, iron-session                                                    |
-| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7      | `13001` | Kafka consumer, Prisma, inbox and outbox. Host port; the process listens on `3001` |
+| App                         | Process                  | Port    | What it owns                                                                        |
+| --------------------------- | ------------------------ | ------- | ----------------------------------------------------------------------------------- |
+| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080`  | HTTP composition, Postgres pool, startup migrations, payments outbox relay          |
+| [`web`](web/)               | Next.js 16.4, React 19.3 | `3000`  | Merchant UI, i18n, iron-session                                                     |
+| [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7      | `13001` | Synchronous scoring, Prisma, outbox relay. Host port; the process listens on `3001` |
 
 An app may depend on `libs/`. A lib must not import an app. One app must not import another. If a rule is being written under `apps/`, it belongs in the matching `libs/<context>`.
 
@@ -74,7 +74,7 @@ UI notes for this app are under `apps/web/docs/` (design system, i18n, tables). 
 
 NestJS worker. `libs/fraud` holds the specification rules; this app wires Prisma, KafkaJS, the inbox, and the outbox. Its `dev`, `build` and `typecheck` scripts compile `@iris-gate/fraud` and run `prisma generate` first.
 
-It consumes `fraud.assessment.requested.v1`, deduplicates by message id, and publishes `fraud.assessment.completed.v1`. Failures go to `fraud.assessment.failed.dlq`. No code in this repo produces the request topic yet.
+The Kafka assessment request topic and DLQ were retired in phase 10; risk scoring is moving to a synchronous internal endpoint (`POST /internal/v1/risk-assessments`, defined in `libs/contracts/http/fraud-internal.openapi.yaml`). It publishes `fraud.assessment.completed.v1` through its outbox relay.
 
 `GET /healthz` and `GET /readyz` respond on port `3001` inside the container and on host port `13001`. Readiness does not yet check Postgres or Kafka.
 
