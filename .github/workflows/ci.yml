@@ -15,14 +15,15 @@ permissions:
   pull-requests: read
 
 env:
-  GO_VERSION: "1.27"
-  NODE_VERSION: "26"
+  GO_VERSION: '1.27'
+  NODE_VERSION: '26'
 
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
       api: ${{ steps.filter.outputs.api }}
+      go-libs: ${{ steps.filter.outputs.go-libs }}
       web: ${{ steps.filter.outputs.web }}
       sdk-web: ${{ steps.filter.outputs.sdk-web }}
       anti-fraud: ${{ steps.filter.outputs.anti-fraud }}
@@ -41,6 +42,12 @@ jobs:
               - 'libs/**/*.go'
               - 'libs/contracts/generated/go/**'
               - 'configs/go/**'
+            go-libs:
+              - 'libs/identity/**'
+              - 'libs/payments/**'
+              - 'go.work*'
+              - 'configs/go/**'
+              - '.github/workflows/ci.yml'
             web:
               - 'apps/web/**'
               - 'libs/contracts/generated/ts/**'
@@ -126,6 +133,47 @@ jobs:
           version: v2.15.0
           working-directory: libs/payments
           args: --timeout=5m --config=../../configs/go/golangci.yml
+
+  go-libs:
+    needs: changes
+    if: needs.changes.outputs.go-libs == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: iris
+          POSTGRES_PASSWORD: iris
+          POSTGRES_DB: iris
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U iris -d iris"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgres://iris:iris@localhost:5432/iris?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: |
+            libs/identity/go.sum
+            libs/payments/go.sum
+      - run: psql "$DATABASE_URL" -f infra/docker/postgres/initdb/00-extensions.sql
+      - run: make -C libs/identity vet
+      - run: make -C libs/identity test
+      - run: make -C libs/identity test-int
+      - run: make -C libs/identity build
+      - run: make -C libs/payments vet
+      - run: make -C libs/payments test
+      - run: make -C libs/payments test-int
+      - run: make -C libs/payments build
 
   sdk-web:
     needs: changes
