@@ -19,7 +19,7 @@ API-first payments gateway for local study. A Go service owns merchants, API key
 
 - **Identity** — create a merchant, issue an API key (`irk_<prefix>.<secret>`), revoke it. Only the Argon2id hash is stored. `GET /v1/me` requires `Authorization: Bearer`.
 - **Payments** — create, authorize, and capture a payment intent. Money is an integer in minor units plus an ISO-4217 currency. `POST /v1/payment-intents` requires `Idempotency-Key`.
-- **Fraud** — specification rules (`SUSPICIOUS_ACCOUNT`, `UNUSUAL_AMOUNT`, `FREQUENT_HIGH_VALUE`) return `APPROVE`, `REVIEW`, or `REJECT`.
+- **Fraud** — specification rules (`BLOCKED_CARD` 1.0 mandatory with effective score >= reject, `UNUSUAL_AMOUNT` 0.6 with `thresholdPercent` 50 = 1.5x average captured amount, `VELOCITY` 0.5 for > 5 attempts in 24 h, `DECLINE_BURST` 0.7 for > 3 declines in 24 h) return `APPROVE`, `REVIEW`, or `REJECT` (thresholds review 30 / reject 70). Any `FraudRule` seed must keep `BLOCKED_CARD` enabled with weight >= 0.7.
 - **Delivery** — state and the Kafka outbox commit in one transaction. A relay publishes. The fraud worker deduplicates with an inbox.
 - **Dashboard** — Next.js App Router, `en` / `pt` / `es`, landing page plus payment-intent screens. The browser session is an httpOnly iron-session cookie.
 - **Local broker** — Postgres 18, Kafka in KRaft mode, and Karapace (schema registry) via Docker Compose.

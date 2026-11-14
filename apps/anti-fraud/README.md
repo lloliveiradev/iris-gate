@@ -1,12 +1,12 @@
 # apps/anti-fraud
 
-NestJS 12 worker that scores one fraud assessment per Kafka message. The rules live in `@iris-gate/fraud`. This app wires Prisma, KafkaJS, the inbox, and the outbox. It does not decide a payment and it does not serve the dashboard.
+NestJS 12 worker that scores fraud assessments synchronously. The rules live in `@iris-gate/fraud`. This app wires Prisma, KafkaJS, the inbox, and the outbox. It does not decide a payment and it does not serve the dashboard.
 
 `make up` already builds `apps/anti-fraud/Dockerfile.dev` and runs the container `ig-anti-fraud`. The process listens on port `3001`; Compose publishes host port `13001`. `src/` and `prisma/` are mounted for reload. A host `make -C apps/anti-fraud dev` listens on `13001` as well.
 
 The Kafka assessment request topic was retired in phase 10; synchronous scoring is defined by `libs/contracts/http/fraud-internal.openapi.yaml`. The process boots, runs the outbox relay, and answers `/healthz`.
 
-## What a message does
+## How scoring and publishing work
 
 The Kafka request consumer was removed in phase 10; scoring moves to a synchronous internal endpoint (`POST /internal/v1/risk-assessments`). `OutboxRelayService` polls unpublished rows (default every `1000` ms, batches of `50`) and publishes `fraud.assessment.completed.v1` with headers `event-id`, `event-type`, `published-at`, and `traceparent` when the request had one.
 
@@ -16,13 +16,14 @@ The Kafka request consumer was removed in phase 10; scoring moves to a synchrono
 
 `FraudModule` loads `FraudRule` once, at startup. An empty table logs a warning and uses `DEFAULT_RULES` from `@iris-gate/fraud`:
 
-| Code                  | Weight | Params                                   |
-| --------------------- | ------ | ---------------------------------------- |
-| `SUSPICIOUS_ACCOUNT`  | `1.0`  | none                                     |
-| `UNUSUAL_AMOUNT`      | `0.6`  | `historyCount` 10, `thresholdPercent` 50 |
-| `FREQUENT_HIGH_VALUE` | `0.5`  | `maxRecentCount` 5, `windowHours` 1      |
+| Code             | Weight | Params                                                 |
+| ---------------- | ------ | ------------------------------------------------------ |
+| `BLOCKED_CARD`   | `1.0`  | none (mandatory, enabled, effective score >= reject)   |
+| `UNUSUAL_AMOUNT` | `0.6`  | `thresholdPercent` 50 (= 1.5x average captured amount) |
+| `VELOCITY`       | `0.5`  | `maxAttempts24h` 5 (> 5 attempts in 24 h)              |
+| `DECLINE_BURST`  | `0.7`  | `maxDeclines24h` 3 (> 3 declines in 24 h)              |
 
-Thresholds are `DecisionThresholds.defaults()`: review at 30, reject at 70. They are not read from the database. Editing `FraudRule`, a weight, or a rule class applies on the next process start. `predev` rebuilds `@iris-gate/fraud` before `nest start --watch`; a change inside `libs/fraud` needs that restart, because Nest watches only this app.
+Thresholds are `DecisionThresholds.defaults()`: review at 30, reject at 70. They are not read from the database. Any `FraudRule` seed must keep `BLOCKED_CARD` enabled with weight >= 0.7 (so its effective score meets or exceeds the reject threshold 70). Editing `FraudRule`, a weight, or a rule class applies on the next process start. `predev` rebuilds `@iris-gate/fraud` before `nest start --watch`; a change inside `libs/fraud` needs that restart, because Nest watches only this app.
 
 Change a specification in `libs/fraud`. This app only adapts ports to Prisma and Kafka.
 
@@ -72,7 +73,7 @@ The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). Th
 | `KAFKA_CLIENT_ID`         | `iris-anti-fraud`               | KafkaJS client                                                    |
 | `KAFKA_CONSUMER_GROUP`    | `iris-anti-fraud`               | consumer group                                                    |
 | `KAFKA_TOPIC_COMPLETED`   | `fraud.assessment.completed.v1` | configured; the use case publishes this name directly             |
-| `KAFKA_TOPIC_DLQ`         | `fraud.assessment.failed.dlq`   | invalid messages                                                  |
+| `KAFKA_TOPIC_DLQ`         | `fraud.assessment.failed.dlq`   | legacy DLQ topic (retired with request consumer in phase 10)      |
 | `OUTBOX_POLL_INTERVAL_MS` | `1000`                          | relay delay                                                       |
 | `OUTBOX_BATCH_SIZE`       | `50`                            | rows per tick                                                     |
 
