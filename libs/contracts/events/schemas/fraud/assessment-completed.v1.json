@@ -2,7 +2,7 @@
   "$id": "https://iris-gate/events/fraud/assessment-completed.v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "FraudAssessmentCompleted (v1)",
-  "description": "Resultado da avaliação de risco para um PaymentIntent.",
+  "description": "Risk assessment result for a PaymentIntent.",
   "type": "object",
   "additionalProperties": false,
   "required": [
