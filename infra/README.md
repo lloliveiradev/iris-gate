@@ -44,14 +44,13 @@ Logs use the json-file driver, 10 MB × 3 files.
 
 Kafka has two listeners. Inside the Compose network clients use `kafka:9092`. On the host, including `apps/api`, they use `localhost:19092` (or whatever `KAFKA_PORT` is), which is the `PLAINTEXT_HOST` listener. `KAFKA_ADVERTISED_LISTENERS` follows that host port, so a metadata round-trip stays on the port the client already used. A host client pointed at `kafka:9092` will not resolve that name.
 
-`kafka-init` creates the topics listed in [`docker/kafka/topics.txt`](docker/kafka/topics.txt) (3 partitions, except the DLQ which has 1). Replication factor is 1. `--if-not-exists` makes a second `make up` safe.
+`kafka-init` creates the topics listed in [`docker/kafka/topics.txt`](docker/kafka/topics.txt) (3 partitions). Replication factor is 1. `--if-not-exists` makes a second `make up` safe.
 
 ```text
 payments.payment_intent.created.v1
 payments.payment_intent.authorized.v1
 payments.payment_intent.captured.v1
 fraud.assessment.completed.v1
-fraud.assessment.failed.dlq
 ```
 
 A new event contract needs a line in `docker/kafka/topics.txt`. The broker will not invent the topic.
