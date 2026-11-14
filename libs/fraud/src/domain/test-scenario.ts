@@ -1,8 +1,9 @@
-import { Decision } from './decision';
+import { Decision, mostSevere } from './decision';
+import { InvalidAssessmentInputError } from './errors';
 import { FraudReason, FraudReasonCode } from './reason';
 import { DecisionThresholds } from './thresholds';
 
-/** Scenarios a test request may force. Matching is exact and case-sensitive. */
+/** Scenarios a test request may ask for. Matching is exact and case-sensitive. */
 export const TestScenario = {
   BLOCKED: 'blocked',
   REVIEW: 'review',
@@ -10,47 +11,63 @@ export const TestScenario = {
 
 export type TestScenario = (typeof TestScenario)[keyof typeof TestScenario];
 
-/** A decision forced by a test scenario, replacing the rule evaluation. */
-export interface TestScenarioOverride {
+/** A scored decision and the reasons behind it. */
+export interface RiskVerdict {
   readonly decision: Decision;
   readonly score: number;
-  readonly reasons: FraudReason[];
+  readonly reasons: readonly FraudReason[];
 }
 
 const FULL_WEIGHT = 1;
 
 /**
- * Resolves the test-hook override: `blocked` forces `REJECT`, `review` forces
- * `REVIEW`, each with a single `TEST_SCENARIO` reason. The score sits on the
- * threshold of the forced decision so that `thresholds.classify(score)` agrees with it.
- * Any other value, including none, yields `null` (no override). Whether test hooks
- * are enabled at all is the caller's decision.
+ * Applies a test scenario on top of the rule verdict. The scenario can only raise
+ * the outcome, never lower it: the decision becomes the more severe of the rule
+ * decision and the scenario's (`blocked` → `REJECT`, `review` → `REVIEW`), so
+ * `review` never downgrades a `REJECT`. The score becomes the higher of the rule
+ * score and the threshold of the scenario's decision, and a `TEST_SCENARIO` reason
+ * is added to the rule reasons. Whether test hooks are enabled at all is the
+ * caller's decision; an unknown scenario throws instead of being ignored.
  */
-export function resolveTestScenario(
-  scenario: string | null | undefined,
+export function applyTestScenario(
+  verdict: RiskVerdict,
+  scenario: TestScenario,
   thresholds: DecisionThresholds,
-): TestScenarioOverride | null {
+): RiskVerdict {
+  const required = requiredDecision(scenario);
+  const floorScore = required === Decision.REJECT ? thresholds.reject : thresholds.review;
+  const reason: FraudReason = {
+    code: FraudReasonCode.TEST_SCENARIO,
+    weight: FULL_WEIGHT,
+    score: floorScore,
+    description: `test scenario ${scenario} requires at least ${required}`,
+  };
+  return {
+    decision: mostSevere(verdict.decision, required),
+    score: Math.max(verdict.score, floorScore),
+    reasons: [...verdict.reasons, reason],
+  };
+}
+
+/**
+ * Throws `InvalidAssessmentInputError` when `scenario` is not a known `TestScenario`,
+ * so a caller can reject it before doing any I/O.
+ */
+export function assertKnownTestScenario(scenario: TestScenario): void {
+  requiredDecision(scenario);
+}
+
+function requiredDecision(scenario: TestScenario): Decision {
   switch (scenario) {
     case TestScenario.BLOCKED:
-      return forced(scenario, Decision.REJECT, thresholds.reject);
+      return Decision.REJECT;
     case TestScenario.REVIEW:
-      return forced(scenario, Decision.REVIEW, thresholds.review);
+      return Decision.REVIEW;
     default:
-      return null;
+      return unknownScenario(scenario);
   }
 }
 
-function forced(scenario: TestScenario, decision: Decision, score: number): TestScenarioOverride {
-  return {
-    decision,
-    score,
-    reasons: [
-      {
-        code: FraudReasonCode.TEST_SCENARIO,
-        weight: FULL_WEIGHT,
-        score,
-        description: `test scenario ${scenario} forced ${decision}`,
-      },
-    ],
-  };
+function unknownScenario(scenario: never): never {
+  throw new InvalidAssessmentInputError(`unknown test scenario: ${String(scenario)}`);
 }

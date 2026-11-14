@@ -56,6 +56,14 @@ describe('buildRulesFromConfig', () => {
     expect(rules[0]?.spec).toEqual(new BlockedCardSpec());
   });
 
+  it('accepts thresholdPercent 0', () => {
+    const [, rule] = buildRulesFromConfig([
+      blockedCardConfig(),
+      config({ code: FraudReasonCode.UNUSUAL_AMOUNT, params: { thresholdPercent: 0 } }),
+    ]);
+    expect(rule?.spec).toEqual(new UnusualAmountSpec({ thresholdPercent: 0 }));
+  });
+
   it('uses the configured limits', () => {
     const [, rule] = buildRulesFromConfig([
       blockedCardConfig(),
@@ -184,7 +192,12 @@ describe('buildRulesFromConfig', () => {
     [
       'negative thresholdPercent',
       config({ code: FraudReasonCode.UNUSUAL_AMOUNT, params: { thresholdPercent: -1 } }),
-      'thresholdPercent must be >= 0',
+      'thresholdPercent must be a non-negative integer',
+    ],
+    [
+      'fractional thresholdPercent (the rule compares in integer math)',
+      config({ code: FraudReasonCode.UNUSUAL_AMOUNT, params: { thresholdPercent: 12.5 } }),
+      'thresholdPercent must be a non-negative integer',
     ],
     [
       'infinite thresholdPercent',

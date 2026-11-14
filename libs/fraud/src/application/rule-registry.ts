@@ -1,6 +1,7 @@
 import { InvalidRuleConfigError } from '../domain/errors';
 import { FraudReasonCode } from '../domain/reason';
-import { DEFAULT_REJECT_THRESHOLD } from '../domain/thresholds';
+import { Score } from '../domain/score';
+import { DEFAULT_REJECT_THRESHOLD, DecisionThresholds } from '../domain/thresholds';
 import { RuleConfig } from './ports';
 import { BLOCKED_BASE_SCORE, BlockedCardSpec } from './specifications/blocked-card.rule';
 import { DeclineBurstSpec } from './specifications/decline-burst.rule';
@@ -25,14 +26,12 @@ export const DEFAULT_RULES: RuleConfig[] = [
     enabled: true,
     params: { thresholdPercent: 50 },
   },
-  // Placeholder default pending owner review (phase 10 plan, gap G6).
   {
     code: FraudReasonCode.VELOCITY,
     weight: 0.5,
     enabled: true,
     params: { maxAttempts24h: 5 },
   },
-  // Placeholder default pending owner review (phase 10 plan, gap G6).
   {
     code: FraudReasonCode.DECLINE_BURST,
     weight: 0.7,
@@ -48,7 +47,8 @@ const SPEC_FACTORIES: ReadonlyMap<string, SpecFactory> = new Map<string, SpecFac
   [FraudReasonCode.BLOCKED_CARD, () => new BlockedCardSpec()],
   [
     FraudReasonCode.UNUSUAL_AMOUNT,
-    (cfg) => new UnusualAmountSpec({ thresholdPercent: nonNegativeParam(cfg, 'thresholdPercent') }),
+    (cfg) =>
+      new UnusualAmountSpec({ thresholdPercent: nonNegativeIntegerParam(cfg, 'thresholdPercent') }),
   ],
   [
     FraudReasonCode.VELOCITY,
@@ -111,6 +111,29 @@ export function buildRulesFromConfig(configs: RuleConfig[]): RegisteredRule[] {
   return result;
 }
 
+/**
+ * Throws `InvalidRuleConfigError` unless the rules include `BLOCKED_CARD` with a weight
+ * whose effective score reaches `thresholds.reject`, so a blocked card always yields
+ * `REJECT` under the thresholds actually in use (not only the defaults checked by
+ * `buildRulesFromConfig`). Other rules only add to the score, so the check holds for
+ * any combination of matches.
+ */
+export function assertBlockedCardRejects(
+  rules: readonly RegisteredRule[],
+  thresholds: DecisionThresholds,
+): void {
+  const blockedCard = rules.find((rule) => rule.spec.code === FraudReasonCode.BLOCKED_CARD);
+  if (!blockedCard) {
+    throw new InvalidRuleConfigError(`rule ${FraudReasonCode.BLOCKED_CARD} is required`);
+  }
+  const effectiveScore = Score.fromWeighted(BLOCKED_BASE_SCORE, blockedCard.weight).value;
+  if (effectiveScore < thresholds.reject) {
+    throw new InvalidRuleConfigError(
+      `rule ${FraudReasonCode.BLOCKED_CARD} effective score (${effectiveScore}) must be >= reject threshold (${thresholds.reject})`,
+    );
+  }
+}
+
 function assertParamsObject(cfg: RuleConfig): void {
   const params: unknown = cfg.params;
   if (params === null || typeof params !== 'object' || Array.isArray(params)) {
@@ -136,10 +159,12 @@ function numericParam(cfg: RuleConfig, key: string): number {
   return value;
 }
 
-function nonNegativeParam(cfg: RuleConfig, key: string): number {
+function nonNegativeIntegerParam(cfg: RuleConfig, key: string): number {
   const value = numericParam(cfg, key);
-  if (value < 0) {
-    throw new InvalidRuleConfigError(`rule ${cfg.code} param ${key} must be >= 0: ${value}`);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new InvalidRuleConfigError(
+      `rule ${cfg.code} param ${key} must be a non-negative integer: ${value}`,
+    );
   }
   return value;
 }

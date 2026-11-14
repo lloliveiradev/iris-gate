@@ -22,7 +22,12 @@ export interface FeatureSnapshot {
    * for a first-time card). `DeclineBurstSpec` triggers when `declines24h > maxDeclines24h`.
    */
   readonly declines24h: number;
-  /** Average captured amount for the card, or `null` when nothing was captured yet. */
+  /**
+   * Average captured amount for the card in integer minor units, or `null` when nothing
+   * was captured yet. It must be an integer: a reader backed by SQL `AVG` (which returns
+   * a fraction) floors the result before returning it; `createFeatureSnapshot` rejects
+   * a fractional value.
+   */
   readonly avgCapturedCents: number | null;
   readonly blocked: boolean;
 }
@@ -33,7 +38,11 @@ export interface FeatureSnapshotQuery {
   customerRef?: string;
 }
 
-/** Port that loads the features of one card (and optional customer) in a single call. */
+/**
+ * Port that loads the features of one card (and optional customer) in a single call.
+ * Every count and amount it returns is an integer; an adapter computing
+ * `avgCapturedCents` with SQL `AVG` floors it (for example `FLOOR(AVG(amount_cents))`).
+ */
 export interface FeatureSnapshotReader {
   load(query: FeatureSnapshotQuery): Promise<FeatureSnapshot>;
 }
