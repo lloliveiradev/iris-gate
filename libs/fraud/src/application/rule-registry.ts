@@ -25,14 +25,12 @@ export const DEFAULT_RULES: RuleConfig[] = [
     enabled: true,
     params: { thresholdPercent: 50 },
   },
-  // Placeholder default pending owner review (phase 10 plan, gap G6).
   {
     code: FraudReasonCode.VELOCITY,
     weight: 0.5,
     enabled: true,
     params: { maxAttempts24h: 5 },
   },
-  // Placeholder default pending owner review (phase 10 plan, gap G6).
   {
     code: FraudReasonCode.DECLINE_BURST,
     weight: 0.7,
@@ -48,7 +46,8 @@ const SPEC_FACTORIES: ReadonlyMap<string, SpecFactory> = new Map<string, SpecFac
   [FraudReasonCode.BLOCKED_CARD, () => new BlockedCardSpec()],
   [
     FraudReasonCode.UNUSUAL_AMOUNT,
-    (cfg) => new UnusualAmountSpec({ thresholdPercent: nonNegativeParam(cfg, 'thresholdPercent') }),
+    (cfg) =>
+      new UnusualAmountSpec({ thresholdPercent: nonNegativeIntegerParam(cfg, 'thresholdPercent') }),
   ],
   [
     FraudReasonCode.VELOCITY,
@@ -136,10 +135,12 @@ function numericParam(cfg: RuleConfig, key: string): number {
   return value;
 }
 
-function nonNegativeParam(cfg: RuleConfig, key: string): number {
+function nonNegativeIntegerParam(cfg: RuleConfig, key: string): number {
   const value = numericParam(cfg, key);
-  if (value < 0) {
-    throw new InvalidRuleConfigError(`rule ${cfg.code} param ${key} must be >= 0: ${value}`);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new InvalidRuleConfigError(
+      `rule ${cfg.code} param ${key} must be a non-negative integer: ${value}`,
+    );
   }
   return value;
 }
