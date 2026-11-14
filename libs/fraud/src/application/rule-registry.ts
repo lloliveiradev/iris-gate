@@ -1,6 +1,7 @@
 import { InvalidRuleConfigError } from '../domain/errors';
 import { FraudReasonCode } from '../domain/reason';
-import { DEFAULT_REJECT_THRESHOLD } from '../domain/thresholds';
+import { Score } from '../domain/score';
+import { DEFAULT_REJECT_THRESHOLD, DecisionThresholds } from '../domain/thresholds';
 import { RuleConfig } from './ports';
 import { BLOCKED_BASE_SCORE, BlockedCardSpec } from './specifications/blocked-card.rule';
 import { DeclineBurstSpec } from './specifications/decline-burst.rule';
@@ -108,6 +109,29 @@ export function buildRulesFromConfig(configs: RuleConfig[]): RegisteredRule[] {
   }
 
   return result;
+}
+
+/**
+ * Throws `InvalidRuleConfigError` unless the rules include `BLOCKED_CARD` with a weight
+ * whose effective score reaches `thresholds.reject`, so a blocked card always yields
+ * `REJECT` under the thresholds actually in use (not only the defaults checked by
+ * `buildRulesFromConfig`). Other rules only add to the score, so the check holds for
+ * any combination of matches.
+ */
+export function assertBlockedCardRejects(
+  rules: readonly RegisteredRule[],
+  thresholds: DecisionThresholds,
+): void {
+  const blockedCard = rules.find((rule) => rule.spec.code === FraudReasonCode.BLOCKED_CARD);
+  if (!blockedCard) {
+    throw new InvalidRuleConfigError(`rule ${FraudReasonCode.BLOCKED_CARD} is required`);
+  }
+  const effectiveScore = Score.fromWeighted(BLOCKED_BASE_SCORE, blockedCard.weight).value;
+  if (effectiveScore < thresholds.reject) {
+    throw new InvalidRuleConfigError(
+      `rule ${FraudReasonCode.BLOCKED_CARD} effective score (${effectiveScore}) must be >= reject threshold (${thresholds.reject})`,
+    );
+  }
 }
 
 function assertParamsObject(cfg: RuleConfig): void {

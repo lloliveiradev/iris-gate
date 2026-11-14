@@ -2,6 +2,7 @@ import { Decision } from '../domain/decision';
 import { DuplicateAssessmentError } from '../domain/errors';
 import { FraudReason } from '../domain/reason';
 import { RiskAssessment, RiskAssessmentSnapshot } from '../domain/risk-assessment';
+import { TestScenario } from '../domain/test-scenario';
 import { FeatureSnapshot, FeatureSnapshotReader } from './feature-snapshot';
 import {
   FIXTURE_CARD_FINGERPRINT,
@@ -23,6 +24,22 @@ export const FAKE_CARD_BRAND = 'visa';
 export const FAKE_CURRENCY = 'BRL';
 export const FAKE_AMOUNT_CENTS = NORMAL_AMOUNT_CENTS;
 export const FAKE_REQUESTED_AT = FIXTURE_NOW;
+/** Latency of the stored assessments built here: `completedAt - requestedAt`. */
+export const FAKE_STORED_LATENCY_MS = 42;
+/** Values that differ from the stored assessment, for conflicting repeats. */
+export const FAKE_CONFLICTING_MERCHANT_ID = '00000000-0000-4000-8000-0000000000b2';
+export const FAKE_CONFLICTING_AMOUNT_CENTS = FAKE_AMOUNT_CENTS + 1;
+export const FAKE_CONFLICTING_CURRENCY = 'USD';
+
+/**
+ * Ids a fresh `SequentialIdGen` hands out on a new payment intent: the assessment
+ * first, then the outbox event.
+ */
+export const FIRST_GENERATED_ASSESSMENT_ID = 'gen_001';
+export const FIRST_GENERATED_EVENT_ID = 'gen_002';
+
+/** A scenario outside `TestScenario`, as an unvalidated caller could send it. */
+export const UNKNOWN_TEST_SCENARIO = 'approve' as TestScenario;
 
 /** A valid scoring request for a first-time card; override what the test is about. */
 export function scoreRiskInput(overrides: Partial<ScoreRiskInput> = {}): ScoreRiskInput {
@@ -44,10 +61,14 @@ interface StoredVerdict {
   reasons: FraudReason[];
 }
 
-/** An assessment for `FAKE_PAYMENT_INTENT_ID`, completed with the given verdict. */
+/**
+ * An assessment for `FAKE_PAYMENT_INTENT_ID`, completed with the given verdict
+ * `FAKE_STORED_LATENCY_MS` after it was requested.
+ */
 export function completedAssessment(verdict: StoredVerdict): RiskAssessment {
   const assessment = pendingAssessment();
-  assessment.complete(verdict.decision, verdict.score, verdict.reasons, FAKE_REQUESTED_AT);
+  const completedAt = new Date(FAKE_REQUESTED_AT.getTime() + FAKE_STORED_LATENCY_MS);
+  assessment.complete(verdict.decision, verdict.score, verdict.reasons, completedAt);
   return assessment;
 }
 
@@ -71,6 +92,8 @@ export function pendingAssessment(): RiskAssessment {
 export class InMemoryScoredAssessmentStore implements ScoredAssessmentStore {
   /** Every successful `saveScored`, in order. */
   readonly saved: ScoredAssessment[] = [];
+  /** Every payment intent id passed to `findByPaymentIntentId`, in order. */
+  readonly lookups: string[] = [];
   private readonly byPaymentIntent = new Map<string, RiskAssessmentSnapshot>();
   private concurrentWinner: RiskAssessment | null = null;
   private nextSaveError: Error | null = null;
@@ -91,6 +114,7 @@ export class InMemoryScoredAssessmentStore implements ScoredAssessmentStore {
   }
 
   async findByPaymentIntentId(paymentIntentId: string): Promise<RiskAssessment | null> {
+    this.lookups.push(paymentIntentId);
     const snapshot = this.byPaymentIntent.get(paymentIntentId);
     return snapshot ? RiskAssessment.rehydrate(snapshot) : null;
   }

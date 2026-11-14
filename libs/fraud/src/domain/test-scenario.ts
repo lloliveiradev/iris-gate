@@ -49,6 +49,14 @@ export function applyTestScenario(
   };
 }
 
+/**
+ * Throws `InvalidAssessmentInputError` when `scenario` is not a known `TestScenario`,
+ * so a caller can reject it before doing any I/O.
+ */
+export function assertKnownTestScenario(scenario: TestScenario): void {
+  requiredDecision(scenario);
+}
+
 function requiredDecision(scenario: TestScenario): Decision {
   switch (scenario) {
     case TestScenario.BLOCKED:

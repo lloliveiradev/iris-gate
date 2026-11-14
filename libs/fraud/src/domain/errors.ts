@@ -20,3 +20,9 @@ export class DuplicateAssessmentError extends FraudDomainError {}
 
 /** A stored assessment has no decision, so it cannot answer a repeated request. */
 export class IncompleteAssessmentError extends FraudDomainError {}
+
+/**
+ * A request reuses the `payment_intent_id` of a stored assessment but differs in
+ * `merchant_id`, `amount_cents` or `currency`, so the stored answer does not apply.
+ */
+export class AssessmentConflictError extends FraudDomainError {}
