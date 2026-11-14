@@ -51,13 +51,6 @@ channels:
       message:
         $ref: '#/components/messages/FraudAssessmentCompletedV1'
 
-  fraud.assessment.failed.dlq:
-    description: Dead-letter para mensagens que falharam terminalmente (payload inválido / erro não-retryable).
-    publish:
-      operationId: publishFraudAssessmentFailedDLQ
-      message:
-        $ref: '#/components/messages/FraudAssessmentRequestedV1'
-
 components:
   messages:
     MerchantCreatedV1:

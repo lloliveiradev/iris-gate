@@ -16,13 +16,13 @@
     "reasons"
   ],
   "properties": {
-    "event_id":          { "type": "string", "format": "uuid" },
-    "occurred_at":       { "type": "string", "format": "date-time" },
-    "assessment_id":     { "type": "string", "format": "uuid" },
+    "event_id": { "type": "string", "format": "uuid" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "assessment_id": { "type": "string", "format": "uuid" },
     "payment_intent_id": { "type": "string", "format": "uuid" },
-    "merchant_id":       { "type": "string", "format": "uuid" },
-    "decision":          { "type": "string", "enum": ["APPROVE", "REVIEW", "REJECT"] },
-    "score":             { "type": "number", "minimum": 0, "maximum": 100 },
+    "merchant_id": { "type": "string", "format": "uuid" },
+    "decision": { "type": "string", "enum": ["APPROVE", "REVIEW", "REJECT"] },
+    "score": { "type": "number", "minimum": 0, "maximum": 100 },
     "reasons": {
       "type": "array",
       "items": {
@@ -30,9 +30,12 @@
         "additionalProperties": false,
         "required": ["code", "weight", "score", "description"],
         "properties": {
-          "code":        { "type": "string", "enum": ["SUSPICIOUS_ACCOUNT", "UNUSUAL_AMOUNT", "FREQUENT_HIGH_VALUE"] },
-          "weight":      { "type": "number", "minimum": 0, "maximum": 1 },
-          "score":       { "type": "number", "minimum": 0, "maximum": 100 },
+          "code": {
+            "type": "string",
+            "enum": ["BLOCKED_CARD", "UNUSUAL_AMOUNT", "VELOCITY", "DECLINE_BURST", "TEST_SCENARIO"]
+          },
+          "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "score": { "type": "number", "minimum": 0, "maximum": 100 },
           "description": { "type": "string" }
         }
       }
