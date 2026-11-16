@@ -102,6 +102,7 @@ export class ScoreRiskUseCase {
       await this.featureReader.load({
         cardFingerprint: input.cardFingerprint,
         customerRef: input.customerRef,
+        paymentIntentId: input.paymentIntentId,
       }),
     );
     const verdict = this.decide(input.amountCents, features, requestedAt, testScenario);

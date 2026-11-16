@@ -32,10 +32,15 @@ export interface FeatureSnapshot {
   readonly blocked: boolean;
 }
 
-/** Identifies whose features to load. */
+/** Identifies whose features to load, and which in-flight attempt to leave out. */
 export interface FeatureSnapshotQuery {
   cardFingerprint: string;
   customerRef?: string;
+  /**
+   * The payment intent being scored. Nothing recorded for it counts in the snapshot,
+   * so a reader excludes the in-flight attempt even if its `attempted` row is visible.
+   */
+  paymentIntentId: string;
 }
 
 /**
