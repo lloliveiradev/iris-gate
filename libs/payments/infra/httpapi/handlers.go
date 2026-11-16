@@ -45,7 +45,7 @@ func Mount(r chi.Router, d Deps) {
 		return
 	}
 
-	// POST /v1/payment-intents — exige idempotency middleware.
+	// POST /v1/payment-intents requires the idempotency middleware.
 	if d.IdempotencyMW != nil {
 		r.Group(func(r chi.Router) {
 			r.Use(d.AuthRequired)
@@ -170,7 +170,9 @@ func handleAuthorize(uc *application.AuthorizePaymentUseCase) http.HandlerFunc {
 			return
 		}
 		pi, err := uc.Execute(r.Context(), merchant.ID, id)
-		if err != nil {
+		// A decline is a business outcome, not a failure: the contract answers
+		// 200 with the persisted `failed` intent.
+		if err != nil && !errors.Is(err, domain.ErrAcquirerRejected) {
 			mapError(w, r, err)
 			return
 		}
@@ -257,6 +259,10 @@ func mapError(w http.ResponseWriter, r *http.Request, err error) {
 		problem(w, r, http.StatusConflict, "idempotency_conflict", err.Error())
 	case errors.Is(err, domain.ErrPaymentIntentNotFound):
 		problem(w, r, http.StatusNotFound, "payment_intent_not_found", "payment intent not found")
+	case errors.Is(err, domain.ErrConcurrentUpdate):
+		problem(w, r, http.StatusConflict, "concurrent_update", "payment intent was changed by another request; reload and retry")
+	case errors.Is(err, domain.ErrInvalidStatusTransition):
+		problem(w, r, http.StatusConflict, "invalid_status_transition", err.Error())
 	default:
 		slog.LogAttrs(r.Context(), slog.LevelError, "http.unhandled", slog.Any("err", err))
 		problem(w, r, http.StatusInternalServerError, "internal", "internal error")

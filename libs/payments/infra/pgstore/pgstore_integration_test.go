@@ -4,17 +4,21 @@ package pgstore_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	identitypg "github.com/iris-gate/iris-gate/libs/identity/infra/pgstore"
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
+	"github.com/iris-gate/iris-gate/libs/payments/infra/acquirer"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/pgstore"
 	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
 )
@@ -117,6 +121,282 @@ func TestIntegration_IdempotencyKeyIsPerMerchantAndScope(t *testing.T) {
 	}
 	if rec, _ := store.Existing(ctx, uuid.New(), "create_payment_intent", key); rec != nil {
 		t.Error("unknown merchant saw a record")
+	}
+}
+
+// ---------- D3, D4: persisted declines and optimistic locking ----------
+
+// racingCallers is how many goroutines race on one intent.
+const racingCallers = 8
+
+func seedPendingIntent(t *testing.T, repo *pgstore.Repo, merchantID uuid.UUID, cardToken string) domain.PaymentIntent {
+	t.Helper()
+	amount, _ := domain.NewMoney(1000, "BRL")
+	pi, err := domain.NewPaymentIntent(uuid.New(), merchantID, amount, cardToken, "", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateWithOutbox(context.Background(), pi, application.OutboxMessage{Topic: "t", Key: "k", Payload: []byte(`{}`)}); err != nil {
+		t.Fatal(err)
+	}
+	return pi
+}
+
+// outboxRows counts the outbox rows of one topic for one intent.
+func outboxRows(t *testing.T, pool *pgxpool.Pool, topic string, intentID uuid.UUID) int {
+	t.Helper()
+	var n int
+	err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM outbox_messages WHERE topic = $1 AND payload->>'payment_intent_id' = $2`,
+		topic, intentID.String()).Scan(&n)
+	if err != nil {
+		t.Fatalf("count outbox: %v", err)
+	}
+	return n
+}
+
+// raceAuthorize runs racingCallers authorizations of one intent at once and
+// returns their errors.
+func raceAuthorize(uc *application.AuthorizePaymentUseCase, merchantID, id uuid.UUID) []error {
+	errs := make([]error, racingCallers)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range racingCallers {
+		wg.Go(func() {
+			<-start
+			_, errs[i] = uc.Execute(context.Background(), merchantID, id)
+		})
+	}
+	close(start)
+	wg.Wait()
+	return errs
+}
+
+// AC4, I6: a decline persists failed, failure_code and one failed.v1 row.
+func TestIntegration_Decline_PersistsFailedWithOutboxRow(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	repo := pgstore.New(pool)
+	merchant := seedMerchant(t, pool)
+	pi := seedPendingIntent(t, repo, merchant, testfixtures.TokenDeclined)
+	uc := application.NewAuthorizePaymentUseCase(repo, acquirer.NewFake(testfixtures.TokenDeclined), application.SystemClock{}, application.UUIDGen{})
+
+	if _, err := uc.Execute(ctx, merchant, pi.ID); !errors.Is(err, domain.ErrAcquirerRejected) {
+		t.Fatalf("err = %v, want ErrAcquirerRejected", err)
+	}
+
+	var status string
+	var failureCode *string
+	var version int
+	if err := pool.QueryRow(ctx, `SELECT status, failure_code, version FROM payment_intents WHERE id = $1`, pi.ID).
+		Scan(&status, &failureCode, &version); err != nil {
+		t.Fatal(err)
+	}
+	if status != string(domain.PaymentIntentFailed) || failureCode == nil || *failureCode != string(domain.FailureCardDeclined) || version != 1 {
+		t.Errorf("row = (%s, %v, v%d), want (failed, card_declined, v1)", status, failureCode, version)
+	}
+	if n := outboxRows(t, pool, application.TopicPaymentIntentFailedV1, pi.ID); n != 1 {
+		t.Errorf("failed outbox rows = %d, want 1", n)
+	}
+	got, err := repo.GetByID(ctx, merchant, pi.ID)
+	if err != nil || got.FailureCode != domain.FailureCardDeclined || got.Version != 1 {
+		t.Errorf("GetByID = (%+v, %v), want failure code and version 1", got, err)
+	}
+}
+
+// AC5, I1, I5: N concurrent authorizations → one acquirer authorization, one
+// authorized row; every loser gets ErrConcurrentUpdate (409) or the idempotent
+// result, and writes nothing.
+func TestIntegration_ConcurrentAuthorize_OneAuthorization(t *testing.T) {
+	pool := newPool(t)
+	repo := pgstore.New(pool)
+	merchant := seedMerchant(t, pool)
+	pi := seedPendingIntent(t, repo, merchant, testfixtures.TokenApproved)
+	fake := acquirer.NewFake()
+	uc := application.NewAuthorizePaymentUseCase(repo, fake, application.SystemClock{}, application.UUIDGen{})
+
+	succeeded := 0
+	for _, err := range raceAuthorize(uc, merchant, pi.ID) {
+		switch {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, domain.ErrConcurrentUpdate):
+		default:
+			t.Errorf("unexpected err: %v", err)
+		}
+	}
+	if succeeded == 0 {
+		t.Error("no caller succeeded")
+	}
+	if n := fake.Authorizations(); n != 1 {
+		t.Errorf("acquirer authorizations = %d, want 1", n)
+	}
+	if n := outboxRows(t, pool, application.TopicPaymentIntentAuthorizedV1, pi.ID); n != 1 {
+		t.Errorf("authorized outbox rows = %d, want 1", n)
+	}
+	got, err := repo.GetByID(context.Background(), merchant, pi.ID)
+	if err != nil || got.Status != domain.PaymentIntentAuthorized || got.Version != 1 {
+		t.Errorf("intent = (%s v%d, %v), want authorized v1", got.Status, got.Version, err)
+	}
+}
+
+// I3: concurrent authorizations of a declined card all see the one decline.
+func TestIntegration_ConcurrentAuthorize_Declined_OneDecision(t *testing.T) {
+	pool := newPool(t)
+	repo := pgstore.New(pool)
+	merchant := seedMerchant(t, pool)
+	pi := seedPendingIntent(t, repo, merchant, testfixtures.TokenDeclined)
+	fake := acquirer.NewFake(testfixtures.TokenDeclined)
+	uc := application.NewAuthorizePaymentUseCase(repo, fake, application.SystemClock{}, application.UUIDGen{})
+
+	for _, err := range raceAuthorize(uc, merchant, pi.ID) {
+		if !errors.Is(err, domain.ErrAcquirerRejected) && !errors.Is(err, domain.ErrConcurrentUpdate) && !errors.Is(err, domain.ErrInvalidStatusTransition) {
+			t.Errorf("err = %v, want a decline, a lost race or a transition error", err)
+		}
+	}
+	if n := fake.Authorizations(); n != 1 {
+		t.Errorf("acquirer authorizations = %d, want 1", n)
+	}
+	if n := outboxRows(t, pool, application.TopicPaymentIntentFailedV1, pi.ID); n != 1 {
+		t.Errorf("failed outbox rows = %d, want 1", n)
+	}
+	if n := outboxRows(t, pool, application.TopicPaymentIntentAuthorizedV1, pi.ID); n != 0 {
+		t.Errorf("authorized outbox rows = %d, want 0", n)
+	}
+}
+
+// I2: authorize racing capture never writes two events of one kind and ends
+// in a valid state.
+func TestIntegration_AuthorizeRacingCapture_ValidFinalState(t *testing.T) {
+	pool := newPool(t)
+	repo := pgstore.New(pool)
+	merchant := seedMerchant(t, pool)
+	pi := seedPendingIntent(t, repo, merchant, testfixtures.TokenApproved)
+	authorize := application.NewAuthorizePaymentUseCase(repo, acquirer.NewFake(), application.SystemClock{}, application.UUIDGen{})
+	capture := application.NewCapturePaymentUseCase(repo, application.SystemClock{}, application.UUIDGen{})
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for range racingCallers {
+		wg.Go(func() {
+			<-start
+			_, _ = authorize.Execute(context.Background(), merchant, pi.ID)
+		})
+		wg.Go(func() {
+			<-start
+			_, _ = capture.Execute(context.Background(), merchant, pi.ID)
+		})
+	}
+	close(start)
+	wg.Wait()
+
+	got, err := repo.GetByID(context.Background(), merchant, pi.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorized := outboxRows(t, pool, application.TopicPaymentIntentAuthorizedV1, pi.ID)
+	captured := outboxRows(t, pool, application.TopicPaymentIntentCapturedV1, pi.ID)
+	if authorized != 1 || captured > 1 {
+		t.Errorf("events: authorized = %d captured = %d, want 1 and at most 1", authorized, captured)
+	}
+	switch got.Status {
+	case domain.PaymentIntentAuthorized:
+		if captured != 0 {
+			t.Errorf("authorized intent has %d captured events", captured)
+		}
+	case domain.PaymentIntentCaptured:
+		if captured != 1 {
+			t.Errorf("captured intent has %d captured events", captured)
+		}
+	default:
+		t.Errorf("final status = %s, want authorized or captured", got.Status)
+	}
+	if want := authorized + captured; got.Version != want {
+		t.Errorf("version = %d, want %d (one per update)", got.Version, want)
+	}
+}
+
+// R1: a stale version writes nothing and is ErrConcurrentUpdate; a foreign
+// merchant is ErrPaymentIntentNotFound even with the right version.
+func TestIntegration_UpdateWithOutbox_StaleVersion(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	repo := pgstore.New(pool)
+	owner, other := seedMerchant(t, pool), seedMerchant(t, pool)
+	pi := seedPendingIntent(t, repo, owner, testfixtures.TokenApproved)
+	msg := func() application.OutboxMessage {
+		return application.OutboxMessage{Topic: application.TopicPaymentIntentAuthorizedV1, Payload: []byte(`{"payment_intent_id":"` + pi.ID.String() + `"}`)}
+	}
+
+	fresh := pi
+	if err := fresh.MarkAuthorized(time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpdateWithOutbox(ctx, fresh, msg()); err != nil {
+		t.Fatalf("first update: %v", err)
+	}
+	if err := repo.UpdateWithOutbox(ctx, fresh, msg()); !errors.Is(err, domain.ErrConcurrentUpdate) {
+		t.Errorf("stale update err = %v, want ErrConcurrentUpdate", err)
+	}
+	foreign := fresh
+	foreign.MerchantID = other
+	foreign.Version = 1
+	if err := repo.UpdateWithOutbox(ctx, foreign, msg()); !errors.Is(err, domain.ErrPaymentIntentNotFound) {
+		t.Errorf("foreign update err = %v, want ErrPaymentIntentNotFound", err)
+	}
+	if n := outboxRows(t, pool, application.TopicPaymentIntentAuthorizedV1, pi.ID); n != 1 {
+		t.Errorf("outbox rows = %d, want 1 (rejected updates write nothing)", n)
+	}
+}
+
+// M1b: 0004 on rows in the old shape gives version 0 and a NULL failure code,
+// and the check rejects a failure code on a non-failed intent.
+func TestIntegration_Migration0004_OnLegacyRows(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	merchant := seedMerchant(t, pool)
+	body, err := os.ReadFile("migrations/0004_payment_intent_version_and_failure.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // leave the shared schema untouched
+
+	legacyID := uuid.New()
+	for _, stmt := range []string{
+		`ALTER TABLE payment_intents DROP CONSTRAINT payment_intents_failure_code_only_when_failed`,
+		`ALTER TABLE payment_intents DROP COLUMN version, DROP COLUMN failure_code`,
+	} {
+		if _, err := tx.Exec(ctx, stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO payment_intents (id, merchant_id, amount_cents, currency, card_token) VALUES ($1,$2,100,'BRL',$3)`,
+		legacyID, merchant, testfixtures.TokenApproved); err != nil {
+		t.Fatalf("insert legacy row: %v", err)
+	}
+	if _, err := tx.Exec(ctx, string(body)); err != nil {
+		t.Fatalf("apply 0004: %v", err)
+	}
+
+	var version int
+	var failureCode *string
+	if err := tx.QueryRow(ctx, `SELECT version, failure_code FROM payment_intents WHERE id = $1`, legacyID).
+		Scan(&version, &failureCode); err != nil {
+		t.Fatal(err)
+	}
+	if version != 0 || failureCode != nil {
+		t.Errorf("legacy row = (v%d, %v), want (v0, NULL)", version, failureCode)
+	}
+
+	_, err = tx.Exec(ctx, `UPDATE payment_intents SET failure_code = 'card_declined' WHERE id = $1`, legacyID)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.ConstraintName != "payment_intents_failure_code_only_when_failed" {
+		t.Errorf("failure code on a pending intent: err = %v, want the check violation", err)
 	}
 }
 

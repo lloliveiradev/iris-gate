@@ -9,4 +9,12 @@ package testfixtures
 const (
 	// TokenApproved is an opaque card token that tests treat as a valid card.
 	TokenApproved = "tok_test_visa"
+	// TokenDeclined is an opaque card token that tests configure the fake
+	// acquirer to decline.
+	TokenDeclined = "tok_test_declined"
+	// TokenTooShort is below the minimum card token length.
+	TokenTooShort = "tok_a"
 )
+
+// AcquirerBearer is the fake bearer token the HTTP acquirer tests expect.
+const AcquirerBearer = "acquirer_test_bearer"
