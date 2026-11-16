@@ -42,24 +42,14 @@ func main() {
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := pgxpool.New(rootCtx, cfg.DatabaseURL)
+	// Request handlers run as iris_app, which has DML only. Migrations are not
+	// applied here: `make migrate` runs cmd/migrate as iris_migrator.
+	pool, err := pgxpool.New(rootCtx, cfg.AppDatabaseURL)
 	if err != nil {
-		slog.Error("pg connect", "err", err)
+		slog.Error("pg connect", "role", "app", "err", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
-
-	if cfg.MigrateOnStartup {
-		if err := identitypg.MigrateEmbedded(rootCtx, pool); err != nil {
-			slog.Error("migrate identity", "err", err)
-			os.Exit(1)
-		}
-		if err := paymentspg.MigrateEmbedded(rootCtx, pool); err != nil {
-			slog.Error("migrate payments", "err", err)
-			os.Exit(1)
-		}
-		slog.Info("migrations applied")
-	}
 
 	// Identity wiring. Merchants and API keys are managed by cmd/irisctl, not HTTP.
 	identityRepo := identitypg.New(pool)
@@ -93,8 +83,15 @@ func main() {
 		IdempotencyMW:       idempotency.Middleware(idempotencyStore, "create_payment_intent"),
 	}
 
-	// Outbox relay worker.
+	// Outbox relay worker, on its own pool as iris_worker (to-be section 9.2).
 	if cfg.RelayEnabled {
+		workerPool, err := pgxpool.New(rootCtx, cfg.WorkerDatabaseURL)
+		if err != nil {
+			slog.Error("pg connect", "role", "worker", "err", err)
+			os.Exit(1)
+		}
+		defer workerPool.Close()
+
 		brokers := strings.Split(cfg.KafkaBroker, ",")
 		writer := kafkarelay.NewKafkaWriter(brokers)
 		defer func() {
@@ -102,7 +99,7 @@ func main() {
 				slog.Error("close kafka writer", "err", err)
 			}
 		}()
-		relay := kafkarelay.New(paymentsRepo, writer, kafkarelay.Config{})
+		relay := kafkarelay.New(paymentspg.New(workerPool), writer, kafkarelay.Config{})
 		go func() {
 			if err := relay.Run(rootCtx); err != nil && !errors.Is(err, context.Canceled) {
 				slog.Error("kafka relay stopped", "err", err)
