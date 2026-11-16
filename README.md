@@ -38,22 +38,36 @@ Optional later: `golangci-lint`, `gofumpt`, `lefthook`, `gitleaks`.
 
 ```bash
 make bootstrap   # yarn install, copy infra/docker/.env, start Compose
+make migrate     # apply the iris and antifraud migrations as the migrator roles
 make dev         # start Compose if needed, then the API (:8080) and the dashboard (:3000); Ctrl-C stops both
 ```
 
-To run one process alone: `make -C apps/api dev` or `make -C apps/web dev`.
+To run one process alone: `make -C apps/api dev` or `make -C apps/web dev`. Run `make migrate` again after pulling a new migration; the services never migrate on their own.
 
-The anti-fraud database is not created by Compose. Once, after the first `make up`:
+### Database roles
+
+Each service connects with its own least-privilege Postgres role ([to-be section 9.2](docs/design/to-be.md#92-roles)). The init script `infra/docker/postgres/initdb/10-roles.sh` creates them, and the `antifraud` database, the first time the Postgres volume starts empty:
+
+| Database    | Role                 | Used by                                  | Rights                |
+| ----------- | -------------------- | ---------------------------------------- | --------------------- |
+| `iris`      | `iris_migrator`      | `make migrate` (`apps/api/cmd/migrate`)  | owns the schema, DDL  |
+| `iris`      | `iris_app`           | API request handlers, `irisctl`          | DML only              |
+| `iris`      | `iris_worker`        | outbox relay                             | DML, `BYPASSRLS`      |
+| `iris`      | `iris_platform`      | platform routes (phase 8)                | `SELECT`, `BYPASSRLS` |
+| `antifraud` | `antifraud_migrator` | `make migrate` (`prisma migrate deploy`) | owns the schema, DDL  |
+| `antifraud` | `antifraud_app`      | anti-fraud runtime                       | DML only              |
+
+A role connects only to its own database. The bootstrap superuser (`POSTGRES_USER`) is left to the init scripts and `make psql`. Passwords are local placeholders in `infra/docker/.env`; the services read one URL per role (`IRIS_APP_DATABASE_URL`, `IRIS_WORKER_DATABASE_URL`, `IRIS_MIGRATOR_DATABASE_URL` in `apps/api`; `DATABASE_URL` and `ANTIFRAUD_MIGRATOR_DATABASE_URL` in `apps/anti-fraud`), whose defaults match those placeholders.
+
+The roles exist only on a volume created after this script. To recreate the stack from scratch, or after changing a password in `infra/docker/.env`:
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml exec postgres \
-  psql -U iris -d iris -c "CREATE DATABASE antifraud OWNER iris;"
-make -C apps/anti-fraud prisma-deploy
+make nuke && make bootstrap && make migrate
 ```
 
 `make up` already starts the anti-fraud container and publishes it on host port `13001` (the process inside the container still listens on `3001`) and hot-reloads its source, so `make dev` does not start it on the host. Run `make -C apps/anti-fraud dev` only after stopping that container, with `apps/anti-fraud/.env` copied from `.env.example`.
 
-The API listens on `:8080` with `postgres://iris:iris@localhost:15432/iris?sslmode=disable` and `localhost:19092`. Leave `ACQUIRER_URL` empty to use the fake acquirer. Migrations run on startup (`MIGRATE_ON_STARTUP=true`).
+The API listens on `:8080`, connects to Postgres on `localhost:15432` as `iris_app` (the outbox relay as `iris_worker`) and to Kafka on `localhost:19092`. Leave `ACQUIRER_URL` empty to use the fake acquirer.
 
 Compose names the project `ig`. Containers are `ig-postgres`, `ig-kafka`, `ig-kafka-init`, `ig-karapace`, and `ig-anti-fraud`. The network is `ig`. Volumes are `ig-postgres-data` and `ig-kafka-data`. Host ports come from `infra/docker/.env` and stay off the well-known defaults so this stack does not collide with another Postgres or Kafka on the same machine:
 
@@ -138,8 +152,10 @@ Inside a context the arrow points inward: `infra` implements ports, `application
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `make help`                              | List root targets                                                                                                                   |
 | `make dev`                               | Stack up, then the API and the dashboard on the host                                                                                |
+| `make migrate`                           | Apply the iris (Go) and antifraud (Prisma) migrations as the migrator roles, then restart anti-fraud                                |
 | `make test` / `make lint` / `make build` | Run the target in every package that defines it (Go tests with `-race`, Jest, Vitest; golangci-lint with `configs/go/golangci.yml`) |
 | `make -C libs/identity test-int`         | Identity tests that need Postgres (`-tags=integration`)                                                                             |
+| `make -C apps/api test-int`              | Database role tests against the migrated stack; export `infra/docker/.env` first (`set -a && . infra/docker/.env && set +a`)        |
 | `make -C apps/web e2e`                   | Playwright                                                                                                                          |
 | `make gen-contracts`                     | Regenerate Go and TypeScript from the OpenAPI specs                                                                                 |
 | `make gen-contracts-check`               | Fail if generated files drifted (CI does this)                                                                                      |
@@ -173,6 +189,8 @@ Setup, branches, commits, and pull requests are in [CONTRIBUTING.md](CONTRIBUTIN
 ## Troubleshooting
 
 - **Port 13001 is taken.** Compose already publishes anti-fraud there. Stop that container before a host `make -C apps/anti-fraud dev`.
-- **A host port is still taken.** Change `POSTGRES_PORT`, `KAFKA_PORT`, `KARAPACE_PORT`, or `ANTI_FRAUD_PORT` in `infra/docker/.env`, then point `DATABASE_URL` or `KAFKA_BROKER` of the API at the Postgres and Kafka ports you chose. `KAFKA_ADVERTISED_LISTENERS` follows `KAFKA_PORT`.
+- **A host port is still taken.** Change `POSTGRES_PORT`, `KAFKA_PORT`, `KARAPACE_PORT`, or `ANTI_FRAUD_PORT` in `infra/docker/.env`, then point the API's `IRIS_*_DATABASE_URL` and `KAFKA_BROKER`, and the anti-fraud `DATABASE_URL` and `ANTIFRAUD_MIGRATOR_DATABASE_URL`, at the Postgres and Kafka ports you chose. `KAFKA_ADVERTISED_LISTENERS` follows `KAFKA_PORT`.
 - **Contract check fails.** Run `make gen-contracts` and commit the generated files together with the spec.
 - **API cannot reach Postgres or Kafka.** `make ps` should show healthy `ig-postgres` and `ig-kafka`. Defaults assume `localhost:15432` and `localhost:19092`. An `infra/docker/.env` created before those defaults still has the old ports; update it or delete it and run `make up` again. `make down` and `make nuke` affect only the `ig` project.
+- **`password authentication failed for user "iris_migrator"` (or another role).** The Postgres volume predates the roles, or a password in `infra/docker/.env` changed after the volume was created. Init scripts run only on an empty volume: `make nuke && make bootstrap && make migrate`.
+- **`permission denied` on a new table.** It was created by a role other than the migrator (for example the superuser in `make psql`), so the default privileges did not apply. Create tables only through migrations and `make migrate`.
