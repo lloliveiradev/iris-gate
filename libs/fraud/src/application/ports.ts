@@ -1,42 +1,9 @@
 import { RiskAssessment } from '../domain/risk-assessment';
 
-export interface AccountSnapshot {
-  ref: string;
-  isSuspicious: boolean;
-}
-
-export interface InvoiceRecord {
-  id: string;
-  accountRef: string;
-  amountCents: number;
-  createdAt: Date;
-}
-
-export interface AccountRepo {
-  findOrCreate(ref: string): Promise<AccountSnapshot>;
-}
-
-export interface InvoiceHistoryRepo {
-  recentByAccount(accountRef: string, since: Date): Promise<InvoiceRecord[]>;
-  lastNByAccount(accountRef: string, limit: number): Promise<InvoiceRecord[]>;
-  recordAttempt(input: {
-    paymentIntentId: string;
-    accountRef: string;
-    amountCents: number;
-    occurredAt: Date;
-  }): Promise<void>;
-}
-
 export interface RiskAssessmentRepo {
   findById(id: string): Promise<RiskAssessment | null>;
-  saveCompletedWithOutbox(
-    assessment: RiskAssessment,
-    outboxEvent: OutboxEventInput,
-  ): Promise<void>;
-  saveFailedWithOutbox(
-    assessment: RiskAssessment,
-    outboxEvent: OutboxEventInput,
-  ): Promise<void>;
+  saveCompletedWithOutbox(assessment: RiskAssessment, outboxEvent: OutboxEventInput): Promise<void>;
+  saveFailedWithOutbox(assessment: RiskAssessment, outboxEvent: OutboxEventInput): Promise<void>;
 }
 
 export interface OutboxEventInput {

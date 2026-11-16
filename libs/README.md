@@ -34,7 +34,7 @@ Use cases: create, authorize, capture. Authorize calls an `Acquirer` port. An em
 
 ## fraud
 
-Pure TypeScript. No Nest, no Prisma, no Kafka. `apps/anti-fraud` implements the ports and calls `AssessRiskUseCase`.
+Pure TypeScript. No Nest, no Prisma, no Kafka. `apps/anti-fraud` implements the ports (`FeatureSnapshotReader` reads `payment_outcomes` and `card_profiles`). `ScoreRiskUseCase` is the scoring entry point; the internal endpoint that calls it is still to come in phase 10.
 
 Rules evaluate a `FeatureSnapshot` and ship as specifications, with default weights and parameters (`VELOCITY` and `DECLINE_BURST` are placeholders pending owner review):
 

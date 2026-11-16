@@ -5,6 +5,7 @@ import {
   RiskAssessment,
   type FraudReason,
 } from '@iris-gate/fraud';
+import { bigIntToSafeNumber, safeNumberToBigInt } from './bigint.mapping';
 import { PrismaService } from './prisma.service';
 
 @Injectable()
@@ -19,7 +20,7 @@ export class PrismaRiskAssessmentRepo implements RiskAssessmentRepo {
       paymentIntentId: row.paymentIntentId,
       merchantId: row.merchantId,
       accountRef: row.accountRef,
-      amountCents: row.amountCents,
+      amountCents: bigIntToSafeNumber('amountCents', row.amountCents),
       currency: row.currency,
       status: row.status as 'PENDING' | 'COMPLETED' | 'FAILED',
       decision: row.decision as 'APPROVE' | 'REVIEW' | 'REJECT' | null,
@@ -43,7 +44,7 @@ export class PrismaRiskAssessmentRepo implements RiskAssessmentRepo {
           paymentIntentId: snap.paymentIntentId,
           merchantId: snap.merchantId,
           accountRef: snap.accountRef,
-          amountCents: snap.amountCents,
+          amountCents: safeNumberToBigInt('amountCents', snap.amountCents),
           currency: snap.currency,
           status: snap.status,
           decision: snap.decision,

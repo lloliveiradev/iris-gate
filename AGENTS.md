@@ -161,6 +161,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Uncertainty fails closed: `REVIEW` or `REJECT`, never a fallback `APPROVE`.
 - `apps/anti-fraud` is the Nest composition root (Prisma, Kafka, inbox, outbox). It runs the built `@iris-gate/fraud` package. Change a rule in the lib. Yarn 4 does not run `pre*` scripts, so the `dev`, `build` and `typecheck` scripts build `@iris-gate/fraud` and run `prisma generate` themselves.
 - Prisma 7: the client is generated into `apps/anti-fraud/src/infra/prisma/generated/` (gitignored, never edited), `prisma.config.ts` holds the schema path and `DATABASE_URL`, and `PrismaService` connects through the `@prisma/adapter-pg` driver adapter. Schema changes still go through a migration in `prisma/migrations/`.
+- Anti-fraud amounts are `BIGINT` in Postgres, and SQL counts come back as `bigint`. Map both in `apps/anti-fraud/src/infra/prisma/bigint.mapping.ts`, which throws outside the safe-integer range (fail closed); never call `Number()` on a value read from the database. Features come from `payment_outcomes` and `card_profiles` (to-be section 8.6) through `PrismaFeatureSnapshotReader`; `Account` and `InvoiceAttempt` no longer exist.
 - Consumers dedupe with the inbox. Do not apply one message id twice.
 
 ## Toolchain

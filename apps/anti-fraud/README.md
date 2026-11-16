@@ -14,7 +14,7 @@ The Kafka request consumer was removed in phase 10; scoring moves to a synchrono
 
 ## Rules
 
-`FraudModule` loads `FraudRule` once, at startup. An empty table logs a warning and uses `DEFAULT_RULES` from `@iris-gate/fraud`:
+`FraudModule` loads `FraudRule` once, at startup, and the process stops when the registry rejects a row (unknown code, bad params, or `BLOCKED_CARD` missing, disabled or too light). The phase 10 migration deletes rows whose code is not one of the four below. An empty table logs a warning and uses `DEFAULT_RULES` from `@iris-gate/fraud`:
 
 | Code             | Weight | Params                                                 |
 | ---------------- | ------ | ------------------------------------------------------ |
@@ -41,7 +41,9 @@ make -C apps/anti-fraud prisma-deploy
 
 `prisma-migrate` is `prisma migrate dev` and is for creating a new migration. Compose does not run migrations.
 
-Models: `Account`, `InvoiceAttempt`, `RiskAssessment`, `FraudRule`, `InboxMessage`, `OutboxMessage`.
+Models (to-be section 8.6): `CardProfile` (`card_profiles`), `PaymentOutcome` (`payment_outcomes`), `RiskAssessment` (with `features_snapshot`), `FraudRule`, `InboxMessage`, `OutboxMessage`. Amounts are `BIGINT` minor units. `src/infra/prisma/bigint.mapping.ts` maps them to numbers and throws outside the safe-integer range instead of rounding (fail closed).
+
+`PrismaFeatureSnapshotReader` loads the `FeatureSnapshot` of a card in one query: `attempted` and `declined` outcomes with `occurred_at` in `[now - 24h, now)`, the floored average of every `captured` amount (`null` when none), and `card_profiles.blocked` (no row means not blocked). Nothing recorded for the payment intent being scored counts.
 
 Prisma 7 specifics:
 
@@ -83,9 +85,9 @@ Inside Compose the broker hostname is `kafka:9092`, not `localhost`.
 
 ```text
 src/main.ts                 Nest bootstrap, shutdown hooks
-src/modules/fraud/          wires AssessRiskUseCase to Prisma adapters
+src/modules/fraud/          wires the Prisma adapters and the rules loaded at startup
 src/infra/kafka/            consumer, DLQ, outbox relay, payload parser
-src/infra/prisma/           repositories, inbox, outbox, rule config
+src/infra/prisma/           repositories, feature reader, BigInt mapping, inbox, outbox, rule config
 src/config/kafka.config.ts  env → KafkaConfig
 prisma/                     schema and SQL migrations
 ```
@@ -94,16 +96,17 @@ prisma/                     schema and SQL migrations
 
 From the repo root:
 
-| Target               | Effect                                                                           |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `dev`                | rebuild `@iris-gate/fraud`, then `nest start --watch`                            |
-| `build` / `start`    | compile the lib and this app; start runs `node dist/main.js`                     |
-| `test`               | Jest. Current specs cover the health controller. Rule tests live in `libs/fraud` |
-| `lint` / `typecheck` | ESLint and `tsc --noEmit`                                                        |
-| `prisma-generate`    | Prisma client                                                                    |
-| `prisma-migrate`     | `prisma migrate dev`                                                             |
-| `prisma-deploy`      | `prisma migrate deploy`                                                          |
-| `clean`              | `node_modules`, `dist`, coverage, `tsconfig.tsbuildinfo`                         |
+| Target               | Effect                                                                    |
+| -------------------- | ------------------------------------------------------------------------- |
+| `dev`                | rebuild `@iris-gate/fraud`, then `nest start --watch`                     |
+| `build` / `start`    | compile the lib and this app; start runs `node dist/main.js`              |
+| `test`               | Jest. Integration specs skip without `ANTIFRAUD_TEST_DATABASE_URL`        |
+| `test-int`           | migrate `ANTIFRAUD_TEST_DATABASE_URL` (disposable), run integration specs |
+| `lint` / `typecheck` | ESLint and `tsc --noEmit`                                                 |
+| `prisma-generate`    | Prisma client                                                             |
+| `prisma-migrate`     | `prisma migrate dev`                                                      |
+| `prisma-deploy`      | `prisma migrate deploy`                                                   |
+| `clean`              | `node_modules`, `dist`, coverage, `tsconfig.tsbuildinfo`                  |
 
 ## Boundaries
 

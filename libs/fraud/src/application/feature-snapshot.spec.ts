@@ -9,6 +9,7 @@ import {
   firstTimeCardFeatures,
   UNSAFE_AMOUNT_CENTS,
 } from './fixtures';
+import { FAKE_PAYMENT_INTENT_ID } from './score-risk.fakes';
 
 describe('createFeatureSnapshot', () => {
   it('returns a frozen copy', () => {
@@ -57,17 +58,25 @@ describe('InMemoryFeatureSnapshotReader', () => {
     const loaded = await reader.load({
       cardFingerprint: FIXTURE_CARD_FINGERPRINT,
       customerRef: FIXTURE_CUSTOMER_REF,
+      paymentIntentId: FAKE_PAYMENT_INTENT_ID,
     });
 
     expect(loaded).toEqual(stored);
     expect(reader.queries).toEqual([
-      { cardFingerprint: FIXTURE_CARD_FINGERPRINT, customerRef: FIXTURE_CUSTOMER_REF },
+      {
+        cardFingerprint: FIXTURE_CARD_FINGERPRINT,
+        customerRef: FIXTURE_CUSTOMER_REF,
+        paymentIntentId: FAKE_PAYMENT_INTENT_ID,
+      },
     ]);
   });
 
   it('reads an unknown card as a first-time card', async () => {
     const reader = new InMemoryFeatureSnapshotReader();
-    const loaded = await reader.load({ cardFingerprint: FIXTURE_OTHER_CARD_FINGERPRINT });
+    const loaded = await reader.load({
+      cardFingerprint: FIXTURE_OTHER_CARD_FINGERPRINT,
+      paymentIntentId: FAKE_PAYMENT_INTENT_ID,
+    });
     expect(loaded).toEqual({
       cardFingerprint: FIXTURE_OTHER_CARD_FINGERPRINT,
       attempts24h: 0,

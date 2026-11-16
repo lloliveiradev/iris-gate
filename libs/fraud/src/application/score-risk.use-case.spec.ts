@@ -183,11 +183,15 @@ describe('ScoreRiskUseCase', () => {
   });
 
   describe('what a new payment intent writes', () => {
-    it('loads one snapshot for the card and customer', async () => {
+    it('loads one snapshot for the card and customer, leaving out the intent being scored', async () => {
       const { features, useCase } = setup();
       await useCase.execute(scoreRiskInput());
       expect(features.queries).toEqual([
-        { cardFingerprint: FAKE_CARD_FINGERPRINT, customerRef: FAKE_CUSTOMER_REF },
+        {
+          cardFingerprint: FAKE_CARD_FINGERPRINT,
+          customerRef: FAKE_CUSTOMER_REF,
+          paymentIntentId: FAKE_PAYMENT_INTENT_ID,
+        },
       ]);
     });
 
@@ -258,7 +262,11 @@ describe('ScoreRiskUseCase', () => {
       await useCase.execute(scoreRiskInput({ customerRef: undefined }));
       expect(store.saved[0]?.attempt.customerRef).toBeNull();
       expect(features.queries).toEqual([
-        { cardFingerprint: FAKE_CARD_FINGERPRINT, customerRef: undefined },
+        {
+          cardFingerprint: FAKE_CARD_FINGERPRINT,
+          customerRef: undefined,
+          paymentIntentId: FAKE_PAYMENT_INTENT_ID,
+        },
       ]);
     });
   });

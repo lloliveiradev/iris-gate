@@ -31,6 +31,17 @@ start: ## node dist/main.js
 test: ## jest
 	$(YARN) run test
 
+# A disposable database for the integration specs (for example `antifraud_test`
+# on the Compose Postgres), never the dev one: the specs write rows. The recipe
+# reads it from the shell so the URL and its password are not echoed.
+export ANTIFRAUD_TEST_DATABASE_URL
+
+.PHONY: test-int
+test-int: ## migrate and run the integration specs (needs Postgres, ANTIFRAUD_TEST_DATABASE_URL)
+	@[ -n "$${ANTIFRAUD_TEST_DATABASE_URL:-}" ] || { echo "ANTIFRAUD_TEST_DATABASE_URL is not set"; exit 1; }
+	DATABASE_URL="$$ANTIFRAUD_TEST_DATABASE_URL" $(YARN) run prisma:migrate:deploy
+	$(YARN) run test --testPathPatterns '\.integration\.spec\.ts$$'
+
 .PHONY: lint
 lint: ## eslint
 	$(YARN) run lint

@@ -1,6 +1,8 @@
-// Iris Gate — Anti-fraud datastore.
-// Models cover: account flags, completed risk assessments, configurable rule
-// definitions, plus Inbox/Outbox messages for at-least-once Kafka semantics.
+// Iris Gate — Anti-fraud datastore (to-be design, section 8.6).
+// Models cover: card profiles and payment outcomes (what the feature snapshot is
+// read from), completed risk assessments with the snapshot the rules saw,
+// configurable rule definitions, plus Inbox/Outbox messages for at-least-once
+// Kafka semantics. Amounts are BIGINT minor units (D6).
 
 // The client is generated into src/ as TypeScript so `nest build` compiles it
 // with the app. It runs without a query engine binary: PrismaService connects
@@ -15,38 +17,62 @@ datasource db {
   provider = "postgresql"
 }
 
-model Account {
-  ref          String   @id
-  isSuspicious Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+/// What anti-fraud knows about a card beyond its outcomes. A card without a row is
+/// a card never flagged: `blocked` reads as false.
+model CardProfile {
+  cardFingerprint String   @id @map("card_fingerprint")
+  blocked         Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("card_profiles")
 }
 
-model InvoiceAttempt {
-  paymentIntentId String   @id
-  accountRef      String
-  amountCents     Int
-  occurredAt      DateTime
-  createdAt       DateTime @default(now())
+enum PaymentOutcomeKind {
+  attempted
+  declined
+  captured
 
-  @@index([accountRef, occurredAt])
+  @@map("payment_outcome_kind")
+}
+
+/// One row per payment intent and outcome: scoring records `attempted`, and the
+/// outcome consumer (phase 13) records `declined` and `captured`. The composite key
+/// keeps a repeated scoring from adding a second `attempted` row.
+model PaymentOutcome {
+  paymentIntentId String             @map("payment_intent_id")
+  outcome         PaymentOutcomeKind
+  merchantId      String             @map("merchant_id")
+  cardFingerprint String             @map("card_fingerprint")
+  cardBrand       String?            @map("card_brand")
+  customerRef     String?            @map("customer_ref")
+  amountCents     BigInt             @map("amount_cents")
+  currency        String             @db.Char(3)
+  occurredAt      DateTime           @map("occurred_at") @db.Timestamptz(3)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([paymentIntentId, outcome])
+  @@index([cardFingerprint, outcome, occurredAt])
+  @@map("payment_outcomes")
 }
 
 model RiskAssessment {
-  id              String    @id
-  paymentIntentId String    @unique
-  merchantId      String
-  accountRef      String
-  amountCents     Int
-  currency        String    @db.Char(3)
-  status          String
-  decision        String?
-  score           Float     @default(0)
-  reasons         Json      @default("[]")
-  requestedAt     DateTime
-  completedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String    @id
+  paymentIntentId  String    @unique
+  merchantId       String
+  accountRef       String
+  amountCents      BigInt
+  currency         String    @db.Char(3)
+  status           String
+  decision         String?
+  score            Float     @default(0)
+  reasons          Json      @default("[]")
+  /// The feature snapshot the rules saw; null on assessments from before phase 10.
+  featuresSnapshot Json?     @map("features_snapshot")
+  requestedAt      DateTime
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([accountRef, completedAt])
 }
