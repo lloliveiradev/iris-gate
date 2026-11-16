@@ -44,6 +44,13 @@ channels:
       message:
         $ref: '#/components/messages/PaymentIntentCapturedV1'
 
+  payments.payment_intent.failed.v1:
+    description: Emitted when the acquirer declines the authorization (status=failed, with a failure_code).
+    publish:
+      operationId: publishPaymentIntentFailedV1
+      message:
+        $ref: '#/components/messages/PaymentIntentFailedV1'
+
   fraud.assessment.completed.v1:
     description: Risk assessment result (decision + score + reasons).
     publish:
@@ -88,6 +95,15 @@ components:
         $ref: '#/components/schemas/CommonHeaders'
       payload:
         $ref: 'schemas/payments/payment-intent-captured.v1.json'
+
+    PaymentIntentFailedV1:
+      name: PaymentIntentFailedV1
+      title: Payment Intent Failed (v1)
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CommonHeaders'
+      payload:
+        $ref: 'schemas/payments/payment-intent-failed.v1.json'
 
     FraudAssessmentCompletedV1:
       name: FraudAssessmentCompletedV1
