@@ -1,0 +1,52 @@
+# Ignore rules for apps/api/Dockerfile only (BuildKit reads <Dockerfile>.dockerignore).
+# The build context is the repo root, so these paths are relative to it.
+# Exclude Node workspaces, docs, infra and local caches; keep only go.work and Go modules.
+
+**/node_modules
+**/dist
+**/build
+**/.next
+**/.turbo
+**/coverage
+**/coverage.out
+**/*.log
+**/.DS_Store
+
+# Non-API apps and TS-only libraries
+apps/web
+apps/anti-fraud
+libs/fraud
+libs/sdk-web
+libs/contracts/http
+libs/contracts/events
+libs/contracts/codegen
+libs/contracts/generated/ts
+docs
+infra
+tools
+configs
+
+# Yarn and local tool caches
+.yarn
+.tools
+.logs
+.codegraph
+
+# Build artifacts and test files
+apps/api/bin
+apps/api/tests
+**/*.tsbuildinfo
+
+# Editor / VCS
+.git
+.github
+.agents
+.claude
+.idea
+.vscode
+
+# Host env files
+**/.env
+**/.env.*
+!**/.env.example
+.trello.json
