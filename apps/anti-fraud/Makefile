@@ -39,7 +39,7 @@ export ANTIFRAUD_TEST_DATABASE_URL
 .PHONY: test-int
 test-int: ## migrate and run the integration specs (needs Postgres, ANTIFRAUD_TEST_DATABASE_URL)
 	@[ -n "$${ANTIFRAUD_TEST_DATABASE_URL:-}" ] || { echo "ANTIFRAUD_TEST_DATABASE_URL is not set"; exit 1; }
-	DATABASE_URL="$$ANTIFRAUD_TEST_DATABASE_URL" $(YARN) run prisma:migrate:deploy
+	ANTIFRAUD_MIGRATOR_DATABASE_URL="$$ANTIFRAUD_TEST_DATABASE_URL" $(YARN) run prisma:migrate:deploy
 	$(YARN) run test --testPathPatterns '\.integration\.spec\.ts$$'
 
 .PHONY: lint
@@ -58,9 +58,13 @@ prisma-generate: ## prisma generate (typed client)
 prisma-migrate: ## prisma migrate dev (local)
 	$(YARN) run prisma:migrate:dev
 
+# Runs as antifraud_migrator (ANTIFRAUD_MIGRATOR_DATABASE_URL). Its default
+# privileges also grant antifraud_app DML on Prisma's own _prisma_migrations
+# table; the REVOKE takes that back so the app cannot mark a migration applied.
 .PHONY: prisma-deploy
-prisma-deploy: ## prisma migrate deploy (CI/prod)
+prisma-deploy: ## prisma migrate deploy as antifraud_migrator, then lock _prisma_migrations
 	$(YARN) run prisma:migrate:deploy
+	echo 'REVOKE ALL ON TABLE "_prisma_migrations" FROM antifraud_app;' | $(YARN) prisma db execute --stdin
 
 .PHONY: clean
 clean: ## Remove node_modules, caches and build output
