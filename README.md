@@ -32,14 +32,16 @@ API-first payments gateway for local study. A Go service owns merchants, API key
 - Node.js 26 LTS (24.11 or newer works), with Corepack (`packageManager` is Yarn 4.18.1; Node 25+ needs `npm install -g corepack` first)
 - Docker with Compose
 
-Optional later: `golangci-lint`, `gofumpt`, `lefthook`, `gitleaks`.
+Optional later: `lefthook`, `gitleaks` (`make tools` installs `golangci-lint` v2.15.0 and `gofumpt` v0.12.0 into `.tools/bin`, so no global install is needed for Go linting or formatting).
 
 ### Run locally
 
 ```bash
-make bootstrap   # yarn install, copy infra/docker/.env, start Compose
-make migrate     # apply the iris and antifraud migrations as the migrator roles
-make dev         # start Compose if needed, then the API (:8080) and the dashboard (:3000); Ctrl-C stops both
+make bootstrap     # yarn install, copy infra/docker/.env, start Compose
+make tools         # install pinned golangci-lint and gofumpt into .tools/bin
+make install-hooks # optional: enable lefthook pre-commit and commit-msg hooks
+make migrate       # apply the iris and antifraud migrations as the migrator roles
+make dev           # start Compose if needed, then the API (:8080) and the dashboard (:3000); Ctrl-C stops both
 ```
 
 To run one process alone: `make -C apps/api dev` or `make -C apps/web dev`. Run `make migrate` again after pulling a new migration; the services never migrate on their own.
@@ -151,6 +153,8 @@ Inside a context the arrow points inward: `infra` implements ports, `application
 | Command                                  | What it does                                                                                                                        |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `make help`                              | List root targets                                                                                                                   |
+| `make tools`                             | Install pinned `golangci-lint` (v2.15.0) and `gofumpt` (v0.12.0) into `.tools/bin`                                                  |
+| `make install-hooks`                     | Install git hooks (`lefthook`)                                                                                                      |
 | `make dev`                               | Stack up, then the API and the dashboard on the host                                                                                |
 | `make migrate`                           | Apply the iris (Go) and antifraud (Prisma) migrations as the migrator roles, then restart anti-fraud                                |
 | `make test` / `make lint` / `make build` | Run the target in every package that defines it (Go tests with `-race`, Jest, Vitest; golangci-lint with `configs/go/golangci.yml`) |

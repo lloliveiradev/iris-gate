@@ -9,11 +9,12 @@ pre-commit:
     gofumpt:
       glob: "*.go"
       run: |
-        if ! command -v gofumpt >/dev/null 2>&1; then
-          echo "✗ gofumpt is not installed. Run: go install mvdan.cc/gofumpt@latest" >&2
+        GOFUMPT=$(command -v gofumpt 2>/dev/null || echo .tools/bin/gofumpt)
+        if [ ! -x "$GOFUMPT" ]; then
+          echo "✗ gofumpt is not installed. Run: make tools (or: go install mvdan.cc/gofumpt@latest)" >&2
           exit 1
         fi
-        gofumpt -l -w {staged_files}
+        "$GOFUMPT" -l -w {staged_files}
         git add {staged_files}
 
     go-vet:

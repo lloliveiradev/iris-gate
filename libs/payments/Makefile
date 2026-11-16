@@ -7,6 +7,9 @@ SHELL := /usr/bin/env bash
 GO  ?= go
 PKG := ./...
 GOLANGCI_CONFIG := ../../configs/go/golangci.yml
+TOOLS_BIN := $(abspath ../../.tools/bin)
+GOLANGCI_LINT := $(shell command -v golangci-lint 2>/dev/null || echo $(TOOLS_BIN)/golangci-lint)
+GOFUMPT       := $(shell command -v gofumpt 2>/dev/null || echo $(TOOLS_BIN)/gofumpt)
 
 C_RST := \033[0m
 C_BLD := \033[1m
@@ -40,13 +43,13 @@ vet: ## go vet
 
 .PHONY: lint
 lint: ## golangci-lint with configs/go/golangci.yml
-	@command -v golangci-lint >/dev/null || { echo "install: https://golangci-lint.run/welcome/install/"; exit 1; }
-	golangci-lint run --config $(GOLANGCI_CONFIG) $(PKG)
+	@[ -x "$(GOLANGCI_LINT)" ] || { echo "golangci-lint not found. Run: make tools"; exit 1; }
+	"$(GOLANGCI_LINT)" run --config $(GOLANGCI_CONFIG) $(PKG)
 
 .PHONY: fmt
 fmt: ## gofumpt
-	@command -v gofumpt >/dev/null || { echo "install: go install mvdan.cc/gofumpt@latest"; exit 1; }
-	gofumpt -l -w .
+	@[ -x "$(GOFUMPT)" ] || { echo "gofumpt not found. Run: make tools"; exit 1; }
+	"$(GOFUMPT)" -l -w .
 
 .PHONY: build
 build: ## go build (compile smoke check)
