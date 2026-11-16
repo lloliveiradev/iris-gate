@@ -1,45 +1,34 @@
 import { Module } from '@nestjs/common';
 import {
-  AssessRiskUseCase,
   buildRulesFromConfig,
-  DecisionThresholds,
-  type AccountRepo,
   type Clock,
-  type IDGen,
-  type InboxStore,
-  type InvoiceHistoryRepo,
-  type RiskAssessmentRepo,
+  type FeatureSnapshotReader,
+  type RegisteredRule,
   type RuleConfigStore,
 } from '@iris-gate/fraud';
-import { randomUUID } from 'node:crypto';
-import { PrismaAccountRepo } from '../../infra/prisma/account.repo';
+import { PrismaFeatureSnapshotReader } from '../../infra/prisma/feature-snapshot.reader';
 import { PrismaInboxStore } from '../../infra/prisma/inbox.store';
-import { PrismaInvoiceHistoryRepo } from '../../infra/prisma/invoice-history.repo';
 import { PrismaOutboxStore } from '../../infra/prisma/outbox.store';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 import { PrismaRiskAssessmentRepo } from '../../infra/prisma/risk-assessment.repo';
 import { PrismaRuleConfigStore } from '../../infra/prisma/rule-config.store';
 import { OUTBOX_STORE, OutboxRelayService } from '../../infra/kafka/outbox-relay.service';
 import {
-  ACCOUNT_REPO,
+  FEATURE_SNAPSHOT_READER,
   INBOX_STORE,
-  INVOICE_HISTORY_REPO,
+  REGISTERED_RULES,
   RISK_ASSESSMENT_REPO,
   RULE_CONFIG_STORE,
 } from './tokens';
 
 const CLOCK = Symbol('CLOCK');
-const ID_GEN = Symbol('ID_GEN');
 
 @Module({
   providers: [
-    PrismaAccountRepo,
-    PrismaInvoiceHistoryRepo,
     PrismaRiskAssessmentRepo,
     PrismaInboxStore,
     PrismaOutboxStore,
     PrismaRuleConfigStore,
-    { provide: ACCOUNT_REPO, useExisting: PrismaAccountRepo },
-    { provide: INVOICE_HISTORY_REPO, useExisting: PrismaInvoiceHistoryRepo },
     { provide: RISK_ASSESSMENT_REPO, useExisting: PrismaRiskAssessmentRepo },
     { provide: INBOX_STORE, useExisting: PrismaInboxStore },
     { provide: OUTBOX_STORE, useExisting: PrismaOutboxStore },
@@ -49,45 +38,20 @@ const ID_GEN = Symbol('ID_GEN');
       useValue: { now: () => new Date() } satisfies Clock,
     },
     {
-      provide: ID_GEN,
-      useValue: { newId: () => randomUUID() } satisfies IDGen,
+      provide: FEATURE_SNAPSHOT_READER,
+      inject: [PrismaService, CLOCK],
+      useFactory: (prisma: PrismaService, clock: Clock): FeatureSnapshotReader =>
+        new PrismaFeatureSnapshotReader(prisma, clock),
     },
     {
-      provide: AssessRiskUseCase,
-      inject: [
-        INBOX_STORE,
-        ACCOUNT_REPO,
-        INVOICE_HISTORY_REPO,
-        RISK_ASSESSMENT_REPO,
-        RULE_CONFIG_STORE,
-        CLOCK,
-        ID_GEN,
-      ],
-      useFactory: async (
-        inbox: InboxStore,
-        accounts: AccountRepo,
-        history: InvoiceHistoryRepo,
-        assessments: RiskAssessmentRepo,
-        rules: RuleConfigStore,
-        clock: Clock,
-        idGen: IDGen,
-      ) => {
-        const configs = await rules.load();
-        const built = buildRulesFromConfig(configs);
-        return new AssessRiskUseCase(
-          inbox,
-          accounts,
-          history,
-          assessments,
-          built,
-          DecisionThresholds.defaults(),
-          clock,
-          idGen,
-        );
-      },
+      // Loaded once, at startup: a FraudRule row the registry rejects stops the
+      // process instead of scoring with a partial rule set.
+      provide: REGISTERED_RULES,
+      inject: [RULE_CONFIG_STORE],
+      useFactory: async (store: RuleConfigStore): Promise<RegisteredRule[]> =>
+        buildRulesFromConfig(await store.load()),
     },
     OutboxRelayService,
   ],
-  exports: [AssessRiskUseCase],
 })
 export class FraudModule {}
