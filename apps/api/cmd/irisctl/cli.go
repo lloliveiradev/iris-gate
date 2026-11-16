@@ -36,7 +36,7 @@ Usage:
   irisctl revoke-api-key  --id <uuid>
 
 Output is one JSON object on stdout. The API key secret is printed once, by
-issue-api-key, and is never stored or logged. Environment: DATABASE_URL.
+issue-api-key, and is never stored or logged. Environment: IRIS_APP_DATABASE_URL.
 `
 
 // Ports consumed by the CLI, shaped by the commands that need them. The

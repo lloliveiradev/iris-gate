@@ -13,17 +13,29 @@ services:
     restart: unless-stopped
     logging: *default-logging
     environment:
+      # Bootstrap superuser: init scripts and `make psql` only. No service uses it.
       POSTGRES_USER: ${POSTGRES_USER:-iris}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iris}
       POSTGRES_DB: ${POSTGRES_DB:-iris}
       PGDATA: /var/lib/postgresql/data/pgdata
+      # Read once by postgres/initdb/10-roles.sh, on an empty volume.
+      ANTI_FRAUD_DB: ${ANTI_FRAUD_DB:-antifraud}
+      IRIS_MIGRATOR_PASSWORD: ${IRIS_MIGRATOR_PASSWORD:-iris_migrator}
+      IRIS_APP_PASSWORD: ${IRIS_APP_PASSWORD:-iris_app}
+      IRIS_WORKER_PASSWORD: ${IRIS_WORKER_PASSWORD:-iris_worker}
+      IRIS_PLATFORM_PASSWORD: ${IRIS_PLATFORM_PASSWORD:-iris_platform}
+      ANTIFRAUD_MIGRATOR_PASSWORD: ${ANTIFRAUD_MIGRATOR_PASSWORD:-antifraud_migrator}
+      ANTIFRAUD_APP_PASSWORD: ${ANTIFRAUD_APP_PASSWORD:-antifraud_app}
     ports:
       - '${POSTGRES_PORT:-15432}:5432'
     volumes:
       - ig-postgres-data:/var/lib/postgresql/data
       - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-iris} -d ${POSTGRES_DB:-iris}']
+      # Over TCP: the image runs the init scripts on a socket-only server, so a
+      # socket check would report healthy before the roles exist.
+      test:
+        ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-iris} -d ${POSTGRES_DB:-iris}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -160,7 +172,8 @@ services:
       - '${ANTI_FRAUD_PORT:-13001}:3001'
     environment:
       # Internal hostnames — kafkajs metadata advertises kafka:9092 inside the network.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-iris}:${POSTGRES_PASSWORD:-iris}@postgres:5432/${ANTI_FRAUD_DB:-antifraud}?schema=public
+      # Runtime role: DML only. Migrations run from the host with `make migrate`.
+      DATABASE_URL: postgresql://antifraud_app:${ANTIFRAUD_APP_PASSWORD:-antifraud_app}@postgres:5432/${ANTI_FRAUD_DB:-antifraud}?schema=public
       KAFKA_BROKERS: kafka:9092
       KAFKA_CLIENT_ID: anti-fraud
       KAFKAJS_NO_PARTITIONER_WARNING: '1'

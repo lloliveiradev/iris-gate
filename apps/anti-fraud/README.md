@@ -31,15 +31,19 @@ Change a specification in `libs/fraud`. This app only adapts ports to Prisma and
 
 Postgres is the same instance as `apps/api`, in a different database so the two migration sets do not share a schema. The API uses `iris`. This app uses `antifraud`.
 
-Create it once, then apply the migration in `prisma/migrations/`:
+The Postgres init scripts create the database and its two roles (`infra/docker/postgres/initdb/10-roles.sh`):
+
+- `antifraud_migrator` owns the database and its schema. The Prisma CLI connects as this role (`ANTIFRAUD_MIGRATOR_DATABASE_URL` in `prisma.config.ts`).
+- `antifraud_app` is the runtime (`DATABASE_URL`). Default privileges give it `SELECT, INSERT, UPDATE, DELETE` on every table the migrator creates and `USAGE` on its sequences; it cannot run DDL or connect to `iris`.
+
+Apply the migrations in `prisma/migrations/` from the repo root with `make migrate`, which runs `prisma-deploy` and restarts the container. Compose and the app never migrate. A table created by any other role (the superuser in `make psql`, say) gets no grants for `antifraud_app`.
+
+`prisma-migrate` is `prisma migrate dev` and is for creating a new migration. It needs a shadow database, which `antifraud_migrator` cannot create. Create one once and point `ANTIFRAUD_SHADOW_DATABASE_URL` at it (see `.env.example`):
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml exec postgres \
-  psql -U iris -d iris -c "CREATE DATABASE antifraud OWNER iris;"
-make -C apps/anti-fraud prisma-deploy
+make psql   # then: CREATE DATABASE antifraud_shadow OWNER antifraud_migrator;
+            #       REVOKE ALL ON DATABASE antifraud_shadow FROM PUBLIC;
 ```
-
-`prisma-migrate` is `prisma migrate dev` and is for creating a new migration. Compose does not run migrations.
 
 Models (to-be section 8.6): `CardProfile` (`card_profiles`), `PaymentOutcome` (`payment_outcomes`), `RiskAssessment` (with `features_snapshot`), `FraudRule`, `InboxMessage`, `OutboxMessage`. Amounts are `BIGINT` minor units. `src/infra/prisma/bigint.mapping.ts` maps them to numbers and throws outside the safe-integer range instead of rounding (fail closed).
 
@@ -47,7 +51,7 @@ Models (to-be section 8.6): `CardProfile` (`card_profiles`), `PaymentOutcome` (`
 
 Prisma 7 specifics:
 
-- `prisma.config.ts` points at the schema and migrations and reads `DATABASE_URL` (it loads `.env` when the file exists; variables already set win).
+- `prisma.config.ts` points at the schema and migrations and reads `ANTIFRAUD_MIGRATOR_DATABASE_URL`, defaulting to the local Compose migrator (it loads `.env` when the file exists; variables already set win). The runtime never reads that variable.
 - The client is generated into `src/infra/prisma/generated/` (gitignored). `yarn dev`, `yarn build` and `yarn typecheck` regenerate it; run `make prisma-generate` after editing the schema.
 - `PrismaService` connects through the `@prisma/adapter-pg` driver adapter. There is no query engine binary any more.
 - The process fails fast at startup when `DATABASE_URL` is missing.
@@ -70,7 +74,7 @@ The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). Th
 | Variable                  | Default in code                 | Used for                                                          |
 | ------------------------- | ------------------------------- | ----------------------------------------------------------------- |
 | `PORT`                    | `13001`                         | HTTP listen on the host. Compose sets `3001` inside the container |
-| `DATABASE_URL`            | required by Prisma              | `antifraud` database                                              |
+| `DATABASE_URL`            | required by Prisma              | `antifraud` database as `antifraud_app` (runtime, DML only)       |
 | `KAFKA_BROKERS`           | `localhost:19092`               | comma-separated host listener. Compose sets `kafka:9092`          |
 | `KAFKA_CLIENT_ID`         | `iris-anti-fraud`               | KafkaJS client                                                    |
 | `KAFKA_CONSUMER_GROUP`    | `iris-anti-fraud`               | consumer group                                                    |
@@ -80,6 +84,8 @@ The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). Th
 | `OUTBOX_BATCH_SIZE`       | `50`                            | rows per tick                                                     |
 
 Inside Compose the broker hostname is `kafka:9092`, not `localhost`.
+
+The Prisma CLI reads `ANTIFRAUD_MIGRATOR_DATABASE_URL` (default: local Compose `antifraud_migrator`) and, for `prisma migrate dev` only, `ANTIFRAUD_SHADOW_DATABASE_URL`.
 
 ## Layout
 
@@ -104,8 +110,8 @@ From the repo root:
 | `test-int`           | migrate `ANTIFRAUD_TEST_DATABASE_URL` (disposable), run integration specs |
 | `lint` / `typecheck` | ESLint and `tsc --noEmit`                                                 |
 | `prisma-generate`    | Prisma client                                                             |
-| `prisma-migrate`     | `prisma migrate dev`                                                      |
-| `prisma-deploy`      | `prisma migrate deploy`                                                   |
+| `prisma-migrate`     | `prisma migrate dev` (needs `ANTIFRAUD_SHADOW_DATABASE_URL`)              |
+| `prisma-deploy`      | `prisma migrate deploy` as the migrator, then revoke `_prisma_migrations` |
 | `clean`              | `node_modules`, `dist`, coverage, `tsconfig.tsbuildinfo`                  |
 
 ## Boundaries

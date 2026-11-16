@@ -6,13 +6,13 @@ There are three apps. Nothing else under this folder is a service.
 
 | App                         | Process                  | Port    | What it owns                                                                        |
 | --------------------------- | ------------------------ | ------- | ----------------------------------------------------------------------------------- |
-| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080`  | HTTP composition, Postgres pool, startup migrations, payments outbox relay          |
+| [`api`](api/)               | Go 1.27, chi, `slog`     | `8080`  | HTTP composition, per-role Postgres pools, `cmd/migrate`, payments outbox relay     |
 | [`web`](web/)               | Next.js 16.4, React 19.3 | `3000`  | Merchant UI, i18n, iron-session                                                     |
 | [`anti-fraud`](anti-fraud/) | NestJS 12, Prisma 7      | `13001` | Synchronous scoring, Prisma, outbox relay. Host port; the process listens on `3001` |
 
 An app may depend on `libs/`. A lib must not import an app. One app must not import another. If a rule is being written under `apps/`, it belongs in the matching `libs/<context>`.
 
-`make up` starts Postgres, Kafka, Karapace, and the anti-fraud container. The API and the dashboard run on the host. Root `make dev` starts the stack if needed, then both of them; to run one alone:
+`make up` starts Postgres, Kafka, Karapace, and the anti-fraud container. `make migrate` applies the migrations of both databases as their migrator roles; no app migrates on startup. The API and the dashboard run on the host. Root `make dev` starts the stack if needed, then both of them; to run one alone:
 
 ```bash
 make -C apps/api dev
@@ -32,7 +32,7 @@ With an empty `ACQUIRER_URL`, the process uses the in-memory fake acquirer. The 
 | Image         | `apps/api/Dockerfile` (`make -C apps/api docker-build`) |
 | HTTP examples | `apps/api/tests/*.http`                                 |
 
-Defaults, overridable by env: `HTTP_ADDR=:8080`, `DATABASE_URL=postgres://iris:iris@localhost:15432/iris?sslmode=disable`, `KAFKA_BROKER=localhost:19092`, `ENV=dev`, `MIGRATE_ON_STARTUP=true`, `RELAY_ENABLED=true`.
+Defaults, overridable by env: `HTTP_ADDR=:8080`, `IRIS_APP_DATABASE_URL` (`iris_app`) and `IRIS_WORKER_DATABASE_URL` (`iris_worker`, outbox relay) on `localhost:15432/iris`, `KAFKA_BROKER=localhost:19092`, `ENV=dev`, `RELAY_ENABLED=true`. `cmd/migrate` alone reads `IRIS_MIGRATOR_DATABASE_URL` (`iris_migrator`).
 
 Routes this process exposes:
 
@@ -78,18 +78,17 @@ The Kafka assessment request topic and DLQ were retired in phase 10; risk scorin
 
 `GET /healthz` and `GET /readyz` respond on port `3001` inside the container and on host port `13001`. Readiness does not yet check Postgres or Kafka.
 
-Compose already runs this app (`ig-anti-fraud`) and mounts `src/` for reload. A second `make -C apps/anti-fraud dev` collides on host port 13001. For a host process, stop the container and copy `apps/anti-fraud/.env.example` to `.env`. That file expects a separate `antifraud` database on the same Postgres:
+Compose already runs this app (`ig-anti-fraud`) and mounts `src/` for reload. A second `make -C apps/anti-fraud dev` collides on host port 13001. For a host process, stop the container and copy `apps/anti-fraud/.env.example` to `.env`. That file points at the separate `antifraud` database on the same Postgres, which the init scripts create: the runtime as `antifraud_app` (`DATABASE_URL`), the Prisma CLI as `antifraud_migrator` (`ANTIFRAUD_MIGRATOR_DATABASE_URL`).
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml exec postgres \
-  psql -U iris -d iris -c "CREATE DATABASE antifraud OWNER iris;"
+make migrate
 make -C apps/anti-fraud dev
 ```
 
-|                       |                                                                                           |
-| --------------------- | ----------------------------------------------------------------------------------------- |
-| Test                  | `make -C apps/anti-fraud test`                                                            |
-| Migrations            | `make -C apps/anti-fraud prisma-migrate` locally, `prisma-deploy` for a deployed database |
-| Image used by Compose | `apps/anti-fraud/Dockerfile.dev`                                                          |
+|                       |                                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Test                  | `make -C apps/anti-fraud test`                                                                                       |
+| Migrations            | `make migrate` (root) runs `prisma-deploy` as `antifraud_migrator`; `prisma-migrate` authors one (needs a shadow DB) |
+| Image used by Compose | `apps/anti-fraud/Dockerfile.dev`                                                                                     |
 
 Prisma models and SQL migrations live in `apps/anti-fraud/prisma/`. The worker's own database is `antifraud`, not the `iris` database used by `apps/api`.

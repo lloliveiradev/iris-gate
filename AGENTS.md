@@ -152,7 +152,14 @@ The sections below describe current behavior. When a phase changes one of them, 
 - New merchants start `pending`. `document` is 14 digits.
 - Merchants and API keys are managed by the operator CLI `apps/api/cmd/irisctl` (`make irisctl ARGS=...`: `create-merchant`, `issue-api-key`, `revoke-api-key`), which reuses the identity use cases. There are no HTTP routes for them; do not add any (defect D8 is closed). The CLI prints a new secret once, on stdout, and never logs. User accounts and roles come in phase 8.
 - The dashboard posts the key to a server action and stores it in the iron-session cookie (defect D9, replaced by user accounts in phase 9). Do not put it in `localStorage`, client state or logs.
-- Never log PAN, CVV, `card_token`, API keys, passwords, tokens, raw email or raw document. Never commit `.env` or a real secret. `iris`/`iris` and the dev session password stay local.
+- Never log PAN, CVV, `card_token`, API keys, passwords, tokens, raw email or raw document. Never commit `.env` or a real secret. `iris`/`iris`, the database role placeholders in `infra/docker/.env.example` and the dev session password stay local.
+
+## Database roles
+
+- Each service connects with its own role (to-be section 9.2), created by `infra/docker/postgres/initdb/10-roles.sh`: `iris_app` (API handlers, `irisctl`), `iris_worker` (outbox relay), `iris_platform` (no consumer yet), `antifraud_app` (anti-fraud runtime). One URL per role: `IRIS_APP_DATABASE_URL`, `IRIS_WORKER_DATABASE_URL`, `DATABASE_URL` in apps/anti-fraud. Do not point a service at the superuser or at a migrator.
+- Only `make migrate` runs DDL: `apps/api/cmd/migrate` as `iris_migrator` (`IRIS_MIGRATOR_DATABASE_URL`) and `prisma migrate deploy` as `antifraud_migrator` (`ANTIFRAUD_MIGRATOR_DATABASE_URL`). No service migrates on startup; do not add it back.
+- App roles get DML on new tables through `ALTER DEFAULT PRIVILEGES` on the migrator, so a table must be created by a migration run as the migrator. App roles have no `BYPASSRLS`, no `TRUNCATE` and no access to `schema_migrations` or `_prisma_migrations`. A role connects only to its own database.
+- Role attributes and default privileges live in the init script, which runs only on an empty volume. Changing them needs `make nuke && make bootstrap && make migrate`, and the change belongs in `10-roles.sh` and its tests in `apps/api/cmd/migrate/roles_integration_test.go`.
 
 ## Fraud
 
@@ -160,14 +167,14 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Rules are specifications in `libs/fraud`, configured by code and weight. Defaults: `BLOCKED_CARD` 1.0 (mandatory, enabled, effective score >= reject), `UNUSUAL_AMOUNT` 0.6 (`thresholdPercent` 50 = 1.5x the average captured amount), `VELOCITY` 0.5 (> 5 attempts in 24 h), `DECLINE_BURST` 0.7 (> 3 declines in 24 h). Thresholds default to review 30 and reject 70, both in `0..100`, with review `<=` reject. Any `FraudRule` seed must keep `BLOCKED_CARD` enabled with weight >= 0.7.
 - Uncertainty fails closed: `REVIEW` or `REJECT`, never a fallback `APPROVE`.
 - `apps/anti-fraud` is the Nest composition root (Prisma, Kafka, inbox, outbox). It runs the built `@iris-gate/fraud` package. Change a rule in the lib. Yarn 4 does not run `pre*` scripts, so the `dev`, `build` and `typecheck` scripts build `@iris-gate/fraud` and run `prisma generate` themselves.
-- Prisma 7: the client is generated into `apps/anti-fraud/src/infra/prisma/generated/` (gitignored, never edited), `prisma.config.ts` holds the schema path and `DATABASE_URL`, and `PrismaService` connects through the `@prisma/adapter-pg` driver adapter. Schema changes still go through a migration in `prisma/migrations/`.
+- Prisma 7: the client is generated into `apps/anti-fraud/src/infra/prisma/generated/` (gitignored, never edited), `prisma.config.ts` holds the schema path and `ANTIFRAUD_MIGRATOR_DATABASE_URL` (the runtime reads `DATABASE_URL`, as `antifraud_app`), and `PrismaService` connects through the `@prisma/adapter-pg` driver adapter. Schema changes still go through a migration in `prisma/migrations/`.
 - Anti-fraud amounts are `BIGINT` in Postgres, and SQL counts come back as `bigint`. Map both in `apps/anti-fraud/src/infra/prisma/bigint.mapping.ts`, which throws outside the safe-integer range (fail closed); never call `Number()` on a value read from the database. Features come from `payment_outcomes` and `card_profiles` (to-be section 8.6) through `PrismaFeatureSnapshotReader`; `Account` and `InvoiceAttempt` no longer exist.
 - Consumers dedupe with the inbox. Do not apply one message id twice.
 
 ## Toolchain
 
 - Run `yarn` from the repo root. Go modules resolve through `go.work`.
-- `make test`, `make lint` and `make build` run in every package (`PACKAGES` in the root Makefile) that defines the target. `make dev` starts the stack, then `apps/api` and `apps/web` on the host; anti-fraud is already the Compose service, published on `:13001` (the container process listens on `3001`). The Compose project is `ig` (containers `ig-*`, network `ig`, host ports Postgres `15432`, Kafka `19092`, Karapace `18081`).
+- `make test`, `make lint` and `make build` run in every package (`PACKAGES` in the root Makefile) that defines the target. `make migrate` applies the migrations of both databases. `make dev` starts the stack, then `apps/api` and `apps/web` on the host; anti-fraud is already the Compose service, published on `:13001` (the container process listens on `3001`). The Compose project is `ig` (containers `ig-*`, network `ig`, host ports Postgres `15432`, Kafka `19092`, Karapace `18081`).
 - Go tests use `-race`. `make -C libs/identity test-int` needs Postgres.
 - Format with `gofumpt` and Prettier. Lint with golangci-lint v2 and ESLint. Lefthook rejects commits that are not `type(scope): subject`. Do not skip hooks unless the owner asks.
 - Gitleaks false positives are handled with narrow `.gitleaksignore` fingerprints or a single-file allowlist, never by rewriting history.
@@ -182,4 +189,5 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Contract change: `make gen-contracts-check`, then the handler or client that maps the DTO.
 - Web change: `make -C apps/web typecheck` and `make -C apps/web test`. If copy or routing changed, check `/en`, `/pt` and `/es`.
 - Fraud rule change: `make -C libs/fraud test` and `make -C apps/anti-fraud test`.
+- Database role or grant change: `make nuke && make bootstrap && make migrate`, then `make -C apps/api test-int` with `infra/docker/.env` exported.
 - Phase work: every acceptance criterion of the spec, as `docs/specs/README.md` describes.

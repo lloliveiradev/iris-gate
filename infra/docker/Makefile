@@ -39,6 +39,12 @@ down: ## Stop containers (keep volumes)
 .PHONY: restart
 restart: down up ## Restart the stack
 
+# The worker reads its rules at startup, so it fails until the first
+# `make migrate`; the root `migrate` target restarts it afterwards.
+.PHONY: restart-anti-fraud
+restart-anti-fraud: ## Restart the anti-fraud container
+	$(COMPOSE) restart anti-fraud
+
 .PHONY: nuke
 nuke: ## Stop containers and DELETE volumes (destructive)
 	@printf "This deletes ALL data (postgres+kafka). Continue? [y/N] "; \

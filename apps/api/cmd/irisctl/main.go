@@ -40,7 +40,7 @@ func realMain() int {
 		_, _ = fmt.Fprintf(os.Stderr, "irisctl: load config: %v\n", err)
 		return exitError
 	}
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	pool, err := pgxpool.New(ctx, cfg.AppDatabaseURL)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "irisctl: connect to the database failed")
 		return exitError

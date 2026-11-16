@@ -32,9 +32,19 @@ build: ## Build bin/api
 	mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/$(APP) ./cmd/api
 
+.PHONY: migrate
+migrate: ## Apply the identity and payments migrations as iris_migrator (IRIS_MIGRATOR_DATABASE_URL)
+	$(GO) run ./cmd/migrate
+
 .PHONY: test
 test: ## go test -race
 	$(GO) test -race -count=1 $(PKG)
+
+# The role tests read infra/docker/.env from the environment and skip without it:
+#   set -a && . ../../infra/docker/.env && set +a && make test-int
+.PHONY: test-int
+test-int: ## go test -race with the integration tag (needs the migrated Compose Postgres)
+	$(GO) test -race -count=1 -tags=integration $(PKG)
 
 .PHONY: cover
 cover: ## go test with coverage

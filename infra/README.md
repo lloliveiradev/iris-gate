@@ -8,7 +8,7 @@ infra/
 │   ├── docker-compose.yml    the stack
 │   ├── Makefile              stack targets (the root Makefile delegates here)
 │   ├── .env.example          ports and credentials, copied to .env by `make up`
-│   ├── postgres/initdb/      SQL run once when the Postgres volume is created
+│   ├── postgres/initdb/      extensions and database roles, run once when the Postgres volume is created
 │   └── kafka/                topics.txt (topic list) and create-topics.sh (run by kafka-init)
 ├── pki/                      phase 14: local dev CA and mTLS certificates (generated files are gitignored)
 └── terraform/                phase 21: AWS deployment
@@ -59,37 +59,36 @@ Karapace health is `GET http://localhost:18081/_health`. Schemas are stored in t
 
 ## Databases
 
-`POSTGRES_DB` is `iris`. `apps/api` runs its own SQL migrations against that database on startup.
+`POSTGRES_DB` is `iris` (apps/api). The anti-fraud service has a second database, `antifraud` (`ANTI_FRAUD_DB`), on the same Postgres.
 
-The anti-fraud service expects a second database, `antifraud` (`ANTI_FRAUD_DB`), on the same Postgres. Compose does not create it and does not run Prisma migrations. After the first `make up`:
+On an empty volume the image runs `docker/postgres/initdb/` in name order: `00-extensions.sql`, then `10-roles.sh`, which creates the `antifraud` database and the least-privilege roles of [to-be section 9.2](../docs/design/to-be.md#92-roles):
 
-```bash
-make psql
-```
+- `iris_migrator` and `antifraud_migrator` own their database and its `public` schema, and run all DDL;
+- `iris_app` and `antifraud_app` get `SELECT, INSERT, UPDATE, DELETE` on the tables and `USAGE` on the sequences their migrator creates (default privileges), nothing else;
+- `iris_worker` gets the same DML with `BYPASSRLS`, `iris_platform` gets `SELECT` with `BYPASSRLS`;
+- `REVOKE ALL ... FROM PUBLIC` on both databases and their `public` schemas, then `CONNECT` only for the database's own roles. No role is a superuser or may create roles or databases.
 
-Then, inside `psql`:
+`schema_migrations` (iris) is created before the default privileges, and `make -C apps/anti-fraud prisma-deploy` revokes them on `_prisma_migrations`, so no service role can mark a migration as applied. Neither Compose nor the apps run migrations: `make migrate` (repo root) applies both as the migrator roles. The superuser `POSTGRES_USER` is for the init scripts and `make psql` only; a table it creates gets no grants.
 
-```sql
-CREATE DATABASE antifraud OWNER iris;
-```
-
-Apply the Prisma migration from the repo root with `make -C apps/anti-fraud prisma-deploy`. The worker's `DATABASE_URL` inside Compose already points at `postgres:5432/antifraud`.
+Init scripts run only once per volume. After changing a role password, or on a volume created before these roles, run `make nuke && make bootstrap && make migrate`.
 
 ## Environment
 
 `infra/docker/.env.example` is copied to `.env` by `make up`. Compose substitutes these names. Unset values fall back to the defaults in `docker-compose.yml`.
 
-| Variable            | Default                   | Effect                                                                   |
-| ------------------- | ------------------------- | ------------------------------------------------------------------------ |
-| `POSTGRES_USER`     | `iris`                    | role and `pg_isready` user                                               |
-| `POSTGRES_PASSWORD` | `iris`                    | role password                                                            |
-| `POSTGRES_DB`       | `iris`                    | database created by the image                                            |
-| `POSTGRES_PORT`     | `15432`                   | host port. Container port stays `5432`                                   |
-| `KAFKA_PORT`        | `19092`                   | host port and the advertised host listener. In-network port stays `9092` |
-| `KAFKA_CLUSTER_ID`  | `iris-local-cluster-0001` | KRaft cluster id. Changing it on an existing volume breaks the broker    |
-| `KARAPACE_PORT`     | `18081`                   | host port. Container port stays `8081`                                   |
-| `ANTI_FRAUD_PORT`   | `13001`                   | host port. Container port stays `3001`                                   |
-| `ANTI_FRAUD_DB`     | `antifraud`               | database name in the worker URL                                          |
+| Variable                                                                                        | Default                   | Effect                                                                                 |
+| ----------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------- |
+| `POSTGRES_USER`                                                                                 | `iris`                    | bootstrap superuser and `pg_isready` user; no service uses it                          |
+| `POSTGRES_PASSWORD`                                                                             | `iris`                    | superuser password                                                                     |
+| `POSTGRES_DB`                                                                                   | `iris`                    | database created by the image                                                          |
+| `POSTGRES_PORT`                                                                                 | `15432`                   | host port. Container port stays `5432`                                                 |
+| `IRIS_MIGRATOR_PASSWORD`, `IRIS_APP_PASSWORD`, `IRIS_WORKER_PASSWORD`, `IRIS_PLATFORM_PASSWORD` | the role name             | passwords of the `iris` roles, read by `10-roles.sh` on an empty volume                |
+| `ANTIFRAUD_MIGRATOR_PASSWORD`, `ANTIFRAUD_APP_PASSWORD`                                         | the role name             | passwords of the `antifraud` roles; Compose builds the worker URL with `antifraud_app` |
+| `KAFKA_PORT`                                                                                    | `19092`                   | host port and the advertised host listener. In-network port stays `9092`               |
+| `KAFKA_CLUSTER_ID`                                                                              | `iris-local-cluster-0001` | KRaft cluster id. Changing it on an existing volume breaks the broker                  |
+| `KARAPACE_PORT`                                                                                 | `18081`                   | host port. Container port stays `8081`                                                 |
+| `ANTI_FRAUD_PORT`                                                                               | `13001`                   | host port. Container port stays `3001`                                                 |
+| `ANTI_FRAUD_DB`                                                                                 | `antifraud`               | database created by `10-roles.sh` and named in the worker URL                          |
 
 The anti-fraud service sets `KAFKA_BROKERS=kafka:9092`. Its consumer group is `KAFKA_CONSUMER_GROUP`, which Compose leaves unset, so the code default `iris-anti-fraud` applies. Details are in `apps/anti-fraud/README.md`.
 
@@ -97,17 +96,18 @@ The anti-fraud service sets `KAFKA_BROKERS=kafka:9092`. Its consumer group is `K
 
 From the repo root. The same targets exist in `infra/docker/Makefile` if you are already in that directory.
 
-| Target              | Effect                                                      |
-| ------------------- | ----------------------------------------------------------- |
-| `make up`           | copy `.env` if needed, start the stack, wait until healthy  |
-| `make down`         | stop containers, keep volumes                               |
-| `make restart`      | `down` then `up`                                            |
-| `make ps`           | container status                                            |
-| `make logs`         | follow the last 100 lines                                   |
-| `make psql`         | `psql` in `ig-postgres` as `POSTGRES_USER` on `POSTGRES_DB` |
-| `make kafka-topics` | list topics                                                 |
-| `make nuke`         | ask for confirmation, then `docker compose down -v`         |
+| Target              | Effect                                                                       |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `make up`           | copy `.env` if needed, start the stack, wait until healthy                   |
+| `make down`         | stop containers, keep volumes                                                |
+| `make restart`      | `down` then `up`                                                             |
+| `make migrate`      | iris and antifraud migrations as the migrator roles, then restart anti-fraud |
+| `make ps`           | container status                                                             |
+| `make logs`         | follow the last 100 lines                                                    |
+| `make psql`         | `psql` in `ig-postgres` as `POSTGRES_USER` on `POSTGRES_DB`                  |
+| `make kafka-topics` | list topics                                                                  |
+| `make nuke`         | ask for confirmation, then `docker compose down -v`                          |
 
 Inside `infra/docker`, `make pull` refreshes images, `make pg-dump` prints the `iris` schema, `make kafka-shell` opens a shell in the broker, and `make kafka-create-topic NAME=... [PARTITIONS=1] [RF=1]` adds a topic by hand.
 
-`make nuke` deletes Postgres and Kafka data. The next `make up` starts from empty volumes, and the `antifraud` database has to be created again.
+`make nuke` deletes Postgres and Kafka data. The next `make up` starts from empty volumes and runs the init scripts again; then run `make migrate`.
