@@ -35,7 +35,7 @@ help: ## Show this help
 
 .PHONY: bootstrap
 bootstrap: install up ## Install dependencies and start the local stack (first run)
-	@echo "✓ ready. 'make ps' lists containers, 'make logs' follows them, 'make dev' starts the API and the dashboard."
+	@echo "✓ ready. Next: 'make migrate' applies the migrations, then 'make dev' starts the API and the dashboard."
 
 .PHONY: install
 install: ## Install Node dependencies (Yarn workspaces)
@@ -79,6 +79,15 @@ logs: ## Follow stack logs (Ctrl-C to stop)
 nuke: ## Stop the stack and DELETE its volumes (destructive)
 	@$(MAKE) -C $(INFRA) nuke
 
+# Migrations run only here, as the migrator roles; the services connect as
+# their app roles and cannot run DDL. The anti-fraud container reads its rules
+# at startup, so it is restarted once its tables exist.
+.PHONY: migrate
+migrate: ## Apply the iris and antifraud migrations as the migrator roles (stack must be up)
+	@$(MAKE) -C apps/api migrate
+	@$(MAKE) -C apps/anti-fraud prisma-deploy
+	@$(MAKE) -C $(INFRA) restart-anti-fraud
+
 .PHONY: psql kafka-topics
 psql: ## Open psql in the Postgres container
 	@$(MAKE) -C $(INFRA) psql
@@ -98,7 +107,7 @@ dev: up ## Start the stack, then run the API (:8080) and the dashboard (:3000) o
 
 # Operator CLI for merchants and API keys (replaces the closed bootstrap routes).
 # Example: make irisctl ARGS="issue-api-key --merchant-id <uuid>"
-# Needs the stack up (make up) and the API migrated at least once.
+# Needs the stack up (make up) and `make migrate` run at least once.
 .PHONY: irisctl
 irisctl: ## Run the operator CLI: make irisctl ARGS="create-merchant --legal-name ..."
 	@cd apps/api && go run ./cmd/irisctl $(ARGS)
