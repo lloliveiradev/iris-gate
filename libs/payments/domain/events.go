@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// PaymentIntentCreatedV1 é o payload do evento `payments.payment_intent.created.v1`
-// publicado via Outbox pattern (ADR-0002) quando um PaymentIntent é criado.
+// PaymentIntentCreatedV1 is the payload of `payments.payment_intent.created.v1`,
+// published through the outbox (ADR-0002) when a PaymentIntent is created.
 type PaymentIntentCreatedV1 struct {
 	EventID         uuid.UUID `json:"event_id"`
 	OccurredAt      time.Time `json:"occurred_at"`
@@ -18,7 +18,7 @@ type PaymentIntentCreatedV1 struct {
 	Status          string    `json:"status"`
 }
 
-// PaymentIntentAuthorizedV1 disparado quando o adquirente aprova.
+// PaymentIntentAuthorizedV1 is emitted when the acquirer approves.
 type PaymentIntentAuthorizedV1 struct {
 	EventID         uuid.UUID `json:"event_id"`
 	OccurredAt      time.Time `json:"occurred_at"`
@@ -29,12 +29,24 @@ type PaymentIntentAuthorizedV1 struct {
 	Currency        string    `json:"currency"`
 }
 
-// PaymentIntentCapturedV1 disparado no settlement.
+// PaymentIntentCapturedV1 is emitted on capture.
 type PaymentIntentCapturedV1 struct {
 	EventID         uuid.UUID `json:"event_id"`
 	OccurredAt      time.Time `json:"occurred_at"`
 	PaymentIntentID uuid.UUID `json:"payment_intent_id"`
 	MerchantID      uuid.UUID `json:"merchant_id"`
+	AmountCents     int64     `json:"amount_cents"`
+	Currency        string    `json:"currency"`
+}
+
+// PaymentIntentFailedV1 is emitted when the acquirer declines the
+// authorization and the intent is persisted as failed.
+type PaymentIntentFailedV1 struct {
+	EventID         uuid.UUID `json:"event_id"`
+	OccurredAt      time.Time `json:"occurred_at"`
+	PaymentIntentID uuid.UUID `json:"payment_intent_id"`
+	MerchantID      uuid.UUID `json:"merchant_id"`
+	FailureCode     string    `json:"failure_code"`
 	AmountCents     int64     `json:"amount_cents"`
 	Currency        string    `json:"currency"`
 }

@@ -23,15 +23,23 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/infra/kafkarelay"
 )
 
+// DBTX is the subset of pgx shared by pools and transactions.
 type DBTX interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+// Repo is the Postgres PaymentIntentRepo and the relay's outbox source.
 type Repo struct{ pool *pgxpool.Pool }
 
+// New returns a Repo on pool.
 func New(pool *pgxpool.Pool) *Repo { return &Repo{pool: pool} }
+
+// intentColumns is the column list every payment_intents read scans, in
+// scanIntent order.
+const intentColumns = `id, merchant_id, amount_cents, currency, status, card_token, description,
+	       created_at, authorized_at, captured_at, failure_code, version`
 
 // CreateWithOutbox writes the intent and its outbox message in one
 // transaction (Outbox pattern invariant).
@@ -44,24 +52,55 @@ func (r *Repo) CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev 
 	})
 }
 
-// UpdateWithOutbox updates the intent status and timestamps, scoped to its
-// merchant, and writes the transition event to the outbox in the same tx.
+// UpdateWithOutbox saves the intent's state only while the row still has
+// p.Version for p.ID and p.MerchantID, increments the version, and writes the
+// transition event to the outbox in the same tx. The outbox row is written
+// only after the update matched.
+//
+// When no row matches it tells the two causes apart inside the tx: the intent
+// exists for that merchant (another request bumped the version first) →
+// domain.ErrConcurrentUpdate; otherwise → domain.ErrPaymentIntentNotFound, so
+// another merchant's intent is indistinguishable from a missing one.
 func (r *Repo) UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev application.OutboxMessage) error {
 	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		const q = `
 			UPDATE payment_intents
-			SET status = $2, authorized_at = $3, captured_at = $4
-			WHERE id = $1 AND merchant_id = $5
+			SET status = $4, authorized_at = $5, captured_at = $6, failure_code = $7,
+			    version = version + 1
+			WHERE id = $1 AND merchant_id = $2 AND version = $3
 		`
-		tag, err := tx.Exec(ctx, q, p.ID, string(p.Status), p.AuthorizedAt, p.CapturedAt, p.MerchantID)
+		tag, err := tx.Exec(ctx, q, p.ID, p.MerchantID, p.Version,
+			string(p.Status), p.AuthorizedAt, p.CapturedAt, nullableFailureCode(p.FailureCode))
 		if err != nil {
-			return err
+			return fmt.Errorf("update payment intent: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
-			return domain.ErrPaymentIntentNotFound
+			return missedUpdateCause(ctx, tx, p.MerchantID, p.ID)
 		}
 		return insertOutbox(ctx, tx, ev)
 	})
+}
+
+func missedUpdateCause(ctx context.Context, db DBTX, merchantID, id uuid.UUID) error {
+	const q = `SELECT EXISTS(SELECT 1 FROM payment_intents WHERE id = $1 AND merchant_id = $2)`
+	var exists bool
+	if err := db.QueryRow(ctx, q, id, merchantID).Scan(&exists); err != nil {
+		return fmt.Errorf("check payment intent: %w", err)
+	}
+	if exists {
+		return domain.ErrConcurrentUpdate
+	}
+	return domain.ErrPaymentIntentNotFound
+}
+
+// nullableFailureCode stores an empty code as NULL, which the
+// failure_code-only-when-failed check requires for non-failed intents.
+func nullableFailureCode(code domain.FailureCode) *string {
+	if code == "" {
+		return nil
+	}
+	s := string(code)
+	return &s
 }
 
 // MarkPublished is called by the relay worker once the broker has
@@ -78,12 +117,14 @@ func (r *Repo) MarkPublished(ctx context.Context, ids []uuid.UUID, at time.Time)
 func insertPaymentIntent(ctx context.Context, db DBTX, p domain.PaymentIntent) error {
 	const q = `
 		INSERT INTO payment_intents
-			(id, merchant_id, amount_cents, currency, status, card_token, description, created_at, authorized_at, captured_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+			(id, merchant_id, amount_cents, currency, status, card_token, description, created_at, authorized_at, captured_at,
+			 failure_code, version)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 	`
 	_, err := db.Exec(ctx, q,
 		p.ID, p.MerchantID, p.Amount.AmountCents, p.Amount.Currency,
 		string(p.Status), p.CardToken, p.Description, p.CreatedAt, p.AuthorizedAt, p.CapturedAt,
+		nullableFailureCode(p.FailureCode), p.Version,
 	)
 	return err
 }
@@ -104,11 +145,7 @@ func insertOutbox(ctx context.Context, db DBTX, ev application.OutboxMessage) er
 // GetByID loads an intent owned by merchantID. Another merchant's intent
 // yields ErrPaymentIntentNotFound, the same as a missing id.
 func (r *Repo) GetByID(ctx context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error) {
-	const q = `
-		SELECT id, merchant_id, amount_cents, currency, status, card_token, description,
-		       created_at, authorized_at, captured_at
-		FROM payment_intents WHERE id = $1 AND merchant_id = $2
-	`
+	const q = `SELECT ` + intentColumns + ` FROM payment_intents WHERE id = $1 AND merchant_id = $2`
 	row := r.pool.QueryRow(ctx, q, id, merchantID)
 	return scanIntent(row)
 }
@@ -119,8 +156,7 @@ func (r *Repo) ListByMerchant(ctx context.Context, merchantID uuid.UUID, limit i
 		limit = 50
 	}
 	const q = `
-		SELECT id, merchant_id, amount_cents, currency, status, card_token, description,
-		       created_at, authorized_at, captured_at
+		SELECT ` + intentColumns + `
 		FROM payment_intents
 		WHERE merchant_id = $1
 		ORDER BY created_at DESC
@@ -146,14 +182,18 @@ func scanIntent(row pgx.Row) (domain.PaymentIntent, error) {
 	var p domain.PaymentIntent
 	var status, currency string
 	var amount int64
+	var failureCode *string
 	if err := row.Scan(&p.ID, &p.MerchantID, &amount, &currency, &status, &p.CardToken, &p.Description,
-		&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt); err != nil {
+		&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &failureCode, &p.Version); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.PaymentIntent{}, domain.ErrPaymentIntentNotFound
 		}
 		return domain.PaymentIntent{}, err
 	}
 	p.Status = domain.PaymentIntentStatus(status)
+	if failureCode != nil {
+		p.FailureCode = domain.FailureCode(*failureCode)
+	}
 	money, err := domain.NewMoney(amount, currency)
 	if err != nil {
 		return domain.PaymentIntent{}, fmt.Errorf("scan money: %w", err)
@@ -165,7 +205,7 @@ func scanIntent(row pgx.Row) (domain.PaymentIntent, error) {
 // ---------- Outbox: relay worker (stub) ----------
 
 // PullUnpublished returns up to `limit` unpublished messages in FIFO order.
-// Implementa kafkarelay.Source.
+// It implements kafkarelay.Source.
 func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]kafkarelay.PendingMessage, error) {
 	const q = `
 		SELECT id, topic, msg_key, payload, headers
@@ -194,8 +234,10 @@ func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]kafkarelay.Pen
 
 // ---------- Idempotency store ----------
 
+// IdempotencyStore is the Postgres store of the HTTP idempotency middleware.
 type IdempotencyStore struct{ pool *pgxpool.Pool }
 
+// NewIdempotencyStore returns an IdempotencyStore on pool.
 func NewIdempotencyStore(pool *pgxpool.Pool) *IdempotencyStore { return &IdempotencyStore{pool: pool} }
 
 // Existing returns the stored record for (merchantID, scope, key), or
@@ -236,7 +278,7 @@ func (s *IdempotencyStore) Save(ctx context.Context, merchantID uuid.UUID, scope
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// MigrateEmbedded aplica as migrations deste contexto na ordem.
+// MigrateEmbedded applies this context's migrations in name order, once each.
 func MigrateEmbedded(ctx context.Context, db DBTX) error {
 	if _, err := db.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
 		return fmt.Errorf("init schema_migrations: %w", err)
@@ -276,5 +318,5 @@ func MigrateEmbedded(ctx context.Context, db DBTX) error {
 	return nil
 }
 
-// SinceEpoch é um helper redundante mas explícito pro time-travel em testes.
+// SinceEpoch returns t as Unix seconds, an explicit helper for time travel in tests.
 func SinceEpoch(t time.Time) int64 { return t.Unix() }

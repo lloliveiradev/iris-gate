@@ -25,6 +25,9 @@ import (
 
 const (
 	notFoundTitle = "payment_intent_not_found"
+	// fakeAPIKeySecret is the secret part of the test API keys; the hasher
+	// stub accepts any secret.
+	fakeAPIKeySecret = "secret"
 )
 
 var (
@@ -75,6 +78,8 @@ type memRepo struct {
 	mu      sync.Mutex
 	intents map[uuid.UUID]domain.PaymentIntent
 	outbox  int
+	// updateErr, when set, fails every update without writing.
+	updateErr error
 }
 
 func (r *memRepo) CreateWithOutbox(_ context.Context, p domain.PaymentIntent, _ application.OutboxMessage) error {
@@ -88,6 +93,9 @@ func (r *memRepo) CreateWithOutbox(_ context.Context, p domain.PaymentIntent, _ 
 func (r *memRepo) UpdateWithOutbox(_ context.Context, p domain.PaymentIntent, _ application.OutboxMessage) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.updateErr != nil {
+		return r.updateErr
+	}
 	r.intents[p.ID] = p
 	r.outbox++
 	return nil
@@ -140,15 +148,16 @@ func (s *memIdempotencyStore) Save(_ context.Context, m uuid.UUID, scope, key st
 }
 
 type countingAcquirer struct {
-	mu    sync.Mutex
-	calls int
+	mu      sync.Mutex
+	calls   int
+	decline bool
 }
 
 func (a *countingAcquirer) Authorize(_ context.Context, in application.AuthorizeInput) (application.AuthorizeOutput, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.calls++
-	return application.AuthorizeOutput{AcquirerRef: "ref-" + in.IntentID.String(), Approved: true}, nil
+	return application.AuthorizeOutput{AcquirerRef: "ref-" + in.IntentID.String(), Approved: !a.decline}, nil
 }
 
 type seqIDs struct{}
@@ -182,7 +191,7 @@ func newHarness(t *testing.T) *harness {
 		keys.byPrefix[prefix] = identitydomain.APIKey{
 			ID: uuid.New(), MerchantID: id, Prefix: prefix, Status: identitydomain.APIKeyActive,
 		}
-		return identitydomain.FormatToken(prefix, "secret")
+		return identitydomain.FormatToken(prefix, fakeAPIKeySecret)
 	}
 	h.tokenA = issue(h.merchA, "prefixa")
 	h.tokenB = issue(h.merchB, "prefixb")
@@ -374,6 +383,63 @@ func TestCreate_WithoutCredentials_Returns401(t *testing.T) {
 	rec := h.do(http.MethodPost, "/v1/payment-intents", "garbage", "k1", createBody)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", rec.Code)
+	}
+}
+
+// ---------- D3, D4: declines and lost races ----------
+
+// H9: a lost version race answers 409 concurrent_update.
+func TestAuthorize_LostRace_Returns409ConcurrentUpdate(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+	h.repo.updateErr = domain.ErrConcurrentUpdate
+
+	rec := h.do(http.MethodPost, "/v1/payment-intents/"+id+"/authorize", h.tokenA, "", "")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409; body=%s", rec.Code, rec.Body)
+	}
+	if got := problemTitle(t, rec); got != "concurrent_update" {
+		t.Errorf("title %q, want concurrent_update", got)
+	}
+}
+
+// The contract answers a decline with 200 and the failed intent.
+func TestAuthorize_Declined_Returns200Failed(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.acquirer.decline = true
+	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+
+	rec := h.do(http.MethodPost, "/v1/payment-intents/"+id+"/authorize", h.tokenA, "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200; body=%s", rec.Code, rec.Body)
+	}
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Status != string(domain.PaymentIntentFailed) {
+		t.Errorf("status field = %q err=%v, want failed", out.Status, err)
+	}
+}
+
+func TestAuthorize_Captured_Returns409InvalidTransition(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+	h.do(http.MethodPost, "/v1/payment-intents/"+id+"/authorize", h.tokenA, "", "")
+	h.do(http.MethodPost, "/v1/payment-intents/"+id+"/capture", h.tokenA, "", "")
+	calls := h.acquirer.calls
+
+	rec := h.do(http.MethodPost, "/v1/payment-intents/"+id+"/authorize", h.tokenA, "", "")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d, want 409; body=%s", rec.Code, rec.Body)
+	}
+	if got := problemTitle(t, rec); got != "invalid_status_transition" {
+		t.Errorf("title %q, want invalid_status_transition", got)
+	}
+	if h.acquirer.calls != calls {
+		t.Error("acquirer called for a captured intent")
 	}
 }
 

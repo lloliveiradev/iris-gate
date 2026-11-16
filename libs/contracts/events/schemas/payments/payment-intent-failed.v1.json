@@ -1,0 +1,26 @@
+{
+  "$id": "https://iris-gate/events/payments/payment-intent-failed.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentIntentFailed (v1)",
+  "description": "Emitted when the acquirer declines the authorization and the intent is persisted as failed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "occurred_at",
+    "payment_intent_id",
+    "merchant_id",
+    "failure_code",
+    "amount_cents",
+    "currency"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "payment_intent_id": { "type": "string", "format": "uuid" },
+    "merchant_id": { "type": "string", "format": "uuid" },
+    "failure_code": { "type": "string", "enum": ["card_declined"] },
+    "amount_cents": { "type": "integer", "minimum": 1 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+  }
+}
