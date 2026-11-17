@@ -15,11 +15,6 @@ export interface OutboxEventInput {
   traceparent?: string;
 }
 
-export interface InboxStore {
-  reserve(messageId: string): Promise<{ accepted: boolean; assessmentId?: string }>;
-  attachAssessment(messageId: string, assessmentId: string): Promise<void>;
-}
-
 export interface OutboxStore {
   pullUnpublished(limit: number): Promise<OutboxRecord[]>;
   markPublished(eventId: string, publishedAt: Date): Promise<void>;
@@ -36,10 +31,6 @@ export interface OutboxRecord {
 
 export interface EventPublisher {
   publish(record: OutboxRecord): Promise<void>;
-}
-
-export interface DLQPublisher {
-  publish(input: { topic: string; payload: unknown; reason: string }): Promise<void>;
 }
 
 export interface Clock {
