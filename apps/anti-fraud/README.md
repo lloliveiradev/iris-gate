@@ -1,14 +1,20 @@
 # apps/anti-fraud
 
-NestJS 12 worker that scores fraud assessments synchronously. The rules live in `@iris-gate/fraud`. This app wires Prisma, KafkaJS, the inbox, and the outbox. It does not decide a payment and it does not serve the dashboard.
+NestJS 12 service that scores fraud assessments synchronously. The rules live in `@iris-gate/fraud`. This app wires Prisma, KafkaJS, the outbox relay, and the internal HTTP listener. It does not decide a payment and it does not serve the dashboard.
 
-`make up` already builds `apps/anti-fraud/Dockerfile.dev` and runs the container `ig-anti-fraud`. The process listens on port `3001`; Compose publishes host port `13001`. `src/` and `prisma/` are mounted for reload. A host `make -C apps/anti-fraud dev` listens on `13001` as well.
+`make up` already builds `apps/anti-fraud/Dockerfile.dev` and runs the container `ig-anti-fraud`. The public listener binds port `3001` inside the container (Compose publishes host port `13001`) and serves `/healthz` and `/readyz`. The internal risk-scoring listener binds `ANTI_FRAUD_INTERNAL_PORT` (`13002`), published on the host at `127.0.0.1:13002:13002` only. `src/` and `prisma/` are mounted for reload. A host `make -C apps/anti-fraud dev` listens on `:13001` (health) and `127.0.0.1:13002` (internal risk API).
 
-The Kafka assessment request topic was retired in phase 10; synchronous scoring is defined by `libs/contracts/http/fraud-internal.openapi.yaml`. The process boots, runs the outbox relay, and answers `/healthz`.
+The Kafka assessment request topic (`fraud.assessment.requested.v1`) and legacy DLQ (`fraud.assessment.failed.dlq`) were retired in phase 10; synchronous scoring is defined by `libs/contracts/http/fraud-internal.openapi.yaml`.
 
 ## How scoring and publishing work
 
-The Kafka request consumer was removed in phase 10; scoring moves to a synchronous internal endpoint (`POST /internal/v1/risk-assessments`). `OutboxRelayService` polls unpublished rows (default every `1000` ms, batches of `50`) and publishes `fraud.assessment.completed.v1` with headers `event-id`, `event-type`, `published-at`, and `traceparent` when the request had one.
+`POST /internal/v1/risk-assessments` runs on the separate internal listener (`ANTI_FRAUD_INTERNAL_PORT`, default `13002`, bound to `127.0.0.1` on the host) and is never mounted on the public port `13001`:
+
+- `ServiceTokenGuard` requires `Authorization: Bearer <FRAUD_SERVICE_TOKEN>` and compares tokens with `crypto.timingSafeEqual` on equal-length buffers. Missing or wrong tokens return `401` (`application/problem+json`). Startup fails when `FRAUD_SERVICE_TOKEN` is unset or empty.
+- Scoring is idempotent by `payment_intent_id`: a repeated request returns the stored assessment without rescoring or writing a second `attempted` row. A repeat whose `merchant_id`, `amount_cents`, or `currency` differs from the stored assessment returns `409` (`application/problem+json`).
+- On a new `payment_intent_id`, `ScoreRiskUseCase` loads one `FeatureSnapshot` via `PrismaFeatureSnapshotReader`, evaluates the registered rules, and persists the completed `RiskAssessment` (with `features_snapshot`), the `attempted` row in `payment_outcomes`, and the `fraud.assessment.completed.v1` outbox event in one Prisma `$transaction` (`PrismaScoredAssessmentStore`).
+- When `FRAUD_TEST_HOOKS=true` (code default `false`, enabled in `.env.example` and local Compose), `test_scenario = "blocked"` yields `REJECT` and `test_scenario = "review"` yields `REVIEW` with reason `TEST_SCENARIO`. When `false`, `test_scenario` is ignored.
+- `OutboxRelayService` polls unpublished rows (default every `1000` ms, batches of `50`) and publishes `fraud.assessment.completed.v1` with headers `event-id`, `event-type`, `published-at`, and `traceparent` when the request had one.
 
 `GET /healthz` returns `{ "status": "ok" }`. `GET /readyz` returns `{ "status": "ready" }`. Neither checks Postgres or Kafka.
 
@@ -23,9 +29,9 @@ The Kafka request consumer was removed in phase 10; scoring moves to a synchrono
 | `VELOCITY`       | `0.5`  | `maxAttempts24h` 5 (> 5 attempts in 24 h)              |
 | `DECLINE_BURST`  | `0.7`  | `maxDeclines24h` 3 (> 3 declines in 24 h)              |
 
-Thresholds are `DecisionThresholds.defaults()`: review at 30, reject at 70. They are not read from the database. Any `FraudRule` seed must keep `BLOCKED_CARD` enabled with weight >= 0.7 (so its effective score meets or exceeds the reject threshold 70). Editing `FraudRule`, a weight, or a rule class applies on the next process start. `predev` rebuilds `@iris-gate/fraud` before `nest start --watch`; a change inside `libs/fraud` needs that restart, because Nest watches only this app.
+Thresholds are `DecisionThresholds.defaults()`: review at 30, reject at 70. They are not read from the database. Any `FraudRule` seed must keep `BLOCKED_CARD` enabled with weight >= 0.7 (so its effective score meets or exceeds the reject threshold 70). Editing `FraudRule`, a weight, or a rule class applies on the next process start. `dev` rebuilds `@iris-gate/fraud` before `nest start --watch`; a change inside `libs/fraud` needs that restart, because Nest watches only this app.
 
-Change a specification in `libs/fraud`. This app only adapts ports to Prisma and Kafka.
+Change a specification in `libs/fraud`. This app only adapts ports to Prisma, Kafka, and HTTP.
 
 ## Database
 
@@ -54,11 +60,11 @@ Prisma 7 specifics:
 - `prisma.config.ts` points at the schema and migrations and reads `ANTIFRAUD_MIGRATOR_DATABASE_URL`, defaulting to the local Compose migrator (it loads `.env` when the file exists; variables already set win). The runtime never reads that variable.
 - The client is generated into `src/infra/prisma/generated/` (gitignored). `yarn dev`, `yarn build` and `yarn typecheck` regenerate it; run `make prisma-generate` after editing the schema.
 - `PrismaService` connects through the `@prisma/adapter-pg` driver adapter. There is no query engine binary any more.
-- The process fails fast at startup when `DATABASE_URL` is missing.
+- The process fails fast at startup when `DATABASE_URL` or `FRAUD_SERVICE_TOKEN` is missing.
 
 ## Run on the host
 
-Stop the Compose service first, or host port `13001` is already taken. `yarn dev` loads `apps/anti-fraud/.env` when that file exists.
+Stop the Compose service first, or host ports `13001` and `13002` are already taken. `yarn dev` loads `apps/anti-fraud/.env` when that file exists.
 
 ```bash
 cp apps/anti-fraud/.env.example apps/anti-fraud/.env
@@ -69,19 +75,22 @@ The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). Th
 
 ## Environment
 
-`src/config/kafka.config.ts` is the source of these names. The group variable is `KAFKA_CONSUMER_GROUP`, as in `.env.example`; the Compose service leaves it unset, so the default applies.
+`src/config/database.config.ts`, `src/config/risk.config.ts`, and `src/config/kafka.config.ts` are the sources of these names.
 
-| Variable                  | Default in code                 | Used for                                                          |
-| ------------------------- | ------------------------------- | ----------------------------------------------------------------- |
-| `PORT`                    | `13001`                         | HTTP listen on the host. Compose sets `3001` inside the container |
-| `DATABASE_URL`            | required by Prisma              | `antifraud` database as `antifraud_app` (runtime, DML only)       |
-| `KAFKA_BROKERS`           | `localhost:19092`               | comma-separated host listener. Compose sets `kafka:9092`          |
-| `KAFKA_CLIENT_ID`         | `iris-anti-fraud`               | KafkaJS client                                                    |
-| `KAFKA_CONSUMER_GROUP`    | `iris-anti-fraud`               | consumer group                                                    |
-| `KAFKA_TOPIC_COMPLETED`   | `fraud.assessment.completed.v1` | configured; the use case publishes this name directly             |
-| `KAFKA_TOPIC_DLQ`         | `fraud.assessment.failed.dlq`   | legacy DLQ topic (retired with request consumer in phase 10)      |
-| `OUTBOX_POLL_INTERVAL_MS` | `1000`                          | relay delay                                                       |
-| `OUTBOX_BATCH_SIZE`       | `50`                            | rows per tick                                                     |
+| Variable | Default in code | Used for |
+| -------------------------- | ------------------------------- | |
+| `PORT` | `13001` | Public HTTP listener (`/healthz`, `/readyz`). Compose sets `3001` |
+| `ANTI_FRAUD_INTERNAL_PORT` | `13002` | Internal risk-scoring listener (`POST /internal/v1/risk-assessments`) |
+| `ANTI_FRAUD_INTERNAL_HOST` | `127.0.0.1` | Bind address of the internal listener (`0.0.0.0` in Compose container) |
+| `FRAUD_SERVICE_TOKEN` | required | Bearer token for `POST /internal/v1/risk-assessments` (boot fails if unset) |
+| `FRAUD_TEST_HOOKS` | `false` | Honors `request.test_scenario` (`blocked` / `review`) only when `true` |
+| `DATABASE_URL` | required | `antifraud` database as `antifraud_app` (runtime, DML only) |
+| `KAFKA_BROKERS` | `localhost:19092` | comma-separated host listener. Compose sets `kafka:9092` |
+| `KAFKA_CLIENT_ID` | `iris-anti-fraud` | KafkaJS client |
+| `KAFKA_CONSUMER_GROUP` | `iris-anti-fraud` | consumer group |
+| `KAFKA_TOPIC_COMPLETED` | `fraud.assessment.completed.v1` | configured; the use case publishes this name directly |
+| `OUTBOX_POLL_INTERVAL_MS` | `1000` | relay delay |
+| `OUTBOX_BATCH_SIZE` | `50` | rows per tick |
 
 Inside Compose the broker hostname is `kafka:9092`, not `localhost`.
 
@@ -90,11 +99,12 @@ The Prisma CLI reads `ANTIFRAUD_MIGRATOR_DATABASE_URL` (default: local Compose `
 ## Layout
 
 ```text
-src/main.ts                 Nest bootstrap, shutdown hooks
+src/main.ts                 Nest bootstrap, public and internal listeners, shutdown hooks
 src/modules/fraud/          wires the Prisma adapters and the rules loaded at startup
-src/infra/kafka/            consumer, DLQ, outbox relay, payload parser
-src/infra/prisma/           repositories, feature reader, BigInt mapping, inbox, outbox, rule config
-src/config/kafka.config.ts  env → KafkaConfig
+src/modules/risk/           internal risk-assessment controller, service-token guard, DTOs, problem filter
+src/infra/kafka/            Kafka client, event publisher, outbox relay
+src/infra/prisma/           scored assessment store, feature reader, BigInt mapping, outbox, rule config
+src/config/                 env → DatabaseConfig, RiskConfig, KafkaConfig
 prisma/                     schema and SQL migrations
 ```
 
@@ -117,6 +127,6 @@ From the repo root:
 ## Boundaries
 
 - A new rule is a specification in `libs/fraud`, registered in its rule registry, then covered by that library's tests. Do not score inside a Nest provider.
-- The inbox id is `event-id` or the message key. Do not dedupe on `assessment_id` alone.
-- Persist the assessment and its outbox row together. Do not call `producer.send` from the use case.
+- The `InboxMessage` table is reserved for phase 13 consumers, which must insert the inbox row inside their work transaction and read the topic name from configuration.
+- Persist the assessment, its `features_snapshot`, the `attempted` outcome, and its outbox row together in one transaction. Do not call `producer.send` from the use case.
 - This database stays `antifraud`. Do not point `DATABASE_URL` at the `iris` database used by `apps/api`.
