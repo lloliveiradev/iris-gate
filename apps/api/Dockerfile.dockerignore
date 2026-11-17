@@ -17,6 +17,7 @@ apps/web
 apps/anti-fraud
 libs/fraud
 libs/sdk-web
+libs/shared
 libs/contracts/http
 libs/contracts/events
 libs/contracts/codegen
@@ -25,6 +26,13 @@ docs
 infra
 tools
 configs
+
+# Root workspace and documentation files
+README.md
+AGENTS.md
+CLAUDE.md
+package.json
+yarn.lock
 
 # Yarn and local tool caches
 .yarn
