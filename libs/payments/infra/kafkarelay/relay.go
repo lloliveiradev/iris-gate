@@ -1,8 +1,9 @@
-// Package kafkarelay implementa o Outbox Relay Worker (ADR-0002):
-// poll outbox_messages → publish em Kafka → mark published_at.
+// Package kafkarelay implements the Outbox Relay Worker (ADR-0002):
+// poll outbox_messages → publish to Kafka → mark published_at.
 //
-// Não há "exactly-once" — o worker pode duplicar quando crashar entre
-// publish e mark_published; consumidores devem ser idempotentes.
+// Delivery is at-least-once, not exactly-once: the worker may duplicate
+// messages if it crashes between publish and mark_published; consumers must be
+// idempotent.
 package kafkarelay
 
 import (
@@ -15,15 +16,15 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-// Source é o port de origem das mensagens — implementado por
+// Source is the message origin port, implemented by
 // payments/infra/pgstore.Repo.
 type Source interface {
 	PullUnpublished(ctx context.Context, limit int) ([]PendingMessage, error)
 	MarkPublished(ctx context.Context, ids []uuid.UUID, at time.Time) error
 }
 
-// PendingMessage é o shape esperado pelo Source. Replicado aqui pra evitar
-// dep cíclica com pgstore.
+// PendingMessage is the shape expected from Source, duplicated here to avoid a
+// cyclic dependency with pgstore.
 type PendingMessage struct {
 	ID      uuid.UUID
 	Topic   string
@@ -32,13 +33,13 @@ type PendingMessage struct {
 	Headers map[string]string
 }
 
-// Publisher é o port pra Kafka — útil pra testar com fake.
+// Publisher is the Kafka publishing port, replaceable with a fake in tests.
 type Publisher interface {
 	Publish(ctx context.Context, msgs []kafka.Message) error
 	Close() error
 }
 
-// KafkaWriter envolve um *kafka.Writer único pra publicar em qualquer tópico.
+// KafkaWriter wraps a single *kafka.Writer that can publish to any topic.
 type KafkaWriter struct{ w *kafka.Writer }
 
 func NewKafkaWriter(brokers []string) *KafkaWriter {
@@ -59,7 +60,7 @@ func (k *KafkaWriter) Publish(ctx context.Context, msgs []kafka.Message) error {
 
 func (k *KafkaWriter) Close() error { return k.w.Close() }
 
-// Relay é o worker em si. Use Run pra subir o loop em background.
+// Relay is the worker itself. Call Run to start the polling loop in the background.
 type Relay struct {
 	src        Source
 	pub        Publisher
@@ -87,7 +88,7 @@ func New(src Source, pub Publisher, cfg Config) *Relay {
 	return &Relay{src: src, pub: pub, now: cfg.Now, pollEvery: cfg.PollEvery, batchLimit: cfg.BatchLimit}
 }
 
-// Run bloqueia até ctx.Done(). Erros transitórios são logados e o loop continua.
+// Run blocks until ctx.Done(). Transient errors are logged and the loop continues.
 func (r *Relay) Run(ctx context.Context) error {
 	ticker := time.NewTicker(r.pollEvery)
 	defer ticker.Stop()
@@ -136,8 +137,8 @@ func (r *Relay) pump(ctx context.Context) error {
 		ids = append(ids, p.ID)
 	}
 	if err := r.src.MarkPublished(ctx, ids, r.now()); err != nil {
-		// publicado mas não marcado: vai duplicar no próximo poll. Aceito —
-		// consumidores são idempotentes (conforme ADR-0002).
+		// Published to Kafka but not marked: the next poll will republish.
+		// Accepted because consumers are idempotent (per ADR-0002).
 		return err
 	}
 	slog.LogAttrs(ctx, slog.LevelInfo, "kafkarelay.published", slog.Int("n", len(ids)))
