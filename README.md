@@ -118,6 +118,7 @@ Kafka topics
     payments.payment_intent.created.v1
     payments.payment_intent.authorized.v1
     payments.payment_intent.captured.v1
+    payments.payment_intent.failed.v1
 
 authorize: pending → authorized     (a repeat call is a no-op)
 capture:   authorized → captured    (a repeat call is a no-op)
