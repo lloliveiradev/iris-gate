@@ -32,10 +32,10 @@ Iris Gate never runs in production and accepts only test card numbers. The contr
 | Database         | Separate migrator, app and worker roles per database           | implemented (Postgres init scripts in `infra/docker`)                     |
 | Database         | TLS to Postgres                                                | later (phase 21)                                                          |
 | Idempotency      | `Idempotency-Key` on intent creation with body hash            | implemented (global scope, defect D2; per merchant in phase 6)            |
-| Messaging        | Outbox on produce, inbox on consume                            | implemented                                                               |
-| Messaging        | Retry topics and DLQ for every consumer                        | phase 13 (anti-fraud DLQ for poison messages is implemented)              |
+| Messaging        | Outbox on produce, inbox on consume                            | implemented (outbox); phase 13 (consumer inbox)                           |
+| Messaging        | Retry topics and DLQ for every consumer                        | phase 13 (`fraud.assessment.failed.dlq` retired in phase 10)              |
 | Messaging        | Kafka TLS, SASL and per-topic ACLs                             | later                                                                     |
-| Service auth     | Service token on the risk endpoint                             | phase 10                                                                  |
+| Service auth     | Service token on the risk endpoint                             | implemented (anti-fraud listener; Go caller in phase 10)                  |
 | Service auth     | mTLS between apps/api and the vault                            | phase 14                                                                  |
 | Audit            | Append-only, hash-chained audit log                            | phase 8                                                                   |
 | Webhooks         | HMAC signatures, SSRF protection                               | phase 16                                                                  |
@@ -94,12 +94,12 @@ Phases 6 and 7. Details in [`design/to-be.md`](design/to-be.md) section 9.
 
 ## 7. Service-to-service authentication
 
-| Path                                | Control                                                                                           | Status   |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------- | -------- |
-| apps/api → anti-fraud risk endpoint | internal listener, service token, 300 ms timeout, fail closed                                     | phase 10 |
-| acquirer adapter → vault detokenize | internal listener, mTLS with a local dev CA, client identity checked                              | phase 14 |
-| vault → OpenBao                     | AppRole (or token) with a policy limited to its Transit keys and operations; never the root token | phase 14 |
-| services → Kafka                    | TLS, SASL/SCRAM and per-topic ACLs                                                                | later    |
+| Path                                | Control                                                                                           | Status                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| apps/api → anti-fraud risk endpoint | internal listener, service token, 300 ms timeout, fail closed                                     | phase 10 (anti-fraud listener and service token implemented; Go caller pending) |
+| acquirer adapter → vault detokenize | internal listener, mTLS with a local dev CA, client identity checked                              | phase 14                                                                        |
+| vault → OpenBao                     | AppRole (or token) with a policy limited to its Transit keys and operations; never the root token | phase 14                                                                        |
+| services → Kafka                    | TLS, SASL/SCRAM and per-topic ACLs                                                                | later                                                                           |
 
 ## 8. Idempotency
 
@@ -107,7 +107,7 @@ Phases 6 and 7. Details in [`design/to-be.md`](design/to-be.md) section 9.
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | HTTP            | `Idempotency-Key` on routes that create resources; records keyed by `(merchant_id, scope, key)`, body hash checked on replay | implemented for intent creation, per-merchant scope in phase 6, more routes in phases 11 and 15 |
 | Acquirer        | attempt id as the acquirer idempotency key                                                                                   | phase 11                                                                                        |
-| Kafka consumers | inbox keyed by event id before any side effect                                                                               | implemented                                                                                     |
+| Kafka consumers | inbox keyed by event id before any side effect                                                                               | phase 13 (`InboxMessage` schema present; outcome consumer in phase 13)                          |
 | Webhooks        | every delivery carries the event id; receivers must dedupe                                                                   | phase 16                                                                                        |
 
 ## 9. Input validation

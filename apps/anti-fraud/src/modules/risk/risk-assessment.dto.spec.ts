@@ -1,6 +1,9 @@
 import { Decision, FraudReasonCode, TestScenario } from '@iris-gate/fraud';
 import {
   ABOVE_INT32_AMOUNT_CENTS,
+  BLANK_RISK_STRING,
+  MAX_LENGTH_RISK_STRING,
+  OVERSIZED_RISK_STRING,
   TEST_AMOUNT_CENTS,
   TEST_ASSESSMENT_ID,
   TEST_CARD_BRAND,
@@ -50,6 +53,19 @@ describe('risk-assessment DTO mapping', () => {
     });
   });
 
+  it('accepts card_fingerprint, card_brand, and customer_ref at the 256-character upper bound', () => {
+    const parsed = parseRiskAssessmentRequest(
+      validRiskRequestDto({
+        card_fingerprint: MAX_LENGTH_RISK_STRING,
+        card_brand: MAX_LENGTH_RISK_STRING,
+        customer_ref: MAX_LENGTH_RISK_STRING,
+      }),
+    );
+    expect(parsed.cardFingerprint).toBe(MAX_LENGTH_RISK_STRING);
+    expect(parsed.cardBrand).toBe(MAX_LENGTH_RISK_STRING);
+    expect(parsed.customerRef).toBe(MAX_LENGTH_RISK_STRING);
+  });
+
   it.each<[string, unknown]>([
     ['null body', null],
     ['array body', []],
@@ -61,9 +77,17 @@ describe('risk-assessment DTO mapping', () => {
     ['negative amount_cents', { ...validRiskRequestDto(), amount_cents: -100 }],
     ['fractional amount_cents', { ...validRiskRequestDto(), amount_cents: 10.5 }],
     ['lowercase currency', { ...validRiskRequestDto(), currency: 'brl' }],
-    ['empty card_fingerprint', { ...validRiskRequestDto(), card_fingerprint: '  ' }],
+    ['empty card_fingerprint', { ...validRiskRequestDto(), card_fingerprint: BLANK_RISK_STRING }],
+    [
+      'oversized card_fingerprint',
+      { ...validRiskRequestDto(), card_fingerprint: OVERSIZED_RISK_STRING },
+    ],
     ['empty card_brand', { ...validRiskRequestDto(), card_brand: '' }],
+    ['oversized card_brand', { ...validRiskRequestDto(), card_brand: OVERSIZED_RISK_STRING }],
     ['non-string customer_ref', { ...validRiskRequestDto(), customer_ref: 42 }],
+    ['empty customer_ref', { ...validRiskRequestDto(), customer_ref: '' }],
+    ['blank customer_ref', { ...validRiskRequestDto(), customer_ref: BLANK_RISK_STRING }],
+    ['oversized customer_ref', { ...validRiskRequestDto(), customer_ref: OVERSIZED_RISK_STRING }],
     ['unknown test_scenario', { ...validRiskRequestDto(), test_scenario: 'approve' }],
   ])('rejects %s with InvalidRiskRequestError', (_label, payload) => {
     expect(() => parseRiskAssessmentRequest(payload)).toThrow(InvalidRiskRequestError);

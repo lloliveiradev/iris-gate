@@ -1,11 +1,3 @@
-import { RiskAssessment } from '../domain/risk-assessment';
-
-export interface RiskAssessmentRepo {
-  findById(id: string): Promise<RiskAssessment | null>;
-  saveCompletedWithOutbox(assessment: RiskAssessment, outboxEvent: OutboxEventInput): Promise<void>;
-  saveFailedWithOutbox(assessment: RiskAssessment, outboxEvent: OutboxEventInput): Promise<void>;
-}
-
 export interface OutboxEventInput {
   eventId: string;
   eventType: string;

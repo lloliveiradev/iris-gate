@@ -8,6 +8,7 @@ export type ProblemDto = components['schemas']['Problem'];
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+export const MAX_RISK_STRING_LENGTH = 256;
 
 const ALLOWED_REQUEST_KEYS = new Set<string>([
   'payment_intent_id',
@@ -122,15 +123,17 @@ function requireNonEmptyString(field: string, value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new InvalidRiskRequestError(`${field} must be a non-empty string`);
   }
+  if (value.length > MAX_RISK_STRING_LENGTH) {
+    throw new InvalidRiskRequestError(
+      `${field} must be at most ${MAX_RISK_STRING_LENGTH} characters`,
+    );
+  }
   return value;
 }
 
 function optionalString(field: string, value: unknown): string | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== 'string') {
-    throw new InvalidRiskRequestError(`${field} must be a string`);
-  }
-  return value;
+  return requireNonEmptyString(field, value);
 }
 
 function optionalTestScenario(value: unknown): TestScenario | undefined {

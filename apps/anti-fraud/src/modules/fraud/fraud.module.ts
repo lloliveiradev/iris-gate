@@ -11,7 +11,6 @@ import {
 import { PrismaFeatureSnapshotReader } from '../../infra/prisma/feature-snapshot.reader';
 import { PrismaOutboxStore } from '../../infra/prisma/outbox.store';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { PrismaRiskAssessmentRepo } from '../../infra/prisma/risk-assessment.repo';
 import { PrismaRuleConfigStore } from '../../infra/prisma/rule-config.store';
 import { PrismaScoredAssessmentStore } from '../../infra/prisma/scored-assessment.store';
 import { OUTBOX_STORE, OutboxRelayService } from '../../infra/kafka/outbox-relay.service';
@@ -20,18 +19,15 @@ import {
   FEATURE_SNAPSHOT_READER,
   ID_GEN,
   REGISTERED_RULES,
-  RISK_ASSESSMENT_REPO,
   RULE_CONFIG_STORE,
   SCORED_ASSESSMENT_STORE,
 } from './tokens';
 
 @Module({
   providers: [
-    PrismaRiskAssessmentRepo,
     PrismaScoredAssessmentStore,
     PrismaOutboxStore,
     PrismaRuleConfigStore,
-    { provide: RISK_ASSESSMENT_REPO, useExisting: PrismaRiskAssessmentRepo },
     { provide: SCORED_ASSESSMENT_STORE, useExisting: PrismaScoredAssessmentStore },
     { provide: OUTBOX_STORE, useExisting: PrismaOutboxStore },
     { provide: RULE_CONFIG_STORE, useExisting: PrismaRuleConfigStore },

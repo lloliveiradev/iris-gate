@@ -1,5 +1,5 @@
 import { DynamicModule, INestApplication, INestApplicationContext, Module } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { APP_GUARD, NestFactory } from '@nestjs/core';
 import {
   type Clock,
   DecisionThresholds,
@@ -86,6 +86,7 @@ export class RiskInternalModule {
         ProblemExceptionFilter,
         { provide: ScoreRiskUseCase, useValue: providers.scoreRiskUseCase },
         { provide: ServiceTokenGuard, useValue: providers.serviceTokenGuard },
+        { provide: APP_GUARD, useExisting: ServiceTokenGuard },
         { provide: RISK_CONFIG, useValue: providers.riskConfig },
       ],
     };
@@ -99,14 +100,16 @@ export class RiskInternalModule {
 export async function createInternalApp(
   parent: INestApplicationContext,
 ): Promise<INestApplication> {
+  const serviceTokenGuard = parent.get(ServiceTokenGuard);
   const internalApp = await NestFactory.create(
     RiskInternalModule.register({
       scoreRiskUseCase: parent.get(ScoreRiskUseCase),
-      serviceTokenGuard: parent.get(ServiceTokenGuard),
+      serviceTokenGuard,
       riskConfig: parent.get<RiskConfig>(RISK_CONFIG),
     }),
     { bufferLogs: true },
   );
   internalApp.useGlobalFilters(new ProblemExceptionFilter());
+  internalApp.useGlobalGuards(serviceTokenGuard);
   return internalApp;
 }
