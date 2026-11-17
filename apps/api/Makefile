@@ -7,6 +7,9 @@ SHELL := /usr/bin/env bash
 GO       ?= go
 PKG      := ./...
 GOLANGCI_CONFIG := ../../configs/go/golangci.yml
+TOOLS_BIN := $(abspath ../../.tools/bin)
+GOLANGCI_LINT := $(shell command -v golangci-lint 2>/dev/null || echo $(TOOLS_BIN)/golangci-lint)
+GOFUMPT       := $(shell command -v gofumpt 2>/dev/null || echo $(TOOLS_BIN)/gofumpt)
 BIN_DIR  := bin
 APP      := api
 
@@ -53,13 +56,13 @@ cover: ## go test with coverage
 
 .PHONY: lint
 lint: ## golangci-lint with configs/go/golangci.yml
-	@command -v golangci-lint >/dev/null || { echo "install: https://golangci-lint.run/welcome/install/"; exit 1; }
-	golangci-lint run --config $(GOLANGCI_CONFIG) $(PKG)
+	@[ -x "$(GOLANGCI_LINT)" ] || { echo "golangci-lint not found. Run: make tools"; exit 1; }
+	"$(GOLANGCI_LINT)" run --config $(GOLANGCI_CONFIG) $(PKG)
 
 .PHONY: fmt
 fmt: ## gofumpt
-	@command -v gofumpt >/dev/null || { echo "install: go install mvdan.cc/gofumpt@latest"; exit 1; }
-	gofumpt -l -w .
+	@[ -x "$(GOFUMPT)" ] || { echo "gofumpt not found. Run: make tools"; exit 1; }
+	"$(GOFUMPT)" -l -w .
 
 .PHONY: vet
 vet: ## go vet
@@ -70,5 +73,5 @@ clean: ## Remove the binary and coverage output
 	rm -rf $(BIN_DIR) coverage.out
 
 .PHONY: docker-build
-docker-build: ## Build the Docker image
-	docker build -t iris-gate/api:dev .
+docker-build: ## Build the Docker image (repo root context)
+	docker build -f Dockerfile -t iris-gate/api:dev ../..

@@ -17,6 +17,11 @@ PACKAGES := apps/api apps/web apps/anti-fraud libs/identity libs/payments libs/f
 DEV_APPS := apps/api apps/web
 INFRA    := infra/docker
 
+# Repo-local Go tools (installed by `make tools`, matches CI).
+TOOLS_BIN             := $(CURDIR)/.tools/bin
+GOLANGCI_LINT_VERSION := v2.15.0
+GOFUMPT_VERSION       := v0.12.0
+
 # Colors
 C_RST := \033[0m
 C_BLD := \033[1m
@@ -41,6 +46,15 @@ bootstrap: install up ## Install dependencies and start the local stack (first r
 install: ## Install Node dependencies (Yarn workspaces)
 	@command -v yarn >/dev/null || { echo "yarn not found. Run: corepack enable"; exit 1; }
 	yarn install
+
+.PHONY: tools
+tools: ## Install pinned Go tools (golangci-lint $(GOLANGCI_LINT_VERSION), gofumpt $(GOFUMPT_VERSION)) into .tools/bin
+	@mkdir -p $(TOOLS_BIN)
+	@echo "▸ tools :: golangci-lint $(GOLANGCI_LINT_VERSION) -> .tools/bin"
+	@GOBIN=$(TOOLS_BIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@echo "▸ tools :: gofumpt $(GOFUMPT_VERSION) -> .tools/bin"
+	@GOBIN=$(TOOLS_BIN) go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION)
+	@echo "✓ installed: $$($(TOOLS_BIN)/golangci-lint --version | head -n1), gofumpt $$($(TOOLS_BIN)/gofumpt --version)"
 
 .PHONY: install-hooks
 install-hooks: ## Install git hooks (lefthook)
