@@ -8,7 +8,7 @@ Two shapes live here. A bounded context (`identity`, `payments`, `fraud`) keeps 
 | ------------------------- | ----------------- | ----------------- | -------------------------------------------- |
 | [`identity`](identity/)   | Go 1.27           | `apps/api`        | Merchants and API keys                       |
 | [`payments`](payments/)   | Go 1.27           | `apps/api`        | Payment intents, acquirer port, outbox relay |
-| [`fraud`](fraud/)         | TypeScript        | `apps/anti-fraud` | Specification rules and `AssessRisk`         |
+| [`fraud`](fraud/)         | TypeScript        | `apps/anti-fraud` | Specification rules and `ScoreRiskUseCase`   |
 | [`contracts`](contracts/) | OpenAPI, AsyncAPI | API, web, codegen | Source of truth for HTTP and events          |
 | [`sdk-web`](sdk-web/)     | TypeScript        | `apps/web`        | `IrisClient` over the generated types        |
 | [`shared`](shared/)       | none yet          | nobody            | Empty on purpose                             |
@@ -34,7 +34,7 @@ Use cases: create, authorize, capture. Authorize calls an `Acquirer` port. An em
 
 ## fraud
 
-Pure TypeScript. No Nest, no Prisma, no Kafka. `apps/anti-fraud` implements the ports (`FeatureSnapshotReader` reads `payment_outcomes` and `card_profiles`). `ScoreRiskUseCase` is the scoring entry point; the internal endpoint that calls it is still to come in phase 10.
+Pure TypeScript. No Nest, no Prisma, no Kafka. `apps/anti-fraud` implements the ports (`FeatureSnapshotReader` reads `payment_outcomes` and `card_profiles`, `ScoredAssessmentStore` persists scored assessments). `ScoreRiskUseCase` is the scoring entry point called by `POST /internal/v1/risk-assessments`.
 
 Rules evaluate a `FeatureSnapshot` and ship as specifications, with default weights and parameters (`VELOCITY` and `DECLINE_BURST` are placeholders pending owner review):
 
@@ -45,17 +45,18 @@ Rules evaluate a `FeatureSnapshot` and ship as specifications, with default weig
 | `VELOCITY`       | 0.5    | `{ maxAttempts24h: 5 }`    | Placeholder pending owner review |
 | `DECLINE_BURST`  | 0.7    | `{ maxDeclines24h: 3 }`    | Placeholder pending owner review |
 
-`DecisionThresholds.defaults()` is review at 30 and reject at 70. A score at or above reject is `REJECT`, at or above review is `REVIEW`, otherwise `APPROVE`. The use case dedupes through an `InboxStore` and writes the result through an outbox port. The package must be built (`make -C libs/fraud build`) before the Nest app runs. `predev` in `apps/anti-fraud` does that.
+`DecisionThresholds.defaults()` is review at 30 and reject at 70. A score at or above reject is `REJECT`, at or above review is `REVIEW`, otherwise `APPROVE`. `ScoreRiskUseCase` is idempotent by `payment_intent_id` and writes the assessment, `features_snapshot`, `attempted` outcome, and outbox event in one transaction through `ScoredAssessmentStore`. The package must be built (`make -C libs/fraud build`) before the Nest app runs; the `dev`, `build`, and `typecheck` scripts in `apps/anti-fraud` do that.
 
 ## contracts
 
 Edit the spec, then generate. Do not hand-edit `generated/`.
 
-| Spec                         | What it covers                                                           |
-| ---------------------------- | ------------------------------------------------------------------------ |
-| `http/identity.openapi.yaml` | merchants and API keys                                                   |
-| `http/payments.openapi.yaml` | payment intents                                                          |
-| `events/asyncapi.yaml`       | merchant created, payment-intent lifecycle, fraud assessment and its DLQ |
+| Spec                               | What it covers                                              |
+| ---------------------------------- | ----------------------------------------------------------- |
+| `http/identity.openapi.yaml`       | merchants and API keys                                      |
+| `http/payments.openapi.yaml`       | payment intents                                             |
+| `http/fraud-internal.openapi.yaml` | internal synchronous risk scoring                           |
+| `events/asyncapi.yaml`             | merchant created, payment-intent lifecycle, fraud completed |
 
 `make gen-contracts` from the repo root runs oapi-codegen and openapi-typescript. `make gen-contracts-check` fails CI when `generated/` drifts. JSON fields are `snake_case`. HTTP routes stay under `/v1`. A breaking event is a new `.vN` topic. Domain types are not these generated DTOs. Map them in `infra/`.
 
@@ -78,7 +79,7 @@ From the repo root. `make test` already includes `libs/identity`, `libs/payments
 | `make -C libs/identity test`     | `go test -race`                                     |
 | `make -C libs/identity test-int` | the same with `-tags=integration` (needs Postgres)  |
 | `make -C libs/payments test`     | `go test -race`                                     |
-| `make -C libs/fraud test`        | Jest for the rules and `AssessRisk`                 |
+| `make -C libs/fraud test`        | Jest for the rules and `ScoreRiskUseCase`           |
 | `make -C libs/fraud build`       | `tsc` to `dist/`, which the Nest app imports        |
 | `make gen-contracts`             | regenerate Go and TypeScript from the OpenAPI specs |
 | `make gen-contracts-check`       | regenerate and fail on drift                        |
