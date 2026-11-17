@@ -23,7 +23,7 @@ make -C apps/web dev
 
 Composition root for Identity and Payments. `cmd/api/main.go` builds the use cases, and `internal/httpapi` only mounts what those libraries register. Handlers, repositories, and the acquirer adapter live in `libs/identity` and `libs/payments`.
 
-With an empty `ACQUIRER_URL`, the process uses the in-memory fake acquirer. The relay publishes `payments.payment_intent.{created,authorized,captured}.v1`. This process does not publish `fraud.assessment.requested.v1`.
+With an empty `ACQUIRER_URL`, the process uses the in-memory fake acquirer. The relay publishes `payments.payment_intent.{created,authorized,captured,failed}.v1`. This process does not publish `fraud.assessment.requested.v1`.
 
 |               |                                                         |
 | ------------- | ------------------------------------------------------- |

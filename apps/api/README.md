@@ -24,7 +24,7 @@ The process listens on `http://localhost:8080` and logs JSON to stdout. `SIGINT`
 4. Payments use cases: create, authorize, capture. Authorize calls the acquirer port.
 5. `RequireAPIKey` on payment routes and on `GET /v1/me`. The token is `Authorization: Bearer irk_<prefix>.<secret>`. Missing or invalid is 401. A revoked key is 403.
 6. Idempotency middleware only on `POST /v1/payment-intents`.
-7. The payments outbox relay, unless `RELAY_ENABLED=false`, on a second pool from `IRIS_WORKER_DATABASE_URL` (`iris_worker`). It polls every 250 ms, batches of 100, and publishes whatever topic is stored on the outbox row: `payments.payment_intent.created.v1`, `authorized.v1`, and `captured.v1`. It does not publish `fraud.assessment.requested.v1`.
+7. The payments outbox relay, unless `RELAY_ENABLED=false`, on a second pool from `IRIS_WORKER_DATABASE_URL` (`iris_worker`). It polls every 250 ms, batches of 100, and publishes whatever topic is stored on the outbox row: `payments.payment_intent.created.v1`, `authorized.v1`, `captured.v1`, and `failed.v1`. It does not publish `fraud.assessment.requested.v1`.
 
 chi adds request id, real IP, recover, and a 30 second timeout. `ReadHeaderTimeout` on the server is 5 seconds.
 
@@ -53,7 +53,7 @@ make irisctl ARGS="revoke-api-key --id <uuid>"
 
 Each command prints one JSON object on stdout. `issue-api-key` is the only one that prints a secret (field `secret`, the bearer token); it appears once and is not stored. A repeated document fails with `document already exists`. `irisctl` connects as `iris_app` through `IRIS_APP_DATABASE_URL` (default: local Compose Postgres) and expects `make migrate` to have run at least once.
 
-`POST /v1/payment-intents` without `Idempotency-Key` returns 400. The same key and body replay the stored response and set `Idempotent-Replay`. The same key with a different body returns 409. Authorize and capture are idempotent in the domain: repeating the current status is a no-op. `pending → authorized → captured`; any other transition is 409. When the acquirer rejects, the domain marks the intent `failed` in memory, but the row stays `pending` and no event is written. `GET /v1/payment-intents/{id}` returns 404 for an intent owned by another merchant; authorize and capture do not check ownership yet. These are defects D1 and D3 in [`docs/design/as-is.md`](../../docs/design/as-is.md), fixed in phase 6.
+`POST /v1/payment-intents` without `Idempotency-Key` returns 400. The same key and body replay the stored response and set `Idempotent-Replay`. The same key with a different body returns 409. Authorize and capture are idempotent in the domain: repeating the current status is a no-op. `pending → authorized → captured`, and `pending → failed`; any other transition is 409. An acquirer decline is persisted: the intent is saved `failed` with its `failure_code` and `payments.payment_intent.failed.v1` goes to the outbox in the same transaction; the authorize route still answers 200 with the `failed` intent. Get, authorize, and capture load by `(merchant_id, id)` and return 404 `payment_intent_not_found` for an intent owned by another merchant.
 
 REST Client files in `tests/` exercise this surface. Run `tests/identity.http` before `tests/payment-intents.http`. The document in the identity file is unique. Change it, or reset the database with `make nuke`, before a second bootstrap.
 
@@ -99,11 +99,8 @@ From the repo root. `make -C apps/api <target>` matches a Make run inside this d
 | `cover`        | race test plus a function coverage summary                                                        |
 | `build`        | static `bin/api` (`CGO_ENABLED=0`)                                                                |
 | `vet`          | `go vet`                                                                                          |
-| `lint`         | `golangci-lint` (must be installed)                                                               |
-| `fmt`          | `gofumpt` (must be installed)                                                                     |
+| `lint`         | `golangci-lint` (installed into `.tools/bin` via `make tools`; `PATH` preferred if present)       |
+| `fmt`          | `gofumpt` (installed into `.tools/bin` via `make tools`; `PATH` preferred if present)             |
 | `tidy`         | `go mod tidy`                                                                                     |
 | `clean`        | removes `bin/` and `coverage.out`                                                                 |
-| `docker-build` | `docker build -t iris-gate/api:dev .`                                                             |
-
-> [!WARNING]
-> `docker-build` uses this directory as the context. `go.mod` replaces `libs/identity`, `libs/payments`, and the generated contracts with paths outside that context, and the Dockerfile `FROM` is `golang:1.24-alpine` while the module is Go 1.25. Local `make dev` and `make test` go through `go.work` and are the paths CI runs.
+| `docker-build` | `docker build -f Dockerfile -t iris-gate/api:dev ../..` (repo-root context)                       |

@@ -30,7 +30,7 @@ Use cases: create merchant, issue key, revoke key, authenticate. Postgres migrat
 
 `PaymentIntent` and `Money`. Amount is a positive `int64` in minor units plus an ISO-4217 currency. Status moves `pending → authorized → captured`, or `pending → failed`. `refunded` and `canceled` are names on the type with no methods yet. Authorize and capture are no-ops when the intent is already in the target status.
 
-Use cases: create, authorize, capture. Authorize calls an `Acquirer` port. An empty `ACQUIRER_URL` in `apps/api` selects the fake adapter in `infra/acquirer`. The aggregate and its outbox row commit in one transaction. `infra/kafkarelay` polls every 250 ms and publishes `payments.payment_intent.{created,authorized,captured}.v1`. `infra/idempotency` is the `Idempotency-Key` middleware for create.
+Use cases: create, authorize, capture. Authorize calls an `Acquirer` port. An empty `ACQUIRER_URL` in `apps/api` selects the fake adapter in `infra/acquirer`. The aggregate and its outbox row commit in one transaction. `infra/kafkarelay` polls every 250 ms and publishes `payments.payment_intent.{created,authorized,captured,failed}.v1`. `infra/idempotency` is the `Idempotency-Key` middleware for create.
 
 ## fraud
 
