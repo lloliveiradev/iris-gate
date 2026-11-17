@@ -32,10 +32,11 @@ import {
   type RiskConfig,
 } from '../../config/risk.config';
 import { RISK_ASSESSMENTS_PATH } from './risk-assessment.controller';
-import type {
-  ProblemDto,
-  RiskAssessmentRequestDto,
-  RiskAssessmentResponseDto,
+import {
+  MAX_RISK_STRING_LENGTH,
+  type ProblemDto,
+  type RiskAssessmentRequestDto,
+  type RiskAssessmentResponseDto,
 } from './risk-assessment.dto';
 import { createInternalApp } from './risk.module';
 import { ServiceTokenGuard } from './service-token.guard';
@@ -66,6 +67,9 @@ export const TEST_CUSTOMER_REF = 'cus_test_001';
 export const TEST_ASSESSMENT_ID = '00000000-0000-4000-8000-0000000000f1';
 export const TEST_EVENT_ID = '00000000-0000-4000-8000-0000000000f2';
 export const SCORING_LATENCY_STEP_MS = 5;
+export const MAX_LENGTH_RISK_STRING = 'x'.repeat(MAX_RISK_STRING_LENGTH);
+export const OVERSIZED_RISK_STRING = 'x'.repeat(MAX_RISK_STRING_LENGTH + 1);
+export const BLANK_RISK_STRING = '   ';
 
 export function testRiskConfig(overrides: Partial<RiskConfig> = {}): RiskConfig {
   return {

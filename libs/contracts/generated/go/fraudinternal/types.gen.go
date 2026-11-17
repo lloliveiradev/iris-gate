@@ -137,6 +137,9 @@ type RiskReasonCode string
 // BadRequest defines model for BadRequest.
 type BadRequest = Problem
 
+// Conflict defines model for Conflict.
+type Conflict = Problem
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Problem
 

@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { Module } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { DEFAULT_RULES, FraudReasonCode, TestScenario } from '@iris-gate/fraud';
-import { HealthController } from '../../health.controller';
+import { AppModule } from '../../app.module';
+import { DATABASE_CONFIG } from '../../config/database.config';
+import { RISK_CONFIG } from '../../config/risk.config';
+import { KafkaClient } from '../../infra/kafka/kafka.client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import {
   ABOVE_INT32_AMOUNT_CENTS,
@@ -17,6 +18,7 @@ import {
   startInternalHttpHarness,
   TEST_CARD_FINGERPRINT,
   TEST_PAYMENT_INTENT_ID,
+  testRiskConfig,
   validRiskRequestDto,
   WRONG_SAME_LENGTH_TOKEN,
   WRONG_SHORTER_TOKEN,
@@ -26,11 +28,6 @@ import { RISK_ASSESSMENTS_PATH } from './risk-assessment.controller';
 import { RiskModule } from './risk.module';
 
 const DEFAULT_VELOCITY_LIMIT = 5;
-
-@Module({
-  controllers: [HealthController],
-})
-class PublicHealthOnlyModule {}
 
 describe('POST /internal/v1/risk-assessments (HTTP)', () => {
   let harness: InternalHttpHarness | null = null;
@@ -275,7 +272,22 @@ describe('POST /internal/v1/risk-assessments (HTTP)', () => {
     });
 
     it('keeps /internal/v1/risk-assessments off the public listener and serves it only on the internal listener', async () => {
-      const publicApp = await NestFactory.create(PublicHealthOnlyModule, { logger: false });
+      const publicModuleRef = await Test.createTestingModule({
+        imports: [AppModule],
+      })
+        .overrideProvider(DATABASE_CONFIG)
+        .useValue({ url: 'postgresql://localhost/antifraud' })
+        .overrideProvider(PrismaService)
+        .useValue({
+          fraudRule: { findMany: async () => [] },
+          outboxMessage: { findMany: async () => [] },
+        })
+        .overrideProvider(KafkaClient)
+        .useValue({})
+        .overrideProvider(RISK_CONFIG)
+        .useValue(testRiskConfig())
+        .compile();
+      const publicApp = publicModuleRef.createNestApplication({ logger: false });
       const publicUrl = await listenEphemeral(publicApp);
       harness = await startInternalHttpHarness();
 
