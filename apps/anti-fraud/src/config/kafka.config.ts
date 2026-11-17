@@ -4,7 +4,6 @@ export interface KafkaConfig {
   consumerGroup: string;
   topics: {
     completed: string;
-    dlq: string;
   };
   outbox: {
     pollIntervalMs: number;
@@ -23,7 +22,6 @@ export function loadKafkaConfig(): KafkaConfig {
     consumerGroup: process.env.KAFKA_CONSUMER_GROUP ?? 'iris-anti-fraud',
     topics: {
       completed: process.env.KAFKA_TOPIC_COMPLETED ?? 'fraud.assessment.completed.v1',
-      dlq: process.env.KAFKA_TOPIC_DLQ ?? 'fraud.assessment.failed.dlq',
     },
     outbox: {
       pollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? 1000),

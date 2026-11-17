@@ -170,6 +170,7 @@ services:
         condition: service_completed_successfully
     ports:
       - '${ANTI_FRAUD_PORT:-13001}:3001'
+      - '127.0.0.1:${ANTI_FRAUD_INTERNAL_PORT:-13002}:13002'
     environment:
       # Internal hostnames — kafkajs metadata advertises kafka:9092 inside the network.
       # Runtime role: DML only. Migrations run from the host with `make migrate`.
@@ -178,6 +179,12 @@ services:
       KAFKA_CLIENT_ID: anti-fraud
       KAFKAJS_NO_PARTITIONER_WARNING: '1'
       PORT: 3001
+      # Published on the host on 127.0.0.1 only; 0.0.0.0 inside the container
+      # accepts the bridge-forwarded connection from the host port mapping.
+      ANTI_FRAUD_INTERNAL_HOST: 0.0.0.0
+      ANTI_FRAUD_INTERNAL_PORT: 13002
+      FRAUD_SERVICE_TOKEN: ${FRAUD_SERVICE_TOKEN:-fraud_service_token}
+      FRAUD_TEST_HOOKS: ${FRAUD_TEST_HOOKS:-true}
       NODE_ENV: development
     volumes:
       # Hot-reload: mount only the watch surface; node_modules + dist stay baked.
@@ -187,6 +194,7 @@ services:
       - ../../apps/anti-fraud/tsconfig.json:/repo/apps/anti-fraud/tsconfig.json
       - ../../apps/anti-fraud/prisma.config.ts:/repo/apps/anti-fraud/prisma.config.ts
       - ../../configs:/repo/configs:ro
+      - ../../libs/contracts:/repo/libs/contracts:ro
     networks: [ig]
 
 volumes:

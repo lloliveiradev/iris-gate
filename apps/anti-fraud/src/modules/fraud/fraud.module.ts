@@ -1,41 +1,47 @@
+import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import {
   buildRulesFromConfig,
   type Clock,
   type FeatureSnapshotReader,
+  type IDGen,
   type RegisteredRule,
   type RuleConfigStore,
 } from '@iris-gate/fraud';
 import { PrismaFeatureSnapshotReader } from '../../infra/prisma/feature-snapshot.reader';
-import { PrismaInboxStore } from '../../infra/prisma/inbox.store';
 import { PrismaOutboxStore } from '../../infra/prisma/outbox.store';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { PrismaRiskAssessmentRepo } from '../../infra/prisma/risk-assessment.repo';
 import { PrismaRuleConfigStore } from '../../infra/prisma/rule-config.store';
+import { PrismaScoredAssessmentStore } from '../../infra/prisma/scored-assessment.store';
 import { OUTBOX_STORE, OutboxRelayService } from '../../infra/kafka/outbox-relay.service';
 import {
+  CLOCK,
   FEATURE_SNAPSHOT_READER,
-  INBOX_STORE,
+  ID_GEN,
   REGISTERED_RULES,
   RISK_ASSESSMENT_REPO,
   RULE_CONFIG_STORE,
+  SCORED_ASSESSMENT_STORE,
 } from './tokens';
-
-const CLOCK = Symbol('CLOCK');
 
 @Module({
   providers: [
     PrismaRiskAssessmentRepo,
-    PrismaInboxStore,
+    PrismaScoredAssessmentStore,
     PrismaOutboxStore,
     PrismaRuleConfigStore,
     { provide: RISK_ASSESSMENT_REPO, useExisting: PrismaRiskAssessmentRepo },
-    { provide: INBOX_STORE, useExisting: PrismaInboxStore },
+    { provide: SCORED_ASSESSMENT_STORE, useExisting: PrismaScoredAssessmentStore },
     { provide: OUTBOX_STORE, useExisting: PrismaOutboxStore },
     { provide: RULE_CONFIG_STORE, useExisting: PrismaRuleConfigStore },
     {
       provide: CLOCK,
       useValue: { now: () => new Date() } satisfies Clock,
+    },
+    {
+      provide: ID_GEN,
+      useValue: { newId: () => randomUUID() } satisfies IDGen,
     },
     {
       provide: FEATURE_SNAPSHOT_READER,
@@ -53,5 +59,6 @@ const CLOCK = Symbol('CLOCK');
     },
     OutboxRelayService,
   ],
+  exports: [SCORED_ASSESSMENT_STORE, FEATURE_SNAPSHOT_READER, REGISTERED_RULES, CLOCK, ID_GEN],
 })
 export class FraudModule {}
