@@ -17,7 +17,7 @@ apps/web
 apps/anti-fraud
 libs/fraud
 libs/sdk-web
-libs/shared
+libs/shared/src
 libs/contracts/http
 libs/contracts/events
 libs/contracts/codegen

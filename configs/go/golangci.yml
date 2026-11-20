@@ -1,10 +1,11 @@
 # golangci-lint v2 configuration shared by every Go module
-# (apps/api, libs/identity, libs/payments, and the contexts the phases add).
+# (apps/api, libs/identity, libs/payments, libs/shared, and the contexts the
+# phases add).
 #
 # Run from a module directory:
 #   golangci-lint run --config ../../configs/go/golangci.yml ./...
 # The module Makefiles (`make lint`) and CI already pass this path.
-version: "2"
+version: '2'
 
 linters:
   default: standard
@@ -19,8 +20,8 @@ linters:
         # application/ and implement it in infra/.
         inner-layers:
           files:
-            - "**/domain/**"
-            - "**/application/**"
+            - '**/domain/**'
+            - '**/application/**'
           deny:
             - pkg: net/http
               desc: transport belongs in infra/ (httpapi adapters)
@@ -39,18 +40,29 @@ linters:
         # packages. Cross-context needs go through ports, contracts or events.
         identity-isolation:
           files:
-            - "**/libs/identity/domain/**"
-            - "**/libs/identity/application/**"
+            - '**/libs/identity/domain/**'
+            - '**/libs/identity/application/**'
           deny:
             - pkg: github.com/iris-gate/iris-gate/libs/payments
               desc: contexts talk through ports, contracts or events
         payments-isolation:
           files:
-            - "**/libs/payments/domain/**"
-            - "**/libs/payments/application/**"
+            - '**/libs/payments/domain/**'
+            - '**/libs/payments/application/**'
           deny:
             - pkg: github.com/iris-gate/iris-gate/libs/identity
               desc: contexts talk through ports, contracts or events
+
+        # libs/shared is not a bounded context: contexts and apps/api may
+        # import it, but it imports none of them.
+        shared-isolation:
+          files:
+            - '**/libs/shared/**'
+          deny:
+            - pkg: github.com/iris-gate/iris-gate/libs/identity
+              desc: libs/shared imports no bounded context
+            - pkg: github.com/iris-gate/iris-gate/libs/payments
+              desc: libs/shared imports no bounded context
 
 # Formatting (gofumpt) runs in the lefthook pre-commit hook on staged files,
 # so it is not repeated here.

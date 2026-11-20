@@ -118,7 +118,7 @@ Do not open files only to translate or tidy them. Keep these edits in the same c
 ## What is already true
 
 - Go 1.27 (`go.work`, toolchain go1.27.4), Node 26 LTS as the runtime (`engines` accepts `>=24.11.0`), Yarn 4.18.1 workspaces through Corepack. The task runner is Make. Do not add pnpm, npm or Turborepo. There is no Python toolchain; do not create a `.venv` or `pyproject.toml`.
-- Implemented contexts: `libs/identity`, `libs/payments`, `libs/fraud`. `libs/shared` is the empty shared-kernel slot. A new context needs a phase spec.
+- Implemented contexts: `libs/identity`, `libs/payments`, `libs/fraud`. `libs/shared` is the shared kernel, not a context: a Go module with `pgtenant` (plus an empty TypeScript skeleton in `src/`). A new context needs a phase spec.
 - Published topic names are the ones in `libs/contracts/events/asyncapi.yaml` (`payments.payment_intent.*.v1`, `fraud.assessment.*.v1`).
 - Planned work follows `docs/design/to-be.md` and the phase specs in `docs/specs/`. `docs/architecture.md` and `docs/security.md` mark each planned part with its phase.
 - `docs/security.md` lists every control with its status. Do not describe a control as present before its status says `implemented`. Do not weaken the ones that are. When a phase implements a control, update its status there.
@@ -130,6 +130,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Edit `libs/contracts/http/*.openapi.yaml` and `libs/contracts/events/**`, then `make gen-contracts`. Never hand-edit `libs/contracts/generated/**`.
 - JSON fields are `snake_case`. Routes stay under `/v1`. A breaking change is `/v2` or a new `.vN` topic, not an in-place rename (the one exception is the payments v1 change recorded in phase 11).
 - Commit the spec and the generated files together. CI runs `make gen-contracts-check`.
+- Every new route must be added to `apps/api/internal/httpapi/route_registry_test.go` as merchant-scoped or not tenant-scoped with a reason, or `make -C apps/api test` fails; phase 08 extends this same registry.
 
 ## Payments
 
@@ -153,6 +154,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Merchants and API keys are managed by the operator CLI `apps/api/cmd/irisctl` (`make irisctl ARGS=...`: `create-merchant`, `issue-api-key`, `revoke-api-key`), which reuses the identity use cases. There are no HTTP routes for them; do not add any (defect D8 is closed). The CLI prints a new secret once, on stdout, and never logs. User accounts and roles come in phase 8.
 - The dashboard posts the key to a server action and stores it in the iron-session cookie (defect D9, replaced by user accounts in phase 9). Do not put it in `localStorage`, client state or logs.
 - Never log PAN, CVV, `card_token`, API keys, passwords, tokens, raw email or raw document. Never commit `.env` or a real secret. `iris`/`iris`, the database role placeholders in `infra/docker/.env.example` and the dev session password stay local.
+- The `Mailer` port lives in `libs/identity/application` (`mailer.go`) and its stdlib SMTP adapter in `libs/identity/infra/mailer`; mail recipients are never logged in clear (mask them through `MaskEmail`), and local mail is caught by Mailpit (`ig-mailpit`, `127.0.0.1:11025` SMTP / `127.0.0.1:18025` UI).
 
 ## Database roles
 
@@ -160,6 +162,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Only `make migrate` runs DDL: `apps/api/cmd/migrate` as `iris_migrator` (`IRIS_MIGRATOR_DATABASE_URL`) and `prisma migrate deploy` as `antifraud_migrator` (`ANTIFRAUD_MIGRATOR_DATABASE_URL`). No service migrates on startup; do not add it back.
 - App roles get DML on new tables through `ALTER DEFAULT PRIVILEGES` on the migrator, so a table must be created by a migration run as the migrator. App roles have no `BYPASSRLS`, no `TRUNCATE` and no access to `schema_migrations` or `_prisma_migrations`. A role connects only to its own database.
 - Role attributes and default privileges live in the init script, which runs only on an empty volume. Changing them needs `make nuke && make bootstrap && make migrate`, and the change belongs in `10-roles.sh` and its tests in `apps/api/cmd/migrate/roles_integration_test.go`.
+- Tenant-scoped queries go through `pgtenant.WithMerchant` (`libs/shared/pgtenant`), which sets `app.merchant_id` transaction-locally as the first statement; inside its callback use only the `tx` it hands you. `libs/shared` must stay in the `apps/api/Dockerfile` copy list.
 
 ## Fraud
 
@@ -177,6 +180,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 ## Toolchain
 
 - Run `yarn` from the repo root. Go modules resolve through `go.work`.
+- `libs/shared` is a Go module in `go.work` and `PACKAGES`, not a bounded context: contexts and `apps/api` may import it, it imports none of them (depguard `shared-isolation`). Because `go.work` lists it, `apps/api/Dockerfile` must copy its `go.mod`, `go.sum` and sources.
 - `make test`, `make lint` and `make build` run in every package (`PACKAGES` in the root Makefile) that defines the target. `make migrate` applies the migrations of both databases. `make dev` starts the stack, then `apps/api` and `apps/web` on the host; anti-fraud is already the Compose service, published on `:13001` (the container process listens on `3001`). The Compose project is `ig` (containers `ig-*`, network `ig`, host ports Postgres `15432`, Kafka `19092`, Karapace `18081`).
 - Go tests use `-race`. `make -C libs/identity test-int` needs Postgres.
 - Format with `gofumpt` and Prettier. Lint with golangci-lint v2 and ESLint. `make tools` installs pinned `golangci-lint` (v2.15.0) and `gofumpt` (v0.12.0) into `.tools/bin` (gitignored); Go Makefiles and `lefthook.yml` prefer `PATH` and fall back to `.tools/bin`. Lefthook rejects commits that are not `type(scope): subject`. Do not skip hooks unless the owner asks.
