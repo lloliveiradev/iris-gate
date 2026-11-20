@@ -20,6 +20,7 @@ Add the two redirect-based integration modes, hosted checkout sessions and payme
    - success and canceled states for sessions already finished or expired.
 
    The card form is a client component that posts the card **directly from the browser to the vault** with the merchant's publishable key, then sends only the `card_token` to the server action that confirms the session.
+
 8. **Dashboard:** products and prices, payment links (with copy-link and a QR code), checkout settings (display name, logo URL, brand color, support email, allowed redirect domains), list of checkout sessions with status.
 9. **Demo merchant:** a small page in apps/web, `/<locale>/demo/store`, clearly labeled as a demo, that plays the merchant server with a seeded secret key from server-side env: it lists the seeded products, creates a session and redirects. A `make demo-seed` target, backed by a script in `tools/scripts/` (or an `irisctl` command it calls), creates the demo merchant, products and keys.
 

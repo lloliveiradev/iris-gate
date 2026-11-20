@@ -4,11 +4,11 @@ Home of the repository's developer scripts: tasks that support development, test
 
 Expected scripts, by phase:
 
-| Script | Phase | Purpose |
-| --- | --- | --- |
-| demo seed | 15 | create the demo merchant, users, products and keys (`make demo-seed`) |
-| DLQ replay | 13 | re-publish dead-letter messages to their source topic (`make dlq-replay TOPIC=...`) |
-| end-to-end runner | 17 | bring the stack up, seed it, run Playwright, tear it down (`make e2e`) |
+| Script            | Phase | Purpose                                                                             |
+| ----------------- | ----- | ----------------------------------------------------------------------------------- |
+| demo seed         | 15    | create the demo merchant, users, products and keys (`make demo-seed`)               |
+| DLQ replay        | 13    | re-publish dead-letter messages to their source topic (`make dlq-replay TOPIC=...`) |
+| end-to-end runner | 17    | bring the stack up, seed it, run Playwright, tear it down (`make e2e`)              |
 
 Rules:
 

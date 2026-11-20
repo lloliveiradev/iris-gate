@@ -2,41 +2,41 @@
 
 Iris Gate is a portfolio project: it will never run in production, process real money, or be sold (see [`design/to-be.md`](design/to-be.md) section 1). This roadmap shows what is built, what comes next, and where each piece is specified.
 
-| Document | Role |
-| --- | --- |
+| Document                             | Role                                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
 | [`design/as-is.md`](design/as-is.md) | Snapshot of the code at commit `7195707`, with known defects (D1 to D9) and gaps (G1 to G10) |
-| [`design/to-be.md`](design/to-be.md) | Approved target design (2026-11-10): decisions, diagrams, data model, API surface |
-| [`specs/`](specs/README.md) | One spec per delivery phase, plus the working rules for the implementing agent |
-| `plans/` | Implementation plans, written by the agent before each phase |
+| [`design/to-be.md`](design/to-be.md) | Approved target design (2026-11-10): decisions, diagrams, data model, API surface            |
+| [`specs/`](specs/README.md)          | One spec per delivery phase, plus the working rules for the implementing agent               |
+| `plans/`                             | Implementation plans, written by the agent before each phase                                 |
 
 ## Overview
 
-| Phase | Name | Status | Spec |
-| --- | --- | --- | --- |
-| 0 | Foundation | done | below |
-| 1 | Contracts first | done | below |
-| 2 | Identity (merchants and API keys) | done | below |
-| 3 | Payments (intents, outbox, idempotency) | done | below |
-| 4 | Anti-fraud (async scoring, inbox, DLQ) | done | below |
-| 5 | Web dashboard MVP | done | below |
-| 6 | Security baseline | ready | [phase-06](specs/phase-06-security-baseline.md) |
-| 7 | Database roles and tenant isolation | ready | [phase-07](specs/phase-07-tenant-isolation.md) |
-| 8 | Identity and access API | ready | [phase-08](specs/phase-08-identity-access-api.md) |
-| 9 | Dashboard and console access | ready | [phase-09](specs/phase-09-dashboard-console-access.md) |
-| 10 | Synchronous risk scoring | ready | [phase-10](specs/phase-10-sync-risk-scoring.md) |
-| 11 | Payment lifecycle and review | ready | [phase-11](specs/phase-11-payment-lifecycle.md) |
-| 12 | Background jobs | ready | [phase-12](specs/phase-12-background-jobs.md) |
-| 13 | Kafka event backbone | ready | [phase-13](specs/phase-13-kafka-backbone.md) |
-| 14 | Card vault | ready | [phase-14](specs/phase-14-card-vault.md) |
-| 15 | Hosted checkout, catalog and payment links | ready | [phase-15](specs/phase-15-checkout-catalog.md) |
-| 16 | Webhooks and request logs | ready | [phase-16](specs/phase-16-webhooks-request-logs.md) |
-| 17 | End-to-end tests and CI | ready | [phase-17](specs/phase-17-e2e-ci.md) |
-| 18 | Visual identity refresh | blocked: owner design session | [phase-18](specs/phase-18-visual-identity.md) |
-| 19 | Observability | later | to be written |
-| 20 | Security hardening | later | to be written |
-| 21 | Cloud deployment (AWS, Terraform) | later | to be written |
-| 22 | Ledger | later | to be written |
-| 23 | Client IP and request origin | later | to be written |
+| Phase | Name                                       | Status                        | Spec                                                   |
+| ----- | ------------------------------------------ | ----------------------------- | ------------------------------------------------------ |
+| 0     | Foundation                                 | done                          | below                                                  |
+| 1     | Contracts first                            | done                          | below                                                  |
+| 2     | Identity (merchants and API keys)          | done                          | below                                                  |
+| 3     | Payments (intents, outbox, idempotency)    | done                          | below                                                  |
+| 4     | Anti-fraud (async scoring, inbox, DLQ)     | done                          | below                                                  |
+| 5     | Web dashboard MVP                          | done                          | below                                                  |
+| 6     | Security baseline                          | ready                         | [phase-06](specs/phase-06-security-baseline.md)        |
+| 7     | Database roles and tenant isolation        | ready                         | [phase-07](specs/phase-07-tenant-isolation.md)         |
+| 8     | Identity and access API                    | ready                         | [phase-08](specs/phase-08-identity-access-api.md)      |
+| 9     | Dashboard and console access               | ready                         | [phase-09](specs/phase-09-dashboard-console-access.md) |
+| 10    | Synchronous risk scoring                   | ready                         | [phase-10](specs/phase-10-sync-risk-scoring.md)        |
+| 11    | Payment lifecycle and review               | ready                         | [phase-11](specs/phase-11-payment-lifecycle.md)        |
+| 12    | Background jobs                            | ready                         | [phase-12](specs/phase-12-background-jobs.md)          |
+| 13    | Kafka event backbone                       | ready                         | [phase-13](specs/phase-13-kafka-backbone.md)           |
+| 14    | Card vault                                 | ready                         | [phase-14](specs/phase-14-card-vault.md)               |
+| 15    | Hosted checkout, catalog and payment links | ready                         | [phase-15](specs/phase-15-checkout-catalog.md)         |
+| 16    | Webhooks and request logs                  | ready                         | [phase-16](specs/phase-16-webhooks-request-logs.md)    |
+| 17    | End-to-end tests and CI                    | ready                         | [phase-17](specs/phase-17-e2e-ci.md)                   |
+| 18    | Visual identity refresh                    | blocked: owner design session | [phase-18](specs/phase-18-visual-identity.md)          |
+| 19    | Observability                              | later                         | to be written                                          |
+| 20    | Security hardening                         | later                         | to be written                                          |
+| 21    | Cloud deployment (AWS, Terraform)          | later                         | to be written                                          |
+| 22    | Ledger                                     | later                         | to be written                                          |
+| 23    | Client IP and request origin               | later                         | to be written                                          |
 
 The live status of phases 6 to 18 is kept in [`specs/README.md`](specs/README.md); update both tables when a phase changes status.
 
@@ -149,21 +149,21 @@ Before phase 6, every runtime and tool moved to its latest stable release: Go 1.
 
 Each phase has a spec with scope, rules and acceptance criteria. Summaries:
 
-| Phase | Outcome |
-| --- | --- |
-| 6. Security baseline | Tenant check on every by-id route, idempotency keyed by merchant, persisted declines, optimistic locking, public identity routes replaced by the `irisctl` CLI. |
-| 7. Database roles and tenant isolation | Migrator, app, worker and platform roles per database; Postgres row-level security; tenant transaction helper; cross-tenant test suite with a route meta-test. |
-| 8. Identity and access API | Users, Argon2id passwords, Ed25519 JWT with rotating refresh tokens, roles and permissions, memberships, invitations, self-signup with approval, API key kinds (secret, restricted, publishable), platform admin, hash-chained audit log, Mailpit. |
-| 9. Dashboard and console access | Login, sign-up, team, API keys, audit log and profile pages; platform console at `/admin`; the API key leaves the session cookie. |
-| 10. Synchronous risk scoring | Internal scoring endpoint in anti-fraud with a 300 ms budget, feature snapshot, new rules, `bigint` amounts, fail-closed client in payments. |
-| 11. Payment lifecycle and review | Confirm with automatic capture by default, manual capture setting, review in merchant or platform mode, cancel, refunds, payment history with actors, dashboard and console screens. |
-| 12. Background jobs | Worker process for authorization expiry, review deadline and reconciliation of stuck payments. |
-| 13. Kafka event backbone | Full event set keyed by aggregate, schema compatibility check, retry topics and DLQ, anti-fraud outcome consumer for features and labels. |
-| 14. Card vault | Separate `apps/vault` with envelope encryption under OpenBao Transit, keyed fingerprints, single-use tokens, mTLS detokenization with audit, key rotation. |
-| 15. Hosted checkout, catalog and payment links | Products and immutable prices, server-created checkout sessions, payment links, merchant branding, hosted pay page with browser-to-vault card form, demo store. |
-| 16. Webhooks and request logs | Signed webhooks with scheduled retries, SSRF protection, delivery log and redeliver; API request log with 30-day retention. |
-| 17. End-to-end tests and CI | Playwright suite over the Compose stack for every flow and test card; CI with contract, schema, cross-tenant, security and log-scan checks. |
-| 18. Visual identity refresh | New palette and themes with neutral backgrounds, WCAG AA contrast. Starts after the owner's design session. |
+| Phase                                          | Outcome                                                                                                                                                                                                                                            |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6. Security baseline                           | Tenant check on every by-id route, idempotency keyed by merchant, persisted declines, optimistic locking, public identity routes replaced by the `irisctl` CLI.                                                                                    |
+| 7. Database roles and tenant isolation         | Migrator, app, worker and platform roles per database; Postgres row-level security; tenant transaction helper; cross-tenant test suite with a route meta-test.                                                                                     |
+| 8. Identity and access API                     | Users, Argon2id passwords, Ed25519 JWT with rotating refresh tokens, roles and permissions, memberships, invitations, self-signup with approval, API key kinds (secret, restricted, publishable), platform admin, hash-chained audit log, Mailpit. |
+| 9. Dashboard and console access                | Login, sign-up, team, API keys, audit log and profile pages; platform console at `/admin`; the API key leaves the session cookie.                                                                                                                  |
+| 10. Synchronous risk scoring                   | Internal scoring endpoint in anti-fraud with a 300 ms budget, feature snapshot, new rules, `bigint` amounts, fail-closed client in payments.                                                                                                       |
+| 11. Payment lifecycle and review               | Confirm with automatic capture by default, manual capture setting, review in merchant or platform mode, cancel, refunds, payment history with actors, dashboard and console screens.                                                               |
+| 12. Background jobs                            | Worker process for authorization expiry, review deadline and reconciliation of stuck payments.                                                                                                                                                     |
+| 13. Kafka event backbone                       | Full event set keyed by aggregate, schema compatibility check, retry topics and DLQ, anti-fraud outcome consumer for features and labels.                                                                                                          |
+| 14. Card vault                                 | Separate `apps/vault` with envelope encryption under OpenBao Transit, keyed fingerprints, single-use tokens, mTLS detokenization with audit, key rotation.                                                                                         |
+| 15. Hosted checkout, catalog and payment links | Products and immutable prices, server-created checkout sessions, payment links, merchant branding, hosted pay page with browser-to-vault card form, demo store.                                                                                    |
+| 16. Webhooks and request logs                  | Signed webhooks with scheduled retries, SSRF protection, delivery log and redeliver; API request log with 30-day retention.                                                                                                                        |
+| 17. End-to-end tests and CI                    | Playwright suite over the Compose stack for every flow and test card; CI with contract, schema, cross-tenant, security and log-scan checks.                                                                                                        |
+| 18. Visual identity refresh                    | New palette and themes with neutral backgrounds, WCAG AA contrast. Starts after the owner's design session.                                                                                                                                        |
 
 ## Later
 
@@ -186,14 +186,14 @@ The earlier plan for a private beta with pilot merchants and a public status pag
 
 ## Success metrics
 
-| Metric | Target | Checked in |
-| --- | --- | --- |
-| p95 latency of `POST /v1/payment-intents` | < 300 ms | phase 19 |
-| p99 latency of the risk endpoint | < 100 ms locally | phase 10 |
-| Routes covered by the cross-tenant suite | 100% (meta-test) | phase 7 onward |
-| Routes with a declared permission | 100% (registry test) | phase 8 onward |
-| Card numbers in any service log | 0 (log-scan test) | phase 14 onward |
-| Idempotent replay correctness | 100% | phases 6 and 11 |
-| Test coverage of `domain/` packages | > 90% | every phase |
-| End-to-end suite on every pull request | green | phase 17 onward |
-| p95 consumer lag in anti-fraud | < 500 ms | phase 19 |
+| Metric                                    | Target               | Checked in      |
+| ----------------------------------------- | -------------------- | --------------- |
+| p95 latency of `POST /v1/payment-intents` | < 300 ms             | phase 19        |
+| p99 latency of the risk endpoint          | < 100 ms locally     | phase 10        |
+| Routes covered by the cross-tenant suite  | 100% (meta-test)     | phase 7 onward  |
+| Routes with a declared permission         | 100% (registry test) | phase 8 onward  |
+| Card numbers in any service log           | 0 (log-scan test)    | phase 14 onward |
+| Idempotent replay correctness             | 100%                 | phases 6 and 11 |
+| Test coverage of `domain/` packages       | > 90%                | every phase     |
+| End-to-end suite on every pull request    | green                | phase 17 onward |
+| p95 consumer lag in anti-fraud            | < 500 ms             | phase 19        |

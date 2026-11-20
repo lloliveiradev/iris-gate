@@ -23,6 +23,7 @@ The system should feel **considered**, like good print typography on a good moni
 `<html class="dark">` ships in `layout.tsx`. Light mode is opt-in via the in-header `ThemeToggle` (persisted to `localStorage.iris-theme`). Pre-paint inline script in `ThemeScript` prevents FOUC.
 
 Rationale:
+
 - Long-session ops tools (payments, fraud) live on the dashboard — dark is easier on eyes for extended reads.
 - The brand palette is dark-native (ink + petrol carry the identity).
 - Light is provided for daylight / accessibility preference, not as the primary canvas.
@@ -70,12 +71,12 @@ Tailwind aliases for both layers are wired in the `@theme inline` block (`bg-bac
 
 ## 5. Typography — 4 families, 1 hierarchy
 
-| Family | Variable | When |
-|---|---|---|
-| Geist Sans | `--font-sans` | Body, UI labels, buttons, inputs |
-| Fraunces | `--font-serif` | h2 / h3 / card titles — warm editorial weight |
-| Instrument Serif (italic) | `--font-display` | h1 hero, marketing display |
-| Geist Mono | `--font-mono` | Money, IDs, code, timestamps — always with `tabular-nums` |
+| Family                    | Variable         | When                                                      |
+| ------------------------- | ---------------- | --------------------------------------------------------- |
+| Geist Sans                | `--font-sans`    | Body, UI labels, buttons, inputs                          |
+| Fraunces                  | `--font-serif`   | h2 / h3 / card titles — warm editorial weight             |
+| Instrument Serif (italic) | `--font-display` | h1 hero, marketing display                                |
+| Geist Mono                | `--font-mono`    | Money, IDs, code, timestamps — always with `tabular-nums` |
 
 The display serif **is the brand's voice**. Use it sparingly — one h1 per page in marketing surfaces, none in dashboards. Fraunces does the heavier lifting in product UI.
 
@@ -112,13 +113,13 @@ Do **not** override per-component. If a focus ring clashes with a custom surface
 
 ## 8. Brand surfaces vs product surfaces
 
-| Surface type | Lives in | Tokens to use | Notes |
-|---|---|---|---|
-| Marketing / landing | `components/landing/`, `components/site/`, `app/page.tsx` | Semantic + may reach for `--brand-*` for editorial accents | Hero italic copper highlight is fine; cream marketing background is fine |
-| Product / dashboard | `app/dashboard/**`, `components/dashboard/` | Semantic only — `bg-card`, `text-foreground`, `text-muted-foreground` | Must invert cleanly across both themes. No `--brand-cream` as background. |
-| Auth (login) | `app/login/` | Semantic only | Treat as product UI |
+| Surface type        | Lives in                                                  | Tokens to use                                                         | Notes                                                                     |
+| ------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Marketing / landing | `components/landing/`, `components/site/`, `app/page.tsx` | Semantic + may reach for `--brand-*` for editorial accents            | Hero italic copper highlight is fine; cream marketing background is fine  |
+| Product / dashboard | `app/dashboard/**`, `components/dashboard/`               | Semantic only — `bg-card`, `text-foreground`, `text-muted-foreground` | Must invert cleanly across both themes. No `--brand-cream` as background. |
+| Auth (login)        | `app/login/`                                              | Semantic only                                                         | Treat as product UI                                                       |
 
-When in doubt, the test is: *does this surface need to render in both themes?* If yes, semantic tokens only.
+When in doubt, the test is: _does this surface need to render in both themes?_ If yes, semantic tokens only.
 
 ---
 

@@ -55,17 +55,17 @@ Underneath:
 
 ## 2 · Stack decisions
 
-| Concern | Choice | Why |
-|---|---|---|
-| Headless table state | `@tanstack/react-table` v8 | De-facto standard, framework-agnostic, integrates cleanly with shadcn Table primitive |
-| Server state | `@tanstack/react-query` v5 | Already installed; offers caching, request dedup, optimistic updates, invalidation |
-| UI shell | shadcn `Table` + `DropdownMenu` + `Input` + `Select` | Already using shadcn; consistent with the rest of the system |
-| Per-row actions | Radix `DropdownMenu` ellipsis trigger | Standard pattern (Stripe, Linear, Vercel) |
-| Data plumbing | **Server Actions**, not Route Handlers | Keep API key server-only; SAs are typesafe, composable, easy to mock |
-| Pagination model | **Cursor-based** (V1 supports basic offset; V2 cursor) | Monotonic intent IDs, scales well, no `COUNT(*)` cost |
-| Filtering | Server-side on the API; client-side fallback for V1 | Filtering local-only is OK while limit=50; promote to server when lists outgrow that |
-| Sorting | Server-side; default `created_at DESC` | Same reasoning as filtering |
-| Selection | TanStack row selection state, exposed via `getIsAllPageRowsSelected` / `getSelectedRowModel` | Standard pattern |
+| Concern              | Choice                                                                                       | Why                                                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Headless table state | `@tanstack/react-table` v8                                                                   | De-facto standard, framework-agnostic, integrates cleanly with shadcn Table primitive |
+| Server state         | `@tanstack/react-query` v5                                                                   | Already installed; offers caching, request dedup, optimistic updates, invalidation    |
+| UI shell             | shadcn `Table` + `DropdownMenu` + `Input` + `Select`                                         | Already using shadcn; consistent with the rest of the system                          |
+| Per-row actions      | Radix `DropdownMenu` ellipsis trigger                                                        | Standard pattern (Stripe, Linear, Vercel)                                             |
+| Data plumbing        | **Server Actions**, not Route Handlers                                                       | Keep API key server-only; SAs are typesafe, composable, easy to mock                  |
+| Pagination model     | **Cursor-based** (V1 supports basic offset; V2 cursor)                                       | Monotonic intent IDs, scales well, no `COUNT(*)` cost                                 |
+| Filtering            | Server-side on the API; client-side fallback for V1                                          | Filtering local-only is OK while limit=50; promote to server when lists outgrow that  |
+| Sorting              | Server-side; default `created_at DESC`                                                       | Same reasoning as filtering                                                           |
+| Selection            | TanStack row selection state, exposed via `getIsAllPageRowsSelected` / `getSelectedRowModel` | Standard pattern                                                                      |
 
 ---
 
@@ -83,13 +83,13 @@ parameters:
     name: limit
     schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
   - in: query
-    name: cursor          # opaque base64 of {created_at, id} — backend decodes
+    name: cursor # opaque base64 of {created_at, id} — backend decodes
     schema: { type: string }
   - in: query
-    name: status          # CSV list of statuses to include
-    schema: { type: string, example: "pending,authorized" }
+    name: status # CSV list of statuses to include
+    schema: { type: string, example: 'pending,authorized' }
   - in: query
-    name: q               # free-text search; matches intent_id prefix
+    name: q # free-text search; matches intent_id prefix
     schema: { type: string }
   - in: query
     name: created_after
@@ -100,11 +100,11 @@ parameters:
 responses:
   '200':
     schema:
-      type: object         # NEW: envelope, not raw array
+      type: object # NEW: envelope, not raw array
       properties:
-        data:        { type: array, items: { $ref: '#/components/schemas/PaymentIntent' } }
+        data: { type: array, items: { $ref: '#/components/schemas/PaymentIntent' } }
         next_cursor: { type: string, nullable: true }
-        has_more:    { type: boolean }
+        has_more: { type: boolean }
 ```
 
 This is a breaking change for the SDK. Worth it — every other list endpoint will need the same envelope, so do it once.
@@ -162,8 +162,12 @@ export async function listPaymentIntents(params: ListPaymentIntentsRequest) {
 Same shape for mutations:
 
 ```ts
-export async function authorizePaymentIntent(id: string) { /* ... */ }
-export async function capturePaymentIntent(id: string) { /* ... */ }
+export async function authorizePaymentIntent(id: string) {
+  /* ... */
+}
+export async function capturePaymentIntent(id: string) {
+  /* ... */
+}
 ```
 
 ### 4.2 · TanStack Query hooks
@@ -172,7 +176,11 @@ export async function capturePaymentIntent(id: string) { /* ... */ }
 
 ```ts
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listPaymentIntents, authorizePaymentIntent, capturePaymentIntent } from '@/app/dashboard/payment-intents/queries';
+import {
+  listPaymentIntents,
+  authorizePaymentIntent,
+  capturePaymentIntent,
+} from '@/app/dashboard/payment-intents/queries';
 
 export const paymentIntentKeys = {
   all: ['payment-intents'] as const,
@@ -253,6 +261,7 @@ export const paymentIntentColumns: ColumnDef<PaymentIntent>[] = [
 ### 4.5 · Row actions (ellipsis dropdown)
 
 `PaymentIntentRowActions` opens a `DropdownMenu` with:
+
 - "View details" (link to the detail page)
 - "Authorize" (mutation, disabled if not pending)
 - "Capture" (mutation, disabled if not authorized)
@@ -300,16 +309,16 @@ apps/web/src/
 
 ## 6 · Feature matrix per table
 
-| Feature | Payment intents (V1) | Merchants | API keys | Audit log |
-|---|---|---|---|---|
-| Search | id-prefix | name | label | actor + action |
-| Faceted filter | status, date range | status | scope (sandbox/live) | severity, action type |
-| Sortable columns | amount, created_at | created_at | created_at, last_used_at | created_at |
-| Row selection | yes (bulk capture/cancel — V2) | no | yes (revoke bulk) | no |
-| Row actions | View / Authorize / Capture / Cancel / Copy ID | Edit / Suspend | Revoke / Roll | View detail |
-| Pagination | cursor, 25/page | cursor, 50/page | cursor, 25/page | cursor, 100/page |
-| Density toggle | optional | optional | optional | yes (compact default) |
-| Export CSV | V3 | V3 | no | V2 |
+| Feature          | Payment intents (V1)                          | Merchants       | API keys                 | Audit log             |
+| ---------------- | --------------------------------------------- | --------------- | ------------------------ | --------------------- |
+| Search           | id-prefix                                     | name            | label                    | actor + action        |
+| Faceted filter   | status, date range                            | status          | scope (sandbox/live)     | severity, action type |
+| Sortable columns | amount, created_at                            | created_at      | created_at, last_used_at | created_at            |
+| Row selection    | yes (bulk capture/cancel — V2)                | no              | yes (revoke bulk)        | no                    |
+| Row actions      | View / Authorize / Capture / Cancel / Copy ID | Edit / Suspend  | Revoke / Roll            | View detail           |
+| Pagination       | cursor, 25/page                               | cursor, 50/page | cursor, 25/page          | cursor, 100/page      |
+| Density toggle   | optional                                      | optional        | optional                 | yes (compact default) |
+| Export CSV       | V3                                            | V3              | no                       | V2                    |
 
 You'll pick the boxes per surface as we build each one. The DataTable shell will support the union of features and each call site enables what it needs.
 
@@ -329,6 +338,7 @@ You'll pick the boxes per surface as we build each one. The DataTable shell will
 ## 8 · Phased rollout
 
 **Phase 1 — Foundation** (single PR, no API changes)
+
 - Install `@tanstack/react-table`.
 - Generate shadcn `dropdown-menu`, `checkbox`, `select`, `skeleton`.
 - Build `DataTable` shell with **client-side** pagination/sort/filter against the existing `limit=50` payload.
@@ -336,12 +346,14 @@ You'll pick the boxes per surface as we build each one. The DataTable shell will
 - Row actions dropdown replaces the "Details" button. Includes Authorize/Capture as mutations using existing Server Actions.
 
 **Phase 2 — Server pagination + search** (API + SDK + web)
+
 - Ship the OpenAPI / handler / SDK envelope change.
 - Switch `useListPaymentIntents` to manual mode (`manualPagination: true`).
 - Add search input + status faceted filter + date range.
 - URL state via nuqs so deep links work.
 
 **Phase 3 — Polish + extend**
+
 - Add Skeleton rows on first load.
 - Column visibility toggle.
 - Optimistic status updates.

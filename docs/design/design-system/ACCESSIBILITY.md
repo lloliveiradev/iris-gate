@@ -11,6 +11,7 @@ Always verify against tokens, not perceived screen colors. Reference table lives
 Current pairs that ship today:
 
 **Dark theme**
+
 - `--brand-cream` body on `--brand-ink` bg → ~14.8:1 ✅ AAA
 - `--brand-cream` body on `--brand-petrol` card → ~11.0:1 ✅ AAA
 - `--muted-foreground` (solid mint 0.82L) on `--background` → ~7.1:1 ✅ AAA
@@ -18,12 +19,14 @@ Current pairs that ship today:
 - `--brand-ink` on `--brand-copper` (secondary button label) → ~5.8:1 ✅ AA
 
 **Light theme**
+
 - `--brand-ink` on `oklch(0.97 0.003 174)` mist (body) → ~18.2:1 ✅ AAA
 - `--brand-ink` on `oklch(0.985 0.003 174)` near-white (card text) → ~19.5:1 ✅ AAA
 - `oklch(0.985 0.003 174)` near-white on `--brand-petrol` (primary button) → ~12.4:1 ✅ AAA
 - `--muted-foreground` (solid petrol 0.36L) on mist → ~6.3:1 ✅ AA
 
 **Banned pairs:**
+
 - Sage `#5A8F76` text on cream `#EEE8B2` — 2.1:1, fails AA. (Cream is marketing-accent only now, but the rule still applies on landing surfaces.)
 - Mint `#96CDB0` text on petrol `#203B37` for normal-size copy — 3.6:1, fails AA. Large/decorative only.
 - Pure white `oklch(1 0 0)` as a base surface — fatiguing on long reads.
@@ -93,7 +96,9 @@ Handled in CSS, no JS required:
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
     animation-iteration-count: 1 !important;

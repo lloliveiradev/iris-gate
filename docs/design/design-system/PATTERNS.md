@@ -52,11 +52,11 @@
 ISO-4217 currency code (`BRL`) + amount in centavos. Format via the shared util:
 
 ```tsx
-import { formatMoney } from "@/lib/format";
+import { formatMoney } from '@/lib/format';
 
 <span className="font-mono tabular-nums text-foreground">
   {formatMoney(intent.amount_cents, intent.currency)}
-</span>
+</span>;
 ```
 
 Always:
@@ -73,25 +73,29 @@ Never inline a hard-coded "R$" — the formatter handles symbol + locale.
 
 Status has two channels: **label** (text) and **color** (badge variant). The label is the source of truth; color reinforces.
 
-| Status | Variant | Label |
-|---|---|---|
-| `captured` / `succeeded` | `success` | "captured" |
-| `requires_capture` / `pending` | `warning` | "review" |
-| `failed` / `canceled` | `destructive` | "failed" |
-| `created` / `processing` | `outline` | "processing" |
+| Status                         | Variant       | Label        |
+| ------------------------------ | ------------- | ------------ |
+| `captured` / `succeeded`       | `success`     | "captured"   |
+| `requires_capture` / `pending` | `warning`     | "review"     |
+| `failed` / `canceled`          | `destructive` | "failed"     |
+| `created` / `processing`       | `outline`     | "processing" |
 
 ```tsx
-function statusVariant(s: IntentStatus): BadgeProps["variant"] {
+function statusVariant(s: IntentStatus): BadgeProps['variant'] {
   switch (s) {
-    case "captured":          return "success";
-    case "requires_capture":  return "warning";
-    case "failed":
-    case "canceled":          return "destructive";
-    default:                  return "outline";
+    case 'captured':
+      return 'success';
+    case 'requires_capture':
+      return 'warning';
+    case 'failed':
+    case 'canceled':
+      return 'destructive';
+    default:
+      return 'outline';
   }
 }
 
-<Badge variant={statusVariant(intent.status)}>{intent.status}</Badge>
+<Badge variant={statusVariant(intent.status)}>{intent.status}</Badge>;
 ```
 
 Centralize the variant mapping in one helper near the consumer (or in `lib/status.ts` if reused in 3+ places). Don't duplicate the switch.
@@ -112,7 +116,7 @@ Forms use Next.js Server Actions + `useFormState` for error surface. Anatomy:
       inputMode="numeric"
       required
       aria-invalid={!!state.fieldErrors?.amount_cents}
-      aria-describedby={state.fieldErrors?.amount_cents ? "amount_cents-err" : undefined}
+      aria-describedby={state.fieldErrors?.amount_cents ? 'amount_cents-err' : undefined}
     />
     {state.fieldErrors?.amount_cents && (
       <p id="amount_cents-err" className="text-sm text-destructive">
@@ -122,7 +126,10 @@ Forms use Next.js Server Actions + `useFormState` for error surface. Anatomy:
   </div>
 
   {state.error && (
-    <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+    <div
+      role="alert"
+      className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+    >
       {state.error}
     </div>
   )}
@@ -175,7 +182,7 @@ function SubmitButton() {
   return (
     <Button type="submit" disabled={pending}>
       {pending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-      {pending ? "Creating…" : "Create payment intent"}
+      {pending ? 'Creating…' : 'Create payment intent'}
     </Button>
   );
 }
@@ -187,11 +194,11 @@ Skeleton component does not exist yet. When you need one, add it as `components/
 
 ## 7. Dialog vs Popover vs Drawer
 
-| Use | When |
-|---|---|
-| **Dialog** (modal) | Destructive confirms ("Delete merchant"), full-form flows that block the page (rare — prefer a dedicated route) |
-| **Popover** | Light-weight floating UI anchored to a trigger — date picker, filter, "more actions" menu |
-| **Drawer** (mobile) | Mobile filter / nav. Not used on desktop |
+| Use                 | When                                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Dialog** (modal)  | Destructive confirms ("Delete merchant"), full-form flows that block the page (rare — prefer a dedicated route) |
+| **Popover**         | Light-weight floating UI anchored to a trigger — date picker, filter, "more actions" menu                       |
+| **Drawer** (mobile) | Mobile filter / nav. Not used on desktop                                                                        |
 
 Neither Dialog nor Popover ships in the components folder today. When you add the first one, follow shadcn's Radix-based primitive and ensure:
 

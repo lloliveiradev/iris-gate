@@ -4,16 +4,16 @@ Iris Gate is a portfolio payment gateway: Go API, NestJS anti-fraud service, Nex
 
 ## Where to start
 
-| If you want to know | Read |
-| --- | --- |
-| What the code does today, and what is wrong with it | [`design/as-is.md`](design/as-is.md) |
-| Where the project is going, and why | [`design/to-be.md`](design/to-be.md) |
-| What is done, what comes next, and in which order | [`roadmap.md`](roadmap.md) |
-| The rules and acceptance criteria of a delivery phase | [`specs/`](specs/README.md) |
-| How the system is structured and which conventions every change follows | [`architecture.md`](architecture.md) |
-| The security baseline and the status of each control | [`security.md`](security.md) |
-| Why a structural decision was made | [`adr/`](adr/) |
-| Where the project came from | [`legacy-audit.md`](legacy-audit.md) (historical) |
+| If you want to know                                                     | Read                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------- |
+| What the code does today, and what is wrong with it                     | [`design/as-is.md`](design/as-is.md)              |
+| Where the project is going, and why                                     | [`design/to-be.md`](design/to-be.md)              |
+| What is done, what comes next, and in which order                       | [`roadmap.md`](roadmap.md)                        |
+| The rules and acceptance criteria of a delivery phase                   | [`specs/`](specs/README.md)                       |
+| How the system is structured and which conventions every change follows | [`architecture.md`](architecture.md)              |
+| The security baseline and the status of each control                    | [`security.md`](security.md)                      |
+| Why a structural decision was made                                      | [`adr/`](adr/)                                    |
+| Where the project came from                                             | [`legacy-audit.md`](legacy-audit.md) (historical) |
 
 Implementation plans written before each phase live in `plans/`. Rules for editing the repository, for people and agents, are in [`../AGENTS.md`](../AGENTS.md).
 
