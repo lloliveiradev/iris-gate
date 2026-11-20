@@ -50,11 +50,15 @@ jobs:
               - 'configs/go/**'
               - '.github/workflows/ci.yml'
             # Role proof. apps/api/** already covers cmd/migrate; the extra
-            # line keeps that path visible. A docs-only change matches none of these.
+            # line keeps that path visible. The anti-fraud schema and its
+            # prisma-deploy target are included because the role test reads
+            # "_prisma_migrations". A docs-only change matches none of these.
             api-int:
               - 'infra/docker/postgres/**'
               - 'apps/api/cmd/migrate/**'
               - 'apps/api/**'
+              - 'apps/anti-fraud/prisma/**'
+              - 'apps/anti-fraud/Makefile'
               - 'libs/**/*.go'
               - '.github/workflows/ci.yml'
             web:
