@@ -10,7 +10,7 @@ The design was approved by the project owner on 2026-11-10. The overall picture,
 | ----- | -------------------------------------------------------------------------- | ---------- | --------------------------------- |
 | 06    | [Security baseline](phase-06-security-baseline.md)                         | none       | in progress                       |
 | 07    | [Database roles and tenant isolation](phase-07-tenant-isolation.md)        | 06         | ready                             |
-| 08    | [Identity and access API](phase-08-identity-access-api.md)                 | 07         | ready                             |
+| 08    | [Identity and access API](phase-08-identity-access-api.md)                 | 07         | in progress                       |
 | 09    | [Dashboard and console access](phase-09-dashboard-console-access.md)       | 08         | ready                             |
 | 10    | [Synchronous risk scoring](phase-10-sync-risk-scoring.md)                  | 06         | ready                             |
 | 11    | [Payment lifecycle and review](phase-11-payment-lifecycle.md)              | 09, 10     | ready                             |
