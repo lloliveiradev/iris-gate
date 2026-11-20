@@ -4,7 +4,7 @@ This is the security baseline of Iris Gate: the controls a payment gateway needs
 
 Iris Gate never runs in production and accepts only test card numbers. The controls are still built as a real gateway would need them, because demonstrating them is the point of the project.
 
-**Status values:** `implemented` (in the code today), `phase NN` (specified in [`specs/`](specs/README.md), not built yet), `later` (in [`roadmap.md`](roadmap.md) without a spec). Do not describe a control as present before its status says so. Status as of 2026-11-10 (commit `7195707`).
+**Status values:** `implemented` (in the code today), `phase NN` (specified in [`specs/`](specs/README.md), not built yet), `later` (in [`roadmap.md`](roadmap.md) without a spec). Do not describe a control as present before its status says so. Status as of 2026-11-20 (commit `2f5ec2b`).
 
 ## 1. Principles
 
@@ -16,35 +16,36 @@ Iris Gate never runs in production and accepts only test card numbers. The contr
 
 ## 2. Status overview
 
-| Area             | Control                                                        | Status                                                                    |
-| ---------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Card data        | PAN never reaches apps/api or apps/web                         | phase 14 (today the dashboard sends an opaque `card_token` typed by hand) |
-| Card data        | Own vault with envelope encryption under a key manager         | phase 14                                                                  |
-| API keys         | Argon2id hashing, secret shown once, prefix lookup             | implemented                                                               |
-| API keys         | Key kinds (secret, restricted, publishable), roll with overlap | phase 8                                                                   |
-| API keys         | Key issuance and revocation not reachable over public HTTP     | phase 6 (defect D8 today)                                                 |
-| Users            | Accounts, Argon2id passwords, JWT with rotating refresh tokens | phase 8                                                                   |
-| Users            | Dashboard stops using the merchant API key                     | phase 9 (defect D9 today)                                                 |
-| Users            | MFA                                                            | later                                                                     |
-| Authorization    | Role-based permissions, route registry test                    | phase 8                                                                   |
-| Tenant isolation | Merchant check on every by-id route                            | phase 6 (defect D1 today; `GET` already checks)                           |
-| Tenant isolation | Postgres row-level security, cross-tenant test suite           | phase 7                                                                   |
-| Database         | Separate migrator, app and worker roles per database           | implemented (Postgres init scripts in `infra/docker`)                     |
-| Database         | TLS to Postgres                                                | later (phase 21)                                                          |
-| Idempotency      | `Idempotency-Key` on intent creation with body hash            | implemented (global scope, defect D2; per merchant in phase 6)            |
-| Messaging        | Outbox on produce, inbox on consume                            | implemented (outbox); phase 13 (consumer inbox)                           |
-| Messaging        | Retry topics and DLQ for every consumer                        | phase 13 (`fraud.assessment.failed.dlq` retired in phase 10)              |
-| Messaging        | Kafka TLS, SASL and per-topic ACLs                             | later                                                                     |
-| Service auth     | Service token on the risk endpoint                             | implemented (anti-fraud listener; Go caller in phase 10)                  |
-| Service auth     | mTLS between apps/api and the vault                            | phase 14                                                                  |
-| Audit            | Append-only, hash-chained audit log                            | phase 8                                                                   |
-| Webhooks         | HMAC signatures, SSRF protection                               | phase 16                                                                  |
-| Logging          | Denylist enforced by a log-scan test                           | phase 14 (today the rule exists only in `AGENTS.md`)                      |
-| Rate limiting    | Login, sign-up and tokenization endpoints                      | phases 8 and 14                                                           |
-| Rate limiting    | Per API key on the whole API                                   | later (phase 20)                                                          |
-| HTTP             | Security headers and strict CSP                                | later (phase 20); hosted checkout CSP in phase 15                         |
-| Supply chain     | gitleaks in pre-commit and CI                                  | implemented                                                               |
-| Supply chain     | govulncheck and `yarn npm audit` blocking in CI                | phase 17                                                                  |
+| Area             | Control                                                            | Status                                                                                     |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Card data        | PAN never reaches apps/api or apps/web                             | phase 14 (today the dashboard sends an opaque `card_token` typed by hand)                  |
+| Card data        | Own vault with envelope encryption under a key manager             | phase 14                                                                                   |
+| API keys         | Argon2id hashing, secret shown once, prefix lookup                 | implemented                                                                                |
+| API keys         | Key kinds (secret, restricted, publishable), roll with overlap     | phase 8                                                                                    |
+| API keys         | Key issuance and revocation not reachable over public HTTP         | implemented (operator CLI `apps/api/cmd/irisctl`; HTTP bootstrap routes removed)           |
+| Users            | Accounts, Argon2id passwords, JWT with rotating refresh tokens     | phase 8                                                                                    |
+| Users            | Dashboard stops using the merchant API key                         | phase 9 (defect D9 today)                                                                  |
+| Users            | MFA                                                                | later                                                                                      |
+| Authorization    | Role-based permissions, route registry test                        | phase 8                                                                                    |
+| Tenant isolation | Merchant check on every by-id route                                | implemented                                                                                |
+| Tenant isolation | Postgres row-level security, cross-tenant test suite               | phase 7                                                                                    |
+| Database         | Separate migrator, app and worker roles per database               | implemented (Postgres init scripts in `infra/docker`)                                      |
+| Database         | TLS to Postgres                                                    | later (phase 21)                                                                           |
+| Idempotency      | `Idempotency-Key` on intent creation with body hash                | implemented (keyed by `(merchant_id, scope, key)`)                                         |
+| Messaging        | Outbox on produce, inbox on consume                                | implemented (outbox); phase 13 (consumer inbox)                                            |
+| Messaging        | Retry topics and DLQ for every consumer                            | phase 13 (`fraud.assessment.failed.dlq` retired in phase 10)                               |
+| Messaging        | Kafka TLS, SASL and per-topic ACLs                                 | later                                                                                      |
+| Service auth     | Service token on the risk endpoint                                 | implemented (anti-fraud internal listener and Go `riskclient`; confirm wiring in phase 11) |
+| Fraud            | Deterministic test hooks gated off by default (`FRAUD_TEST_HOOKS`) | implemented (code default `false`; enabled in local `.env.example` and Compose)            |
+| Service auth     | mTLS between apps/api and the vault                                | phase 14                                                                                   |
+| Audit            | Append-only, hash-chained audit log                                | phase 8                                                                                    |
+| Webhooks         | HMAC signatures, SSRF protection                                   | phase 16                                                                                   |
+| Logging          | Denylist enforced by a log-scan test                               | phase 14 (today the rule exists only in `AGENTS.md`)                                       |
+| Rate limiting    | Login, sign-up and tokenization endpoints                          | phases 8 and 14                                                                            |
+| Rate limiting    | Per API key on the whole API                                       | later (phase 20)                                                                           |
+| HTTP             | Security headers and strict CSP                                    | later (phase 20); hosted checkout CSP in phase 15                                          |
+| Supply chain     | gitleaks in pre-commit and CI                                      | implemented                                                                                |
+| Supply chain     | govulncheck and `yarn npm audit` blocking in CI                    | phase 17                                                                                   |
 
 ## 3. Card data
 
@@ -86,29 +87,29 @@ Phases 8 and 9. Details in [`design/to-be.md`](design/to-be.md) section 4.
 
 Phases 6 and 7. Details in [`design/to-be.md`](design/to-be.md) section 9.
 
-- The merchant id comes only from the authenticated principal.
-- Repository methods take the merchant id as a parameter.
-- Postgres RLS (`FORCE ROW LEVEL SECURITY`) on merchant-scoped tables, with the merchant set per transaction through `set_config('app.merchant_id', ..., true)`.
-- A resource of another merchant answers 404.
-- A cross-tenant test suite covers every route, and a meta-test fails when a new route is not covered.
+- **Principal-only merchant id (implemented):** the merchant id comes only from the authenticated principal.
+- **Merchant-scoped repositories (implemented):** repository methods take the merchant id as a parameter.
+- **404 policy (implemented):** a resource of another merchant answers 404.
+- **Row-level security (phase 7):** Postgres RLS (`FORCE ROW LEVEL SECURITY`) on merchant-scoped tables, with the merchant set per transaction through `set_config('app.merchant_id', ..., true)`.
+- **Cross-tenant test suite (phase 7):** covers every route, and a meta-test fails when a new route is not covered.
 
 ## 7. Service-to-service authentication
 
-| Path                                | Control                                                                                           | Status                                                                          |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| apps/api → anti-fraud risk endpoint | internal listener, service token, 300 ms timeout, fail closed                                     | phase 10 (anti-fraud listener and service token implemented; Go caller pending) |
-| acquirer adapter → vault detokenize | internal listener, mTLS with a local dev CA, client identity checked                              | phase 14                                                                        |
-| vault → OpenBao                     | AppRole (or token) with a policy limited to its Transit keys and operations; never the root token | phase 14                                                                        |
-| services → Kafka                    | TLS, SASL/SCRAM and per-topic ACLs                                                                | later                                                                           |
+| Path                                | Control                                                                                           | Status                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| apps/api → anti-fraud risk endpoint | internal listener, service token, 300 ms timeout, fail closed                                     | implemented (anti-fraud internal listener, `ServiceTokenGuard`, and Go `riskclient`; wired into confirm in phase 11) |
+| acquirer adapter → vault detokenize | internal listener, mTLS with a local dev CA, client identity checked                              | phase 14                                                                                                             |
+| vault → OpenBao                     | AppRole (or token) with a policy limited to its Transit keys and operations; never the root token | phase 14                                                                                                             |
+| services → Kafka                    | TLS, SASL/SCRAM and per-topic ACLs                                                                | later                                                                                                                |
 
 ## 8. Idempotency
 
-| Layer           | Mechanism                                                                                                                    | Status                                                                                          |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| HTTP            | `Idempotency-Key` on routes that create resources; records keyed by `(merchant_id, scope, key)`, body hash checked on replay | implemented for intent creation, per-merchant scope in phase 6, more routes in phases 11 and 15 |
-| Acquirer        | attempt id as the acquirer idempotency key                                                                                   | phase 11                                                                                        |
-| Kafka consumers | inbox keyed by event id before any side effect                                                                               | phase 13 (`InboxMessage` schema present; outcome consumer in phase 13)                          |
-| Webhooks        | every delivery carries the event id; receivers must dedupe                                                                   | phase 16                                                                                        |
+| Layer           | Mechanism                                                                                                                    | Status                                                                                |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| HTTP            | `Idempotency-Key` on routes that create resources; records keyed by `(merchant_id, scope, key)`, body hash checked on replay | implemented for intent creation (per-merchant scope); more routes in phases 11 and 15 |
+| Acquirer        | attempt id as the acquirer idempotency key                                                                                   | phase 11 (intent id implemented in phase 6; attempt id in phase 11)                   |
+| Kafka consumers | inbox keyed by event id before any side effect                                                                               | phase 13 (`InboxMessage` schema present; outcome consumer in phase 13)                |
+| Webhooks        | every delivery carries the event id; receivers must dedupe                                                                   | phase 16                                                                              |
 
 ## 9. Input validation
 
