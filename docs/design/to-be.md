@@ -240,7 +240,7 @@ sequenceDiagram
 ```
 
 - `pending` merchants can sign in, invite members, configure settings and create keys, but payment and checkout endpoints answer 403 `merchant_not_active` until approval.
-- `suspended` merchants: API keys get 403, the dashboard is read-only.
+- `suspended` merchants follow spec 08. The principal middleware "rejects `pending` and `suspended` merchants on payment routes with 403 `merchant_not_active` (settings, members, keys and `/v1/me` stay open to `pending`)". "A disabled user, a removed membership or a suspended merchant must stop working within one access-token lifetime; refresh must fail immediately."
 - The first platform admin: `make bootstrap-admin EMAIL=...` runs `irisctl bootstrap-admin`, which creates the user and prints a one-time password-setup link.
 
 ### 4.5 Actor attribution
@@ -508,6 +508,8 @@ erDiagram
     text invited_by_actor
     timestamptz expires_at
     timestamptz accepted_at
+    timestamptz revoked_at "08.9 revoke"
+    timestamptz created_at "08.9 list"
   }
   refresh_tokens {
     uuid id PK
@@ -516,6 +518,7 @@ erDiagram
     text audience "iris-dashboard | iris-platform"
     text token_hash UK
     uuid replaced_by
+    timestamptz rotated_at "ADR-0005 grace window"
     timestamptz expires_at
     timestamptz revoked_at
     timestamptz created_at
@@ -523,7 +526,7 @@ erDiagram
   user_tokens {
     uuid id PK
     uuid user_id
-    text purpose "email_verification | password_reset"
+    text purpose "email_verification | password_reset | password_setup (08.12 irisctl bootstrap-admin)"
     text token_hash UK
     timestamptz expires_at
     timestamptz used_at
@@ -913,7 +916,7 @@ erDiagram
 | `iris` | `iris_migrator` | owns the schema, DDL | `make migrate` only |
 | `iris` | `iris_app` | DML on its tables, subject to RLS, `INSERT`/`SELECT` only on append-only tables | apps/api request handlers |
 | `iris` | `iris_worker` | `BYPASSRLS`, DML on the tables jobs need | outbox relay, auth expiry, review timeout, reconciliation, webhook dispatcher |
-| `iris` | `iris_platform` | `BYPASSRLS`, `SELECT` on merchant tables, writes on identity | `/v1/platform/*` handlers, separate pool |
+| `iris` | `iris_platform` | `BYPASSRLS`, `SELECT` only (no identity writes) | platform reads; create, approve, suspend and reactivate merchants, invitations and audit events run through `iris_app` |
 | `antifraud` | `antifraud_migrator`, `antifraud_app` | as above | apps/anti-fraud |
 | `vault` | `vault_migrator`, `vault_app` | as above | apps/vault |
 

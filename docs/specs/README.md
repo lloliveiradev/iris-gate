@@ -64,7 +64,7 @@ These rules apply on top of `AGENTS.md`.
 - **Do not change a spec or the to-be** on your own. When a spec looks wrong, stop that part, open an owner card, and continue with the rest. You may proceed on an assumption only if it is cheap to reverse, and you must write it in the plan and in the card.
 - **Money** is `int64` / `bigint` minor units with an ISO-4217 currency. No floats.
 - **Never log or persist** PAN, CVV, passwords, API key secrets, refresh tokens, webhook secrets, raw email or raw document. Tests that use test card numbers must not print them.
-- **Tenant scope.** From phase 07 on: every new merchant-scoped table has `merchant_id` and an RLS policy, every repository method takes the merchant id, and every new route is added to the cross-tenant suite.
+- **Tenant scope.** From phase 07 on: every new merchant-scoped table has `merchant_id` and an RLS policy, every repository method takes the merchant id, and every new route is added to the cross-tenant suite. Identity tables are not under RLS (see to-be section 8.1 and spec 07); they are protected by merchant-scoped repository methods, the route registry and the cross-tenant suite.
 - **Permissions.** From phase 08 on: every new route declares its permission (or is listed as public) in the route registry, and the registry test fails otherwise.
 - **Actors.** From phase 08 on: every mutation records its actor (`to-be.md` section 4.5).
 - **Migrations** are forward-only, numbered per context, and run with the migrator role. Migrations that change existing data include a test with rows in the old shape.
