@@ -24,6 +24,7 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api }}
       go-libs: ${{ steps.filter.outputs.go-libs }}
+      api-int: ${{ steps.filter.outputs.api-int }}
       web: ${{ steps.filter.outputs.web }}
       sdk-web: ${{ steps.filter.outputs.sdk-web }}
       anti-fraud: ${{ steps.filter.outputs.anti-fraud }}
@@ -47,6 +48,18 @@ jobs:
               - 'libs/payments/**'
               - 'go.work*'
               - 'configs/go/**'
+              - '.github/workflows/ci.yml'
+            # Role proof. apps/api/** already covers cmd/migrate; the extra
+            # line keeps that path visible. The anti-fraud schema and its
+            # prisma-deploy target are included because the role test reads
+            # "_prisma_migrations". A docs-only change matches none of these.
+            api-int:
+              - 'infra/docker/postgres/**'
+              - 'apps/api/cmd/migrate/**'
+              - 'apps/api/**'
+              - 'apps/anti-fraud/prisma/**'
+              - 'apps/anti-fraud/Makefile'
+              - 'libs/**/*.go'
               - '.github/workflows/ci.yml'
             web:
               - 'apps/web/**'
@@ -174,6 +187,139 @@ jobs:
       - run: make -C libs/payments test
       - run: make -C libs/payments test-int
       - run: make -C libs/payments build
+
+  # Separate from go-libs on purpose. That job's DATABASE_URL is the bootstrap
+  # superuser, which bypasses grants, so a green run there does not prove the
+  # roles. This job has its own empty Postgres (no data cache), applies initdb
+  # in filename order, migrates as iris_migrator, and fails if the role tests skip.
+  api-int:
+    needs: changes
+    if: needs.changes.outputs.api-int == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        # Service env cannot read the job env context, so the bootstrap
+        # superuser is repeated here. It matches the job env and
+        # infra/docker/.env.example. Role passwords are defined only below.
+        env:
+          POSTGRES_USER: iris
+          POSTGRES_PASSWORD: iris
+          POSTGRES_DB: iris
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U iris -d iris"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      # Public dev placeholders from infra/docker/.env.example, defined once.
+      # POSTGRES_PORT is 5432 because the service publishes the container port.
+      # Compose maps that same port to 15432 on a developer machine; the role
+      # tests dial localhost:${POSTGRES_PORT}.
+      POSTGRES_USER: iris
+      POSTGRES_PASSWORD: iris
+      POSTGRES_DB: iris
+      POSTGRES_PORT: '5432'
+      ANTI_FRAUD_DB: antifraud
+      IRIS_MIGRATOR_PASSWORD: iris_migrator
+      IRIS_APP_PASSWORD: iris_app
+      IRIS_WORKER_PASSWORD: iris_worker
+      IRIS_PLATFORM_PASSWORD: iris_platform
+      ANTIFRAUD_MIGRATOR_PASSWORD: antifraud_migrator
+      ANTIFRAUD_APP_PASSWORD: antifraud_app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: apps/api/go.sum
+      - name: Provision extensions and database roles
+        env:
+          # 10-roles.sh calls psql with no host. Point libpq at the service
+          # (the runner image also ships a Postgres, and it is not this one).
+          PGHOST: localhost
+          PGPORT: ${{ env.POSTGRES_PORT }}
+          PGPASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          PGSSLMODE: disable
+          PGCONNECT_TIMEOUT: '10'
+        run: |
+          set -euo pipefail
+          psql --version
+          psql_version="$(psql --version)"
+          if ! printf '%s\n' "$psql_version" | grep -Eq 'PostgreSQL\) (1[5-9]|[2-9][0-9])\.'; then
+            echo "psql must be 15 or newer so 10-roles.sh can use \\getenv" >&2
+            exit 1
+          fi
+          # Same names 10-roles.sh requires, plus POSTGRES_PORT for the role tests.
+          for name in \
+            POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB ANTI_FRAUD_DB POSTGRES_PORT \
+            IRIS_MIGRATOR_PASSWORD IRIS_APP_PASSWORD IRIS_WORKER_PASSWORD \
+            IRIS_PLATFORM_PASSWORD ANTIFRAUD_MIGRATOR_PASSWORD ANTIFRAUD_APP_PASSWORD
+          do
+            if [ -z "${!name}" ]; then
+              echo "required variable ${name} is empty" >&2
+              exit 1
+            fi
+          done
+          # Filename order: 00-extensions.sql, then 10-roles.sh. Extensions need
+          # the superuser; iris_migrator is not one, and identity uses citext.
+          psql -v ON_ERROR_STOP=1 --no-psqlrc \
+            --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+            -f infra/docker/postgres/initdb/00-extensions.sql
+          bash -eu -o pipefail infra/docker/postgres/initdb/10-roles.sh
+      - name: Migrate iris as iris_migrator
+        run: |
+          set -euo pipefail
+          export IRIS_MIGRATOR_DATABASE_URL="postgres://iris_migrator:${IRIS_MIGRATOR_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+          make -C apps/api migrate
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      # Node 25+ no longer bundles corepack; install it for the selected Node.
+      - run: npm install -g corepack@0.34.0 && corepack enable
+      - run: yarn install --immutable
+      # The role test denies antifraud_app SELECT on "_prisma_migrations".
+      # That table exists only after prisma migrate deploy, and the denial is
+      # true only after prisma-deploy revokes the default grants. Iris migrate
+      # does not create it, so the anti-fraud schema has to be deployed too.
+      - name: Deploy the anti-fraud schema as antifraud_migrator
+        run: |
+          set -euo pipefail
+          export ANTIFRAUD_MIGRATOR_DATABASE_URL="postgresql://antifraud_migrator:${ANTIFRAUD_MIGRATOR_PASSWORD}@localhost:${POSTGRES_PORT}/${ANTI_FRAUD_DB}?schema=public&sslmode=disable"
+          make -C apps/anti-fraud prisma-deploy
+      - name: Run apps/api integration tests and reject skips
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          # test-int has no -v flag. GOFLAGS supplies it so a skip is visible.
+          # A skipped role test exits 0; that must not pass this job.
+          GOFLAGS=-v make -C apps/api test-int 2>&1 | tee "$log"
+          if ! grep -Eq '^--- (PASS|FAIL|SKIP):' "$log"; then
+            echo "go test produced no verbose results; refusing a silent pass" >&2
+            exit 1
+          fi
+          if grep -E '^[[:space:]]*--- SKIP:' "$log"; then
+            echo "apps/api integration tests skipped; a skip is a false green" >&2
+            exit 1
+          fi
+          for name in \
+            TestRoles_HaveNoAdministrativeAttributes \
+            TestRoles_ConnectOnlyToTheirOwnDatabase \
+            TestRoles_AppRolesCannotRunDDL \
+            TestRoles_TablePrivilegesFollowTheDefaults
+          do
+            if ! grep -E "^--- PASS: ${name} [(]" "$log"; then
+              echo "role test ${name} did not pass" >&2
+              exit 1
+            fi
+          done
 
   sdk-web:
     needs: changes
