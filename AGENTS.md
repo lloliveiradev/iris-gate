@@ -130,6 +130,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Edit `libs/contracts/http/*.openapi.yaml` and `libs/contracts/events/**`, then `make gen-contracts`. Never hand-edit `libs/contracts/generated/**`.
 - JSON fields are `snake_case`. Routes stay under `/v1`. A breaking change is `/v2` or a new `.vN` topic, not an in-place rename (the one exception is the payments v1 change recorded in phase 11).
 - Commit the spec and the generated files together. CI runs `make gen-contracts-check`.
+- Every new route must be added to `apps/api/internal/httpapi/route_registry_test.go` as merchant-scoped or not tenant-scoped with a reason, or `make -C apps/api test` fails; phase 08 extends this same registry.
 
 ## Payments
 
