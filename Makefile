@@ -12,7 +12,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # Packages with their own Makefile.
-PACKAGES := apps/api apps/web apps/anti-fraud libs/identity libs/payments libs/fraud libs/sdk-web
+PACKAGES := apps/api apps/web apps/anti-fraud libs/identity libs/payments libs/shared libs/fraud libs/sdk-web
 # Processes that run on the host during development. apps/anti-fraud runs in Compose.
 DEV_APPS := apps/api apps/web
 INFRA    := infra/docker

@@ -7,4 +7,5 @@ use (
 	./libs/contracts/generated/go
 	./libs/identity
 	./libs/payments
+	./libs/shared
 )

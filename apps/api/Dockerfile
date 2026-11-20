@@ -3,6 +3,7 @@
 # Production API image.
 # Build context must be the repo root so local module replacements
 # (libs/identity, libs/payments, libs/contracts/generated/go) resolve.
+# Every module listed in go.work must be copied, or go refuses the workspace.
 # The ignore rules for that context live in Dockerfile.dockerignore, next to this file.
 
 FROM golang:1.27.4-alpine AS build
@@ -13,6 +14,7 @@ COPY go.work ./
 COPY apps/api/go.mod apps/api/go.sum ./apps/api/
 COPY libs/identity/go.mod libs/identity/go.sum ./libs/identity/
 COPY libs/payments/go.mod libs/payments/go.sum ./libs/payments/
+COPY libs/shared/go.mod libs/shared/go.sum ./libs/shared/
 COPY libs/contracts/generated/go/go.mod libs/contracts/generated/go/go.sum ./libs/contracts/generated/go/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -22,6 +24,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY libs/contracts/generated/go ./libs/contracts/generated/go
 COPY libs/identity ./libs/identity
 COPY libs/payments ./libs/payments
+COPY libs/shared ./libs/shared
 COPY apps/api ./apps/api
 
 RUN --mount=type=cache,target=/go/pkg/mod \
