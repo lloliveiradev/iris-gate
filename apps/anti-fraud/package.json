@@ -8,7 +8,7 @@
     "start": "bash -c 'set -a && [ -f .env ] && . ./.env; set +a && node dist/main.js'",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "yarn workspace @iris-gate/fraud build && prisma generate && tsc --noEmit",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "test": "yarn workspace @iris-gate/fraud build && NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
