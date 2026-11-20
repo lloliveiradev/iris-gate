@@ -7,7 +7,7 @@
 [![CI](https://github.com/lloliveiradev/iris-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/lloliveiradev/iris-gate/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-API-first payments gateway for local study. A Go service owns merchants, API keys, and payment intents. A NestJS worker scores fraud from Kafka. A Next.js app is the merchant dashboard. OpenAPI and AsyncAPI files in `libs/contracts` are the only shared language between them.
+API-first payments gateway for local study. A Go service owns merchants, API keys, and payment intents. A NestJS service scores fraud over an internal HTTP API and publishes results to Kafka. A Next.js app is the merchant dashboard. OpenAPI and AsyncAPI files in `libs/contracts` are the only shared language between them.
 
 > [!IMPORTANT]
 > This stack is for localhost. The default database password, the fake acquirer, and the dev session secret are not production settings. The API accepts an opaque `card_token`. It does not accept a PAN, CVV, or expiry.
@@ -20,7 +20,7 @@ API-first payments gateway for local study. A Go service owns merchants, API key
 - **Identity** — create a merchant, issue an API key (`irk_<prefix>.<secret>`), revoke it. Only the Argon2id hash is stored. `GET /v1/me` requires `Authorization: Bearer`.
 - **Payments** — create, authorize, and capture a payment intent. Money is an integer in minor units plus an ISO-4217 currency. `POST /v1/payment-intents` requires `Idempotency-Key`.
 - **Fraud** — specification rules (`BLOCKED_CARD` 1.0 mandatory with effective score >= reject, `UNUSUAL_AMOUNT` 0.6 with `thresholdPercent` 50 = 1.5x average captured amount, `VELOCITY` 0.5 for > 5 attempts in 24 h, `DECLINE_BURST` 0.7 for > 3 declines in 24 h) return `APPROVE`, `REVIEW`, or `REJECT` (thresholds review 30 / reject 70). Any `FraudRule` seed must keep `BLOCKED_CARD` enabled with weight >= 0.7.
-- **Delivery** — state and the Kafka outbox commit in one transaction. A relay publishes. The fraud worker deduplicates with an inbox.
+- **Delivery** — state and the Kafka outbox commit in one transaction. A relay publishes. Synchronous risk scoring deduplicates by `payment_intent_id`.
 - **Dashboard** — Next.js App Router, `en` / `pt` / `es`, landing page plus payment-intent screens. The browser session is an httpOnly iron-session cookie.
 - **Local broker** — Postgres 18, Kafka in KRaft mode, and Karapace (schema registry) via Docker Compose.
 
@@ -73,16 +73,16 @@ The API listens on `:8080`, connects to Postgres on `localhost:15432` as `iris_a
 
 Compose names the project `ig`. Containers are `ig-postgres`, `ig-kafka`, `ig-kafka-init`, `ig-karapace`, `ig-anti-fraud`, and `ig-mailpit`. The network is `ig`. Volumes are `ig-postgres-data` and `ig-kafka-data`. Host ports come from `infra/docker/.env` and stay off the well-known defaults so this stack does not collide with another Postgres or Kafka on the same machine:
 
-| Service      | Host port         | Container port                                   |
-| ------------ | ----------------- | ------------------------------------------------ |
-| Postgres     | `15432`           | `5432`                                           |
-| Kafka        | `19092`           | `29092` published; `9092` for in-network clients |
-| Karapace     | `18081`           | `8081`                                           |
-| anti-fraud   | `13001`           | `3001`                                           |
-| Mailpit SMTP | `127.0.0.1:11025` | `1025` (`MAILPIT_SMTP_PORT`)                     |
-| Mailpit UI   | `127.0.0.1:18025` | `8025` (`MAILPIT_UI_PORT`)                       |
-| API          | `8080`            | host process, not Compose                        |
-| dashboard    | `3000`            | host process, not Compose                        |
+| Service      | Host port                                      | Container port                                   |
+| ------------ | ---------------------------------------------- | ------------------------------------------------ |
+| Postgres     | `15432`                                        | `5432`                                           |
+| Kafka        | `19092`                                        | `29092` published; `9092` for in-network clients |
+| Karapace     | `18081`                                        | `8081`                                           |
+| anti-fraud   | `13001` (public); `127.0.0.1:13002` (internal) | `3001` (public); `13002` (internal)              |
+| Mailpit SMTP | `127.0.0.1:11025`                              | `1025` (`MAILPIT_SMTP_PORT`)                     |
+| Mailpit UI   | `127.0.0.1:18025`                              | `8025` (`MAILPIT_UI_PORT`)                       |
+| API          | `8080`                                         | host process, not Compose                        |
+| dashboard    | `3000`                                         | host process, not Compose                        |
 
 Open the dashboard at [http://localhost:3000/en](http://localhost:3000/en). Create a merchant and an API key with the operator CLI, then sign in with that `irk_` token:
 
@@ -136,7 +136,7 @@ fail:      pending → failed
 ```text
 apps/api            Go HTTP process. Composition root only (chi, slog).
 apps/web            Next.js 16 dashboard and landing page.
-apps/anti-fraud     NestJS 12 worker. Prisma 7, KafkaJS, inbox, outbox.
+apps/anti-fraud     NestJS 12 service. Prisma 7, KafkaJS, internal risk API, outbox.
 libs/identity       Merchants and API keys. domain → application → infra.
 libs/payments       Payment intents, acquirer port, Postgres, outbox relay.
 libs/fraud          TypeScript rules consumed by apps/anti-fraud.
