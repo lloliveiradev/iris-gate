@@ -153,6 +153,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Merchants and API keys are managed by the operator CLI `apps/api/cmd/irisctl` (`make irisctl ARGS=...`: `create-merchant`, `issue-api-key`, `revoke-api-key`), which reuses the identity use cases. There are no HTTP routes for them; do not add any (defect D8 is closed). The CLI prints a new secret once, on stdout, and never logs. User accounts and roles come in phase 8.
 - The dashboard posts the key to a server action and stores it in the iron-session cookie (defect D9, replaced by user accounts in phase 9). Do not put it in `localStorage`, client state or logs.
 - Never log PAN, CVV, `card_token`, API keys, passwords, tokens, raw email or raw document. Never commit `.env` or a real secret. `iris`/`iris`, the database role placeholders in `infra/docker/.env.example` and the dev session password stay local.
+- The `Mailer` port lives in `libs/identity/application` (`mailer.go`) and its stdlib SMTP adapter in `libs/identity/infra/mailer`; mail recipients are never logged in clear (mask them through `MaskEmail`), and local mail is caught by Mailpit (`ig-mailpit`, `127.0.0.1:11025` SMTP / `127.0.0.1:18025` UI).
 
 ## Database roles
 

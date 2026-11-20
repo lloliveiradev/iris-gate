@@ -69,18 +69,20 @@ make nuke && make bootstrap && make migrate
 
 `make up` already starts the anti-fraud container and publishes it on host port `13001` (the process inside the container still listens on `3001`) and hot-reloads its source, so `make dev` does not start it on the host. Run `make -C apps/anti-fraud dev` only after stopping that container, with `apps/anti-fraud/.env` copied from `.env.example`.
 
-The API listens on `:8080`, connects to Postgres on `localhost:15432` as `iris_app` (the outbox relay as `iris_worker`) and to Kafka on `localhost:19092`. Leave `ACQUIRER_URL` empty to use the fake acquirer.
+The API listens on `:8080`, connects to Postgres on `localhost:15432` as `iris_app` (the outbox relay as `iris_worker`) and to Kafka on `localhost:19092`. Leave `ACQUIRER_URL` empty to use the fake acquirer. Outbound mail defaults to local Mailpit (`MAILER_HOST=localhost`, `MAILER_PORT=11025`, `MAILER_FROM=no-reply@iris-gate.local`, `MAILER_TLS_MODE=none`, optional `MAILER_USERNAME` and `MAILER_PASSWORD`).
 
-Compose names the project `ig`. Containers are `ig-postgres`, `ig-kafka`, `ig-kafka-init`, `ig-karapace`, and `ig-anti-fraud`. The network is `ig`. Volumes are `ig-postgres-data` and `ig-kafka-data`. Host ports come from `infra/docker/.env` and stay off the well-known defaults so this stack does not collide with another Postgres or Kafka on the same machine:
+Compose names the project `ig`. Containers are `ig-postgres`, `ig-kafka`, `ig-kafka-init`, `ig-karapace`, `ig-anti-fraud`, and `ig-mailpit`. The network is `ig`. Volumes are `ig-postgres-data` and `ig-kafka-data`. Host ports come from `infra/docker/.env` and stay off the well-known defaults so this stack does not collide with another Postgres or Kafka on the same machine:
 
-| Service    | Host port | Container port                                   |
-| ---------- | --------- | ------------------------------------------------ |
-| Postgres   | `15432`   | `5432`                                           |
-| Kafka      | `19092`   | `29092` published; `9092` for in-network clients |
-| Karapace   | `18081`   | `8081`                                           |
-| anti-fraud | `13001`   | `3001`                                           |
-| API        | `8080`    | host process, not Compose                        |
-| dashboard  | `3000`    | host process, not Compose                        |
+| Service      | Host port         | Container port                                   |
+| ------------ | ----------------- | ------------------------------------------------ |
+| Postgres     | `15432`           | `5432`                                           |
+| Kafka        | `19092`           | `29092` published; `9092` for in-network clients |
+| Karapace     | `18081`           | `8081`                                           |
+| anti-fraud   | `13001`           | `3001`                                           |
+| Mailpit SMTP | `127.0.0.1:11025` | `1025` (`MAILPIT_SMTP_PORT`)                     |
+| Mailpit UI   | `127.0.0.1:18025` | `8025` (`MAILPIT_UI_PORT`)                       |
+| API          | `8080`            | host process, not Compose                        |
+| dashboard    | `3000`            | host process, not Compose                        |
 
 Open the dashboard at [http://localhost:3000/en](http://localhost:3000/en). Create a merchant and an API key with the operator CLI, then sign in with that `irk_` token:
 
