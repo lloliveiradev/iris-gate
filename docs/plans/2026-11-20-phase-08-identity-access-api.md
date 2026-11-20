@@ -5,7 +5,7 @@ Spec: [`../specs/phase-08-identity-access-api.md`](../specs/phase-08-identity-ac
 This plan is code-free: it only schedules the work, surfaces gaps, and defines tests. Nothing here changes the specs or `to-be.md`.
 
 > [!IMPORTANT]
-> **OWNER DECISION PENDING — RLS on identity tables (Section 2).** Tasks **08.2**, **08.3**, and **08.11** are written for both outcomes (Option B vs Option A/C) and are blocked on the owner's choice before implementation begins.
+> **DECIDED (2026-11-20): Option B, no RLS on identity tables (Section 2).** Tasks **08.2**, **08.3**, and **08.11** follow Option B only and are not blocked. The options table in Section 2 is history.
 
 ## 1. Delivery model
 
@@ -14,7 +14,7 @@ This plan is code-free: it only schedules the work, surfaces gaps, and defines t
 - **Upstream wave 3 dependencies:**
   - **07.2a** (`libs/shared` Go module, `go.work`, `golangci.yml`): required by **08.1** (`Actor` value object) and **08.3** (route registry types / tenant transaction helper).
   - **07.3a** (`apps/api/internal/httpapi/route_registry_test.go`): required by **08.3** (single route registry extension).
-  - **07.2b** (`0005_rls_payments.sql`, `pgtenant.WithMerchant`): required by **08.2** / **08.3** / **08.11** if Option A or C is chosen, and for global migration order (`0005` precedes `0006`).
+  - **07.2b** (`0005_rls_payments.sql`, `pgtenant.WithMerchant`): required for global migration order (`0005` precedes `0006`) and for payments handlers in **08.3**. Identity tables have no RLS (Option B).
 - **Migration numbering (`0006`–`0009` reserved globally across `iris`):**
   - Existing: `0001_init.sql` (`libs/identity`), `0002_payments.sql`, `0003_idempotency_per_merchant.sql`, `0004_payment_intent_version_and_failure.sql` (`libs/payments`), `0005_rls_payments.sql` (reserved for `07.2b`).
   - Phase 08 (`libs/identity/infra/pgstore/migrations/`, applied before `libs/payments` in `apps/api/cmd/migrate/main.go:55-60`):
@@ -44,21 +44,21 @@ This plan is code-free: it only schedules the work, surfaces gaps, and defines t
 
 ### Merge order and shared files
 
-- **Wave A (foundations, after 07.2a / 07.3a and owner RLS decision):** `08.1` (contracts + `Actor`), `08.2` (schema `0006`–`0009`, blocked on RLS), `08.4` (already in flight in wave 3), `08.5` (EdDSA JWT/JWKS/reauth — domain/infra key loader can start immediately; DB `auth_time` wiring uses 08.2).
-- **Wave B (core auth & enforcement):** `08.3` (Principal, RBAC, single route registry — depends on `07.2a`, `07.3a`, `08.1`, `08.5` verifier, RLS decision), `08.6` (refresh tokens & login/logout — depends on `08.2`, `08.5`), `08.11` (audit chain & `GET /v1/audit-events` — depends on `08.2`, `08.3`, RLS decision).
+- **Wave A (foundations, after 07.2a / 07.3a):** `08.1` (contracts + `Actor`), `08.2` (schema `0006`–`0009`, Option B), `08.4` (already in flight in wave 3), `08.5` (EdDSA JWT/JWKS/reauth — domain/infra key loader can start immediately; DB `auth_time` wiring uses 08.2).
+- **Wave B (core auth & enforcement):** `08.3` (Principal, RBAC, single route registry — depends on `07.2a`, `07.3a`, `08.1`, `08.5` verifier), `08.6` (refresh tokens & login/logout — depends on `08.2`, `08.5`), `08.11` (audit chain & `GET /v1/audit-events` — depends on `08.2`, `08.3`).
 - **Wave C (vertical features, parallelizable after Wave A+B):** `08.7` (signup/verify/password-reset — depends on `08.2`, `08.4`, `08.6`), `08.8` (memberships/switch/ownership — depends on `08.2`, `08.3`, `08.5`, `08.11`), `08.9` (invitations — depends on `08.2`, `08.3`, `08.4`, `08.11`), `08.10` (API key kinds/roll/revoke — depends on `08.2`, `08.3`, `08.11`), `08.12` (platform staff/merchants/bootstrap-admin — depends on `08.2`, `08.3`, `08.4`, `08.9`, `08.11`).
 - **Wave D (hardening & closeout):** `08.13` (rate limits, `/v1/me` final shape, phase verification & docs pass).
 - **Shared files across tasks:** `libs/contracts/http/identity.openapi.yaml` (centralized in `08.1` to avoid merge conflicts), `apps/api/cmd/api/main.go` (`08.3`, `08.5`–`08.13` wire their deps cleanly), `apps/api/internal/config/config.go` (`08.4` in flight, `08.5`, `08.12`, `08.13`), `apps/api/internal/httpapi/route_registry.go` (`08.3` creates, `08.5`–`08.12` register their new routes), `libs/identity/infra/pgstore/pgstore.go` (`08.2` splits or extends cleanly per aggregate file).
 
 ---
 
-## 2. RLS on identity tables (OWNER DECISION PENDING)
+## 2. RLS on identity tables (DECIDED 2026-11-20: Option B)
 
-**Context and document conflict:**
+**Context (the conflict Option B closes):**
 
-- `docs/specs/README.md:67` states: *"From phase 07 on: every new merchant-scoped table has `merchant_id` and an RLS policy, every repository method takes the merchant id, and every new route is added to the cross-tenant suite."*
+- `docs/specs/README.md:67` keeps the phase-07 rule and carves identity tables out of RLS: *"From phase 07 on: every new merchant-scoped table has `merchant_id` and an RLS policy, every repository method takes the merchant id, and every new route is added to the cross-tenant suite. Identity tables are not under RLS (see to-be section 8.1 and spec 07); they are protected by merchant-scoped repository methods, the route registry and the cross-tenant suite."*
 - `docs/specs/phase-07-tenant-isolation.md:23` states: *"Identity tables stay without RLS (to-be section 8.1); they are covered by the cross-tenant suite only."*
-- `docs/design/to-be.md:547` states: *"Identity tables are **not** under RLS: authentication must look keys and users up before the merchant is known. They are protected by explicit merchant scoping in every query and by the cross-tenant test suite."*
+- `docs/design/to-be.md:550` states: *"Identity tables are **not** under RLS: authentication must look keys and users up before the merchant is known. They are protected by explicit merchant scoping in every query and by the cross-tenant test suite."*
 - Phase 08 adds `merchant_memberships`, `invitations`, and `audit_events` (all carry `merchant_id`; `audit_events.merchant_id` is nullable for platform-wide actions) and extends `api_keys` (which already carries `merchant_id` and has no RLS), while login, refresh, API-key authentication, email verification, password reset, and invitation accept run **before a merchant is known**.
 
 ### Options
@@ -74,15 +74,15 @@ This plan is code-free: it only schedules the work, surfaces gaps, and defines t
 | **Migration impact (`0006`–`0009`)** | `0007` (`merchant_memberships`, `invitations`), `0008` (`api_keys`), `0009` (`audit_events`) all add `ENABLE`/`FORCE ROW LEVEL SECURITY` + policies + `SECURITY DEFINER` functions (and potentially `10-roles.sh` changes if `FORCE` is kept). | `0006`–`0009` stay pure DDL + `REVOKE` on `audit_events`. Zero RLS statements on identity tables; zero `10-roles.sh` changes. | `0007` (`merchant_memberships`) and `0009` (`audit_events`) add RLS policies and carefully scoped helper/insert functions; `0006` and `0008` stay pure DDL. |
 | **Failure modes** | 1. **`iris_migrator` `NOBYPASSRLS` + `FORCE RLS` deadlock:** `SECURITY DEFINER` owned by `iris_migrator` still returns 0 rows on `FORCE` tables unless `10-roles.sh` creates/grants a `BYPASSRLS` definer role. 2. Over-broad `SECURITY DEFINER` function becomes an RLS bypass gadget. 3. Platform `audit_events` with `merchant_id IS NULL` fails `WITH CHECK`. | 1. A future developer writes a pgstore query on `api_keys`, `merchant_memberships`, `invitations`, or `audit_events` without `WHERE merchant_id = $1`, and Postgres does not stop it (caught only by code review and the cross-tenant test suite). | 1. Same `iris_migrator` `NOBYPASSRLS` + `FORCE RLS` subtlety on `merchant_memberships` when listing all merchants for a user during login/switch-merchant. 2. Two mental models inside `libs/identity` (some tables use `pgtenant.WithMerchant`, others do not). |
 
-### Recommendation
+### Recommendation (history; the owner chose Option B)
 
-**Recommend Option B (no RLS on identity tables)**, with two explicit follow-up doc fixes if the owner accepts it:
+**Option B (no RLS on identity tables).** The owner accepted it on 2026-11-20. The reasons below are the record:
 
-1. **Matches the approved architecture (`to-be.md` §8.1, line 547) and spec 07 (`phase-07-tenant-isolation.md:23`)**, which explicitly carve out identity tables because authentication (`GetByPrefix`), login (`merchant_memberships` across merchants), and invitation acceptance (`token_hash`) happen before a merchant is selected, and `audit_events` holds platform-wide rows (`merchant_id IS NULL`).
+1. **Matches the approved architecture (`to-be.md` §8.1, line 550) and spec 07 (`phase-07-tenant-isolation.md:23`)**, which explicitly carve out identity tables because authentication (`GetByPrefix`), login (`merchant_memberships` across merchants), and invitation acceptance (`token_hash`) happen before a merchant is selected, and `audit_events` holds platform-wide rows (`merchant_id IS NULL`).
 2. **Respects the Postgres role model (`10-roles.sh:42,82-83`) without `make nuke` or `SECURITY DEFINER` escalation:** `iris_migrator` has `NOBYPASSRLS`, so `SECURITY DEFINER` functions owned by `iris_migrator` do not bypass `FORCE ROW LEVEL SECURITY` anyway; `iris_platform` has `SELECT` only and must not be widened. Option B lets `iris_app` handle identity queries cleanly with explicit `WHERE merchant_id = $1` on every merchant-scoped query, verified by repository integration tests and the mandatory cross-tenant HTTP test suite.
-3. **If the owner prefers Option A or Option C** to satisfy `docs/specs/README.md:67` literally, the cheapest safe path is **Option C without `FORCE` on `merchant_memberships` (so `iris_migrator`-owned `SECURITY DEFINER` read-only `fn_list_user_memberships(uuid)` works without changing `10-roles.sh`)** and a `NULL`-safe `INSERT` policy / `SECURITY DEFINER` writer for `audit_events`, plus explicit `docs/specs/README.md` or `to-be.md` alignment.
+3. **Not chosen.** Option A and Option C would have applied RLS (and `SECURITY DEFINER` helpers) so `docs/specs/README.md:67` needed no identity carve-out. The owner chose Option B, and the carve-out is in that rule.
 
-**Status: OWNER DECISION PENDING.** Tasks **08.2**, **08.3**, and **08.11** below specify both outcomes (Option B vs Option A/C) and remain **blocked** until the owner chooses.
+**Status: DECIDED (2026-11-20): Option B, no RLS on identity tables.** Tasks **08.2**, **08.3**, and **08.11** are not blocked. They keep only the Option B path. The options table above is history.
 
 ---
 
@@ -103,8 +103,8 @@ Owner decision 4 requires **one** route registry in phase 08, seeded by the list
        - `ScopeReason string` (why a route is non-tenant-scoped, preserving 07.3a's `reason` field)
        - `Access AccessRule` (`AccessPublic`, `AccessAuthenticated` [any valid principal, e.g. `/v1/me`, `/v1/auth/logout`, `/v1/auth/switch-merchant`, `/v1/auth/reauthenticate`], `AccessMerchant(permission)`, `AccessPlatform(permission)`)
        - `AllowPendingMerchant bool` (`true` for `/v1/me`, settings, members, invitations, API keys, audit-events per spec 08 item 4; `false` for payment routes -> `403 merchant_not_active`)
-       - `AllowSuspendedRead bool` (or `BlockSuspended` per owner resolution of Q3)
        - `RequireStepUp bool` (`true` for creating/rolling API keys and changing member roles, checking `auth_time` within `5m` -> `403 reauthentication_required`)
+       - Suspended merchants (decided 2026-11-20, spec 08): payment routes return `403 merchant_not_active`; refresh fails immediately (`08.6`).
     2. Each bounded context's `Mount(r, deps)` registers routes through a small helper (or attaches the policy middleware directly from the shared `RouteSpec` slice exported by the context / registered into a `Registry` passed to `Mount`), and `apps/api/internal/httpapi/route_registry.go` collects/exports the complete `[]RouteSpec` for `/healthz`, `/readyz`, `/.well-known/jwks.json`, `identity`, and `payments`.
     3. `apps/api/internal/httpapi/route_registry_test.go` (from `07.3a`) imports the **same** production `RouteRegistry` (no duplicate slice!), runs `chi.Walk(router, ...)` to fail on any mounted `(method, pattern)` missing from the registry (or any stale entry not mounted), and drives the cross-tenant suite for every `ScopeTenant` entry.
   - **Clean-architecture check:** `libs/shared` has no domain business rules (`libs/shared/README.md`) — `RouteSpec` uses string/typed permission constants or opaque permission strings (`Permission` type) so `libs/shared` never imports `libs/identity` or `libs/payments`. `libs/identity/infra/httpapi` and `libs/payments/infra/httpapi` remain testable standalone with `httptest`.
@@ -138,10 +138,10 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
 
 ### 08.2. Identity schema, migrations (`0006`–`0009`) & core repositories
 
-- **Status:** **BLOCKED on owner RLS decision (Section 2).** Also depends on `07.2b` (`0005` migration number) and `08.1` (`Actor`).
+- **Status:** Ready (Option B, decided 2026-11-20). Depends on `07.2b` (`0005` precedes `0006`) and `08.1` (`Actor`).
 - **Goal:** Create the identity database schema from `to-be.md` §8.1, backfill existing `api_keys` rows, enforce append-only privileges on `audit_events`, and implement pgstore repositories for the new entities.
 - **Labels:** `identity`, `security`, `infra`.
-- **Dependencies:** `07.2b` (migration `0005` precedes `0006`; `pgtenant` if Option A/C), `08.1` (`Actor`), **Owner RLS Decision**.
+- **Dependencies:** `07.2b` (migration `0005` precedes `0006`), `08.1` (`Actor`).
 - **Migration numbers:** `0006`, `0007`, `0008`, `0009` (all in `libs/identity/infra/pgstore/migrations/`).
 - **Estimated size:** L (4–6 h).
 - **Files:**
@@ -152,7 +152,7 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
   - `libs/identity/domain/` (new entities & errors: `user.go`, `membership.go`, `invitation.go`, `platform_staff.go`, `refresh_token.go`, `user_token.go`, `audit_event.go`, updated `merchant.go` & `apikey.go`)
   - `libs/identity/application/ports.go` (ports for new repos)
   - `libs/identity/infra/pgstore/*.go` + integration tests (`*_test.go`)
-  - `apps/api/cmd/migrate/roles_integration_test.go` (if adding `0006`–`0009` privilege/RLS smoke assertions alongside `08.11`)
+  - `apps/api/cmd/migrate/roles_integration_test.go` (privilege assertions for `0006`–`0009` alongside `08.11`; no RLS on identity tables)
 - **Steps:**
   1. Write `0006_identity_users_and_tokens.sql` (`BEGIN; ... COMMIT;`):
      - `ALTER TABLE merchants` adding `onboarding TEXT NOT NULL DEFAULT 'sales_led' CHECK (onboarding IN ('sales_led', 'self_signup'))` and `approved_at TIMESTAMPTZ`.
@@ -173,21 +173,18 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
        REVOKE UPDATE, DELETE ON audit_events FROM iris_app, iris_worker;
        ```
        (`iris_worker` and `iris_platform` have `BYPASSRLS`, which does not bypass table privileges; `iris_platform` already has `SELECT` only and must not be widened.)
-  5. **RLS branching by owner decision:**
-     - **If Option B (no RLS on identity tables):** Do not add RLS policies to `0006`–`0009`. Every merchant-scoped repository method in `libs/identity/infra/pgstore` takes `merchantID uuid.UUID` as a required parameter and filters `WHERE merchant_id = $1`.
-     - **If Option A (RLS on all merchant-scoped identity tables):** Add `ENABLE` + `FORCE ROW LEVEL SECURITY` and `merchant_id = current_setting('app.merchant_id', true)::uuid` to `merchant_memberships`, `invitations`, `api_keys`, and `audit_events` (with `NULL` / platform policy handling), plus narrow `SECURITY DEFINER` lookup functions (and resolve `iris_migrator` `NOBYPASSRLS` + `FORCE` with `10-roles.sh` if needed). Repositories use `pgtenant.WithMerchant`.
-     - **If Option C (Hybrid):** Add RLS to `merchant_memberships` and `audit_events` (plus `invitations` / `api_keys` if chosen), leaving `users`, `user_tokens`, `refresh_tokens`, `platform_staff`, `merchants` un-RLS'd, and provide narrow lookup path for `ListMembershipsByUser` and platform `audit_events`.
+  5. **No RLS on identity tables (Option B, decided 2026-11-20):** Do not add RLS policies to `0006`–`0009`. Every merchant-scoped repository method in `libs/identity/infra/pgstore` takes `merchantID uuid.UUID` as a required parameter and filters `WHERE merchant_id = $1`.
   6. Translate Portuguese comments in `libs/identity/domain/*.go` and `libs/identity/infra/pgstore/pgstore.go` as touched (conventions pass).
-- **Tests:** `M1`–`M4` (migrations from empty DB and from phase 07 state with pre-existing `merchants` and `api_keys` rows -> backfilled `kind='secret', name='legacy'`; partial unique index blocks two active owners), `R1`–`R5` (pgstore integration tests for new tables + Option A/C RLS tests if selected).
+- **Tests:** `M1`–`M4` (migrations from empty DB and from phase 07 state with pre-existing `merchants` and `api_keys` rows -> backfilled `kind='secret', name='legacy'`; partial unique index blocks two active owners), `R1`–`R5` (pgstore integration tests for new tables, merchant-scoped reads exclude the other merchant).
 
 ---
 
 ### 08.3. RBAC permission matrix, `Principal` middleware & single route registry
 
-- **Status:** **BLOCKED on owner RLS decision (Section 2).** Depends on `07.2a`, `07.3a`, `08.1`, and `08.5` (`TokenVerifier` interface).
+- **Status:** Ready (Option B, decided 2026-11-20). Depends on `07.2a`, `07.3a`, `08.1`, and `08.5` (`TokenVerifier` interface).
 - **Goal:** Implement the role-to-permission matrix in `libs/identity/domain`, build unified `Principal` authentication/authorization middleware (API keys + EdDSA JWTs + audience/merchant-status/step-up checks), and establish the single production + test route registry (Section 3).
 - **Labels:** `identity`, `api`, `security`, `core`.
-- **Dependencies:** `07.2a` (`libs/shared`), `07.3a` (`apps/api/internal/httpapi/route_registry_test.go`), `08.1` (`Actor`), `08.5` (JWT verifier port; can code against port before 08.5 merges), **Owner RLS Decision**.
+- **Dependencies:** `07.2a` (`libs/shared`), `07.3a` (`apps/api/internal/httpapi/route_registry_test.go`), `08.1` (`Actor`), `08.5` (JWT verifier port; can code against port before 08.5 merges).
 - **Migration number:** None.
 - **Estimated size:** L (4–6 h).
 - **Files:**
@@ -206,9 +203,7 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
      - Bearer JWT (via `TokenVerifier` port): verify signature + expiry + `aud` (`iris-dashboard` vs `iris-platform`), resolve permissions from DB role/membership (never from JWT claims per spec guideline 2!), verify user is `active` and membership is `active`.
   4. Enforce merchant status per route `AllowPendingMerchant` flag: `pending` or `suspended` on payment routes -> `403 merchant_not_active`; `pending` allowed on settings, members, keys, `/v1/me`. Enforce `RequireStepUp` (`now - auth_time <= 5m`) -> `403 reauthentication_required`.
   5. Promote 07.3a's route registry into `libs/shared/httproute` + `apps/api/internal/httpapi/route_registry.go` and extend `apps/api/internal/httpapi/route_registry_test.go` with `Permission` / `Access` checks so **one** registry drives both runtime middleware and the `chi.Walk` + cross-tenant meta-tests.
-  6. **RLS branching by owner decision:**
-     - **If Option B (no RLS):** `Authenticate` looks up key by prefix / membership by `(merchant_id, user_id)` directly via `iris_app` pgstore; payments handlers continue passing `principal.MerchantID` into `pgtenant.WithMerchant` (from `07.2b`) on payments tables.
-     - **If Option A or C:** `Authenticate` uses `SECURITY DEFINER` (or un-RLS'd lookup table in Option C) to resolve `api_key` / `membership`, then identity handlers handling `merchant_memberships` / `audit_events` (and `api_keys` / `invitations` in Option A) run inside `pgtenant.WithMerchant(ctx, pool, principal.MerchantID, ...)`; platform handlers use `iris_platform` pool for cross-tenant reads.
+  6. **No RLS on identity tables (Option B, decided 2026-11-20):** `Authenticate` looks up key by prefix / membership by `(merchant_id, user_id)` directly via `iris_app` pgstore; payments handlers continue passing `principal.MerchantID` into `pgtenant.WithMerchant` (from `07.2b`) on payments tables.
 - **Tests:** `P1`–`P4` (generated table-driven matrix test for all 6 roles × all permissions; secret vs restricted vs publishable; audience isolation `iris-dashboard` vs `iris-platform`; `pending`/`suspended` 403 `merchant_not_active`), `REG1`–`REG2` (meta-test fails on unregistered route or route without permission/public declaration; cross-tenant suite passes on all mounted routes).
 
 ---
@@ -269,7 +264,7 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
   1. Implement `LoginUseCase`: lookup user by email; if unknown, run dummy Argon2id verification against a precomputed dummy hash so timing matches wrong-password (`phase-08` guideline 1); check `user.Status == active` and `email_verified_at != nil`; resolve active memberships (or `platform_staff` when `audience = iris-platform`), pick default/requested `merchant_id`, create refresh token (`family_id = newUUID`, SHA-256 hash persisted — never plaintext), return access JWT + opaque refresh token. Return one generic `401 invalid_credentials` for unknown email, wrong password, or unverified/disabled user (avoid account enumeration).
   2. Implement `RefreshSessionUseCase` per **ADR-0005**:
      - Coalesce concurrent in-process refreshes for the same `token_hash`; in Postgres, lock the row with `SELECT ... FOR UPDATE`.
-     - Re-check `user.Status == active`, active membership (or `platform_staff`), and merchant status (`pending` allowed for dashboard login/refresh; `suspended` rejected immediately per spec guideline 4 — see Open Question Q3).
+     - Re-check `user.Status == active`, active membership (or `platform_staff`), and merchant status (`pending` allowed for dashboard login/refresh; `suspended` rejected immediately per spec 08, decided 2026-11-20).
      - Rotate `T1 -> T2` (`replaced_by = T2.id`, `rotated_at = now()`), cache `(accessJWT, T2)` in memory for `REFRESH_GRACE_WINDOW` (default `10s`).
      - Reuse inside `REFRESH_GRACE_WINDOW`: return cached `(accessJWT, T2)` (or `409 concurrent_refresh` on cache miss, never revoking family). Reuse outside window or on revoked token/family: revoke all rows with `family_id`, return `401`.
   3. Implement `LogoutUseCase`: revoke the current session's `family_id` (`POST /v1/auth/logout`).
@@ -314,7 +309,7 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
   - `libs/identity/infra/httpapi/member_handlers.go` + HTTP tests
   - `apps/api/internal/httpapi/route_registry.go`
 - **Steps:**
-  1. `GET /v1/members` (`members.manage` or read permission per `to-be.md` §12.1 — note `to-be.md:1223` lists `user members.manage`).
+  1. `GET /v1/members` (`members.manage` or read permission per `to-be.md` §12.1 — note `to-be.md:1226` lists `user members.manage`).
   2. `PATCH /v1/members/{user_id}` (`members.manage` + **step-up** `auth_time <= 5m` per `to-be.md:185`): change role among non-`owner` roles (`admin`, `developer`, `operations`, `risk_analyst`, `viewer`). Reject setting `role = owner` directly (must use ownership transfer) and reject demoting the `owner`. Write `audit_events` (`member.role_changed`) in the same tx.
   3. `DELETE /v1/members/{user_id}` (`members.manage`): lock merchant's active `owner` row; reject removing the sole `owner` (`409 cannot_remove_owner`); set `status = 'removed'` + write `audit_events` (`member.removed`) in the same tx.
   4. `POST /v1/members/transfer-ownership` (only `role == owner`, step-up required): in one tx lock both memberships (`ORDER BY user_id` to prevent deadlocks), demote current owner to `admin`, promote target active member to `owner`, write `audit_events` (`merchant.ownership_transferred`).
@@ -371,10 +366,10 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
 
 ### 08.11. Audit log (`audit_events` hash chain, advisory lock, `GET /v1/audit-events` & REVOKE test)
 
-- **Status:** **BLOCKED on owner RLS decision (Section 2).** Depends on `08.1`, `08.2`, `08.3`.
+- **Status:** Ready (Option B, decided 2026-11-20). Depends on `08.1`, `08.2`, `08.3`.
 - **Goal:** Implement the tamper-evident, hash-chained `audit_events` writer under a transaction-scoped advisory lock, expose `GET /v1/audit-events`, and verify the `REVOKE UPDATE, DELETE` privilege enforcement across Postgres roles.
 - **Labels:** `identity`, `security`, `api`.
-- **Dependencies:** `08.1` (`Actor`), `08.2` (`0009_identity_audit_events.sql`), `08.3` (`Principal`, registry), **Owner RLS Decision**.
+- **Dependencies:** `08.1` (`Actor`), `08.2` (`0009_identity_audit_events.sql`), `08.3` (`Principal`, registry).
 - **Migration number:** None (uses `0009` created by `08.2`).
 - **Estimated size:** M (4–5 h).
 - **Files:**
@@ -395,11 +390,7 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
   2. Implement `AuditLog.Append` inside the same database transaction as the state change (never in a separate post-commit write!). Acquire a deterministic transaction-scoped advisory lock (`SELECT pg_advisory_xact_lock(hashtext('audit_events_chain'))`) so concurrent transactions linearize cleanly and `prev_hash` never forks.
   3. Enforce `data` payload sanitization: strip/reject any key matching secret/token/password/email-in-clear denylist before marshaling.
   4. Implement `GET /v1/audit-events` (`logs.read`, `ScopeTenant`, `AllowPendingMerchant = true`, filtered by `principal.MerchantID`, optional `action` filter).
-  5. **RLS branching by owner decision:**
-     - **If Option B (no RLS):** `audit_events` has no RLS policy. `Append` inserts directly as `iris_app` (both merchant-scoped and `merchant_id IS NULL` platform rows); `ListByMerchant` filters `WHERE merchant_id = $1`.
-     - **If Option A or C (RLS on `audit_events`):**
-       - `GET /v1/audit-events` runs inside `pgtenant.WithMerchant(ctx, pool, principal.MerchantID, ...)` so `iris_app` only sees rows where `merchant_id = current_setting('app.merchant_id', true)::uuid`.
-       - Because the hash chain is global across `audit_events` (`prev_hash` links to the latest `id`), `Append` reading the previous row's `hash` **must** see the global tail row even when `app.merchant_id` is set to merchant A (or `NULL` for platform actions)! Under `FORCE ROW LEVEL SECURITY`, a merchant-scoped `iris_app` transaction would only see merchant A's rows and break the global chain! Therefore, under Option A/C either: (i) the chain is **per-merchant** (`merchant_id` partitioned chain + `platform` chain for `NULL`, though `to-be.md` shows one `audit_events` chain), OR (ii) `Append` inserts via a narrow `SECURITY DEFINER` function (owned by a `BYPASSRLS` role, since `iris_migrator` has `NOBYPASSRLS`) that takes the advisory lock, reads the global tail `hash`, and inserts the row! Document this exact trade-off for the owner in Section 2.
+  5. **No RLS on `audit_events` (Option B, decided 2026-11-20):** `Append` inserts directly as `iris_app` (both merchant-scoped and `merchant_id IS NULL` platform rows); `ListByMerchant` filters `WHERE merchant_id = $1`.
 - **Tests:** `AUD1`–`AUD5` (recomputing SHA-256 chain across mixed merchant & platform events verifies 100%; concurrent goroutines appending audit events produce one linear unbranched chain under `pg_advisory_xact_lock`; `roles_integration_test.go` proves `42501` on `UPDATE`/`DELETE` for `iris_app`, `iris_worker`, `iris_platform`; `GET /v1/audit-events` cross-tenant returns only caller's merchant events and never leaks platform `NULL` events).
 
 ---
@@ -424,7 +415,7 @@ Area labels follow `AGENTS.md`: `identity`, `api`, `core`, `security`, `contract
   1. Add `Approve`, `Suspend`, `Reactivate` methods on `domain.Merchant`:
      - `pending -> active` (`Approve`, sets `approved_at`); `active -> suspended` (`Suspend`); `suspended -> active` (`Reactivate`). Reject invalid transitions (`suspended -> approve`? or idempotent repeat -> reject or no-op consistently and pin with tests!).
   2. Implement `/v1/platform/merchants`:
-     - `GET /v1/platform/merchants` (`ScopePlatform`, `AccessPlatform("platform.merchants.read")` — uses `iris_platform` pool if configured or `iris_app` under Option B).
+     - `GET /v1/platform/merchants` (`ScopePlatform`, `AccessPlatform("platform.merchants.read")` — reads through `iris_platform`, `SELECT` only). Writes (create, approve, suspend, reactivate, invitations, audit events) run through `iris_app`.
      - `POST /v1/platform/merchants`: in one tx creates `Merchant` (`status = active`, `onboarding = sales_led`, `approved_at = now`), `Invitation` for owner (`role = owner`, 72h hashed token), and `audit_events` (`merchant.created`, `actor_type = platform_user`); sends invitation email via `Mailer` **after** commit (AC2).
      - `POST /v1/platform/merchants/{id}/{approve,suspend,reactivate}`: transitions merchant status + writes `audit_events` in one tx.
   3. Implement `irisctl bootstrap-admin --email <email>`: creates active verified `User` (with no password yet, or unusable random placeholder hash) + `platform_staff` (`role = platform_admin`) + `UserToken` (`purpose = password_setup`, 1h single-use hashed token), and prints the one-time password-setup link to stdout once (never logs it). Refuse/fail cleanly if a `platform_admin` already exists unless idempotent flag or explicit error is specified.
@@ -491,7 +482,7 @@ Every existing default below was read directly from the codebase:
 | `IRIS_APP_DATABASE_URL` | `"postgres://iris_app:iris_app@localhost:15432/iris?sslmode=disable"` | `apps/api/internal/config/config.go:24,63` | Fails on empty string (`ErrEmptyDatabaseURL`, `:32,71,89-93`). Used by `apps/api` and `irisctl` (`apps/api/cmd/irisctl/main.go:43`). |
 | `IRIS_WORKER_DATABASE_URL` | `"postgres://iris_worker:iris_worker@localhost:15432/iris?sslmode=disable"` | `apps/api/internal/config/config.go:25,64` | Relay pool; unaffected by phase 08 except `REVOKE` on `audit_events`. |
 | `IRIS_MIGRATOR_DATABASE_URL` | `"postgres://iris_migrator:iris_migrator@localhost:15432/iris?sslmode=disable"` | `apps/api/internal/config/config.go:26,82` | Only read by `LoadMigrator()` (`cmd/migrate/main.go:41`); ignored by `Load()` (`config_test.go:106-116`). |
-| `IRIS_PLATFORM_PASSWORD` | `iris_platform` (role created in Compose/initdb) | `infra/docker/.env.example:28`, `infra/docker/docker-compose.yml:26`, `infra/docker/postgres/initdb/10-roles.sh:48-49` | `apps/api/internal/config/config.go` has **no** `IRIS_PLATFORM_DATABASE_URL` yet. `08.12` (or `08.3`) adds `IRIS_PLATFORM_DATABASE_URL` (default matching `iris_platform` in `10-roles.sh`) if platform cross-tenant reads use a separate pool (`to-be.md:916`). Keep `iris_platform` `SELECT`-only! |
+| `IRIS_PLATFORM_PASSWORD` | `iris_platform` (role created in Compose/initdb) | `infra/docker/.env.example:28`, `infra/docker/docker-compose.yml:26`, `infra/docker/postgres/initdb/10-roles.sh:48-49` | `apps/api/internal/config/config.go` has **no** `IRIS_PLATFORM_DATABASE_URL` yet. `08.12` (or `08.3`) adds `IRIS_PLATFORM_DATABASE_URL` (default matching `iris_platform` in `10-roles.sh`) for platform cross-tenant reads (`to-be.md:919`). `iris_platform` stays `SELECT`-only; platform writes run through `iris_app`. |
 | `RELAY_ENABLED` | `"true"` (`true`) | `apps/api/internal/config/config.go:69` | Unchanged; tests without Kafka set `false`. |
 | `ACQUIRER_URL` / `ACQUIRER_TOKEN` | `""` / `""` | `apps/api/internal/config/config.go:67-68` | Empty selects `FakeAcquirer` (`apps/api/cmd/api/main.go:67-73`). |
 | `KAFKA_BROKER` / `ENV` | `"localhost:19092"` / `"dev"` | `apps/api/internal/config/config.go:65-66` | Unchanged. |
@@ -602,7 +593,7 @@ All Go tests run with `-race`. Integration tests use `-tags=integration` against
 ### Integration against Postgres (`-race`, `-tags=integration`)
 
 - **M1**–**M4** (`08.2`): Empty DB -> `0001`..`0009` idempotent; phase 07 DB with existing `merchants` & `api_keys` -> `0006`..`0009` succeeds and backfills `kind='secret', name='legacy'`; `merchant_memberships_one_owner_idx` rejects second active owner.
-- **R1**–**R5** (`08.2`): Repository tests for users, refresh tokens, user tokens, memberships, invitations, platform staff, API keys (plus RLS `app.merchant_id` isolation tests if Option A or C).
+- **R1**–**R5** (`08.2`): Repository tests for users, refresh tokens, user tokens, memberships, invitations, platform staff, API keys. Merchant-scoped reads exclude the other merchant (Option B; no RLS policies on identity tables).
 - **S1**–**S7** (`08.6`): Login parity (`unknown email` vs `wrong password`), N concurrent refreshes with same `T1` (benign race within `10s` grace window returns 200 without revoking family), reuse after grace window revokes entire `family_id`, logout revokes family, removed membership / disabled user / suspended merchant fails refresh immediately.
 - **INV1**–**INV6** (`08.9`): 72h expiry, revoke, concurrent double-accept allows exactly 1 membership, re-inviting removed member, mailer invoked only after commit.
 - **MEM1**–**MEM6** (`08.8`): Concurrent last-owner removal and ownership transfer serialized; role change step-up; `switch-merchant`.
@@ -618,18 +609,14 @@ All Go tests run with `-race`. Integration tests use `-tags=integration` against
 
 ## 8. Open questions for the owner
 
-1. **RLS on identity tables (Section 2 — BLOCKING `08.2`, `08.3`, `08.11`):** Choose Option A, B, or C.
-   - *Cheapest reversible assumption:* **Do not guess** — `08.2`, `08.3`, and `08.11` stay blocked until answered. If Option B is chosen, `docs/specs/README.md:67` should get a one-line carve-out matching `docs/design/to-be.md:547` and `docs/specs/phase-07-tenant-isolation.md:23`.
-2. **`iris_platform` writes vs `SELECT`-only role (`to-be.md:916` vs `10-roles.sh:82-83`):** `to-be.md` §9.2 says `iris_platform` has "`SELECT` on merchant tables, writes on identity", whereas `infra/docker/postgres/initdb/10-roles.sh:82-83` grants `SELECT` only on tables to `iris_platform` (and the REVOKE rule notes `iris_platform` must not be widened).
-   - *Cheapest reversible assumption:* Keep `iris_platform` strictly `SELECT`-only (for platform cross-tenant reads) and run `/v1/platform/merchants` write handlers on `iris_app` (works natively under RLS Option B; if RLS Option A/C is chosen, requires `SECURITY DEFINER` or explicit grant).
-3. **`suspended` merchant behavior (`to-be.md:243` vs `phase-08:19,40`):** `to-be.md:243` says *"API keys get 403, the dashboard is read-only"*, whereas `phase-08:40` says *"a suspended merchant must stop working within one access-token lifetime; refresh must fail immediately"* and `phase-08:19` says *"rejects `pending` and `suspended` merchants on payment routes with 403 `merchant_not_active`"*.
-   - *Cheapest reversible assumption:* Follow `phase-08` spec (`403 merchant_not_active` on payment routes; fail refresh immediately when active merchant is `suspended`), because reversing it later only requires relaxing the `suspended` check on refresh and allowing `GET` dashboard routes.
+1. **RLS on identity tables — DECIDED (2026-11-20): Option B, no RLS on identity tables.** Tasks **08.2**, **08.3**, and **08.11** follow Option B. `docs/specs/README.md:67` keeps the phase-07 rule and adds an identity-table carve-out (to-be section 8.1, line 550, and spec 07 line 23): merchant-scoped repository methods, the route registry, and the cross-tenant suite.
+2. **`iris_platform` writes vs `SELECT`-only role — DECIDED (2026-11-20).** `iris_platform` has `SELECT` only (no identity writes), matching `infra/docker/postgres/initdb/10-roles.sh:82-83`. Platform writes (create, approve, suspend, reactivate merchants, invitations, audit events) run through `iris_app`. Recorded in to-be section 9.2 (line 919).
+3. **`suspended` merchant behavior — DECIDED (2026-11-20).** Follow spec 08 (`docs/specs/phase-08-identity-access-api.md` lines 19 and 40): payment routes return 403 `merchant_not_active`, and refresh fails immediately. Recorded in to-be section 4 (line 243).
 4. **Publishable API key (`ipk_`) HTTP transport on merchant routes (AC4):** In phases 14–15, `ipk_` is passed to vault/public checkout. In phase 08 (before vault/checkout exist), how should AC4 (*"publishable key cannot call any merchant API"*) be exercised?
    - *Cheapest reversible assumption:* Accept `Authorization: Bearer ipk_<prefix>` in `Authenticate` middleware, build a `Principal` with permissions `[tokens.create, checkout.confirm]` only, so every merchant route answers `403 insufficient_scope` (distinct from `401 invalid_credentials`).
 5. **Existing user accepting an invitation (`08.9`):** `to-be.md:227-228` shows a new user setting name and password at `POST /v1/invitations/{token}/accept`. When the invited email already belongs to an existing `User`, accepting unauthenticated with only the token could attach a membership without authenticating the existing user (or allow account takeover if password is overwritten).
    - *Cheapest reversible assumption:* Require either an authenticated session for that `user.Email` or the existing user's current password on `accept`, and reject overwriting an existing user's password via an invitation link.
-6. **`to-be.md` §8.1 schema omissions (`to-be.md:502-530` vs `phase-08` items 3, 7, 9):** `to-be.md` §8.1 omits `refresh_tokens.rotated_at` (needed for the ADR-0005 benign-race grace window), `invitations.revoked_at` and `invitations.created_at` (needed for `08.9` revoke and list), and `user_tokens.purpose = 'password_setup'` (needed for `08.12` `irisctl bootstrap-admin`).
-   - *Cheapest reversible assumption:* Include those columns/enum value in migrations `0006` and `0007` (`08.2`), and update `to-be.md` §8.1 in the phase 08 closeout PR (`08.13`).
+6. **`to-be.md` §8.1 schema — DECIDED (2026-11-20).** Section 8.1 (lines 502–533) includes `refresh_tokens.rotated_at` (ADR-0005 grace window), `invitations.revoked_at` and `invitations.created_at` (08.9 revoke and list), and `user_tokens.purpose` value `password_setup` (08.12 `irisctl bootstrap-admin`). Migrations `0006` and `0007` (`08.2`) still add them.
 
 ---
 
