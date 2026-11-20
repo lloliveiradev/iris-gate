@@ -71,7 +71,7 @@ cp apps/anti-fraud/.env.example apps/anti-fraud/.env
 make -C apps/anti-fraud dev
 ```
 
-The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). There is no production image yet.
+The image used by Compose is a dev image (`node:26.13.0-alpine`, `yarn dev`). Its install is `yarn workspaces focus @iris-gate/anti-fraud`, so only this workspace and `@iris-gate/fraud` are linked. There is no production image yet.
 
 ## Environment
 
