@@ -2,13 +2,20 @@ package config_test
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iris-gate/iris-gate/apps/api/internal/config"
+	"github.com/iris-gate/iris-gate/libs/identity/infra/tokens"
 )
 
 // Shared fake, non-secret values used across configuration tests.
@@ -22,6 +29,10 @@ const (
 	overrideMailerFrom   = "Iris Gate <mail@example.test>"
 	overrideMailerUser   = "smtp-test-user"
 	overrideMailerSecret = "smtp-test-secret-credential"
+	testJWTKID           = "test-kid"
+	testJWTOtherKID      = "test-other-kid"
+	testJWTMalformedKeys = "not json"
+	redactedMarker       = "[REDACTED]"
 )
 
 func TestLoad_DatabaseURLs(t *testing.T) {
@@ -286,6 +297,8 @@ func setEnv(t *testing.T, env map[string]string) {
 		config.EnvMailerUsername,
 		config.EnvMailerPassword,
 		config.EnvMailerTLSMode,
+		config.EnvJWTSigningKeys,
+		config.EnvJWTActiveKID,
 	}
 	for _, name := range vars {
 		t.Setenv(name, "") // registers the restore of the original value
@@ -295,5 +308,158 @@ func setEnv(t *testing.T, env map[string]string) {
 	}
 	for name, value := range env {
 		t.Setenv(name, value)
+	}
+}
+
+// jwtKeysJSON generates one fake Ed25519 key set at test time.
+func jwtKeysJSON(t *testing.T, kid string, notAfter *time.Time) (string, string) {
+	t.Helper()
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	entry := map[string]any{"kid": kid, "private_key_b64": base64.RawURLEncoding.EncodeToString(private)}
+	if notAfter != nil {
+		entry["not_after"] = notAfter.Format(time.RFC3339)
+	}
+	raw, err := json.Marshal([]any{entry})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(raw), base64.RawURLEncoding.EncodeToString(private)
+}
+
+func TestLoad_JWTKeys(t *testing.T) {
+	valid, _ := jwtKeysJSON(t, testJWTKID, nil)
+	past := time.Now().Add(-time.Hour)
+	expired, _ := jwtKeysJSON(t, testJWTKID, &past)
+
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantErr error
+		wantSet bool
+	}{
+		{name: "auth not enabled when both are unset"},
+		{
+			name:    "valid keys and active kid",
+			env:     map[string]string{config.EnvJWTSigningKeys: valid, config.EnvJWTActiveKID: testJWTKID},
+			wantSet: true,
+		},
+		{
+			name:    "keys without active kid fail",
+			env:     map[string]string{config.EnvJWTSigningKeys: valid},
+			wantErr: tokens.ErrNoActiveKeyID,
+		},
+		{
+			name:    "active kid without keys fail",
+			env:     map[string]string{config.EnvJWTActiveKID: testJWTKID},
+			wantErr: tokens.ErrNoSigningKeys,
+		},
+		{
+			name:    "unknown active kid fails",
+			env:     map[string]string{config.EnvJWTSigningKeys: valid, config.EnvJWTActiveKID: testJWTOtherKID},
+			wantErr: tokens.ErrUnknownActiveKeyID,
+		},
+		{
+			name:    "malformed keys fail",
+			env:     map[string]string{config.EnvJWTSigningKeys: testJWTMalformedKeys, config.EnvJWTActiveKID: testJWTKID},
+			wantErr: tokens.ErrMalformedSigningKeys,
+		},
+		{
+			name:    "expired active key fails",
+			env:     map[string]string{config.EnvJWTSigningKeys: expired, config.EnvJWTActiveKID: testJWTKID},
+			wantErr: tokens.ErrActiveKeyExpired,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setEnv(t, tt.env)
+
+			cfg, err := config.Load()
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, config.ErrInvalidJWTKeys) || !errors.Is(err, tt.wantErr) {
+					t.Fatalf("err = %v, want ErrInvalidJWTKeys wrapping %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if tt.wantSet && (string(cfg.JWTSigningKeys) != valid || cfg.JWTActiveKID != testJWTKID) {
+				t.Fatalf("JWT settings were not loaded")
+			}
+		})
+	}
+}
+
+func TestLoad_JWTKeysNeverAppearInFormattedConfigOrErrors(t *testing.T) {
+	valid, secret := jwtKeysJSON(t, testJWTKID, nil)
+	setEnv(t, map[string]string{config.EnvJWTSigningKeys: valid, config.EnvJWTActiveKID: testJWTKID})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	var logs bytes.Buffer
+	slog.New(slog.NewTextHandler(&logs, nil)).Info("cfg", "keys", cfg.JWTSigningKeys)
+	for _, out := range []string{fmt.Sprintf("%v", cfg), fmt.Sprintf("%+v", cfg), fmt.Sprintf("%#v", cfg), logs.String()} {
+		if strings.Contains(out, secret) {
+			t.Fatal("signing key leaked through formatting or logs")
+		}
+	}
+
+	setEnv(t, map[string]string{config.EnvJWTSigningKeys: valid, config.EnvJWTActiveKID: testJWTOtherKID})
+	_, err = config.Load()
+	if err == nil || strings.Contains(err.Error(), secret) {
+		t.Fatalf("error must exist and not echo the key: %v", err)
+	}
+}
+
+// slog resolves LogValue only for a top-level attribute, so logging the whole
+// Config, or marshaling it, reaches the nested SecretString through
+// encoding/json or encoding.TextMarshaler instead.
+func TestLoad_JWTKeysNeverAppearInJSONOrStructLogs(t *testing.T) {
+	valid, secret := jwtKeysJSON(t, testJWTKID, nil)
+	setEnv(t, map[string]string{config.EnvJWTSigningKeys: valid, config.EnvJWTActiveKID: testJWTKID})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// Control: the base64url key is found verbatim in an unredacted JSON
+	// encoding (JSON escapes none of its characters), so the checks below can fail.
+	if unredacted, _ := json.Marshal(string(cfg.JWTSigningKeys)); !strings.Contains(string(unredacted), secret) {
+		t.Fatal("control: the raw key must be visible in an unredacted encoding")
+	}
+
+	byValue, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	byPointer, err := json.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("marshal config pointer: %v", err)
+	}
+	text, err := cfg.JWTSigningKeys.MarshalText()
+	if err != nil {
+		t.Fatalf("marshal text: %v", err)
+	}
+	var jsonLogs, textLogs bytes.Buffer
+	slog.New(slog.NewJSONHandler(&jsonLogs, nil)).Info("startup", "cfg", cfg)
+	slog.New(slog.NewTextHandler(&textLogs, nil)).Info("startup", "cfg", cfg)
+
+	for name, out := range map[string]string{
+		"json.Marshal(cfg)":  string(byValue),
+		"json.Marshal(&cfg)": string(byPointer),
+		"MarshalText":        string(text),
+		"slog JSON handler":  jsonLogs.String(),
+		"slog text handler":  textLogs.String(),
+	} {
+		if strings.Contains(out, secret) || strings.Contains(out, valid) {
+			t.Errorf("%s leaked the signing key", name)
+		}
+		if !strings.Contains(out, redactedMarker) {
+			t.Errorf("%s does not carry the redacted marker: %s", name, out)
+		}
 	}
 }
