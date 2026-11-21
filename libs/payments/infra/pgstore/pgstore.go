@@ -21,6 +21,7 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/idempotency"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/kafkarelay"
+	"github.com/iris-gate/iris-gate/libs/shared/pgtenant"
 )
 
 // DBTX is the subset of pgx shared by pools and transactions.
@@ -44,7 +45,7 @@ const intentColumns = `id, merchant_id, amount_cents, currency, status, card_tok
 // CreateWithOutbox writes the intent and its outbox message in one
 // transaction (Outbox pattern invariant).
 func (r *Repo) CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev application.OutboxMessage) error {
-	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+	return pgtenant.WithMerchant(ctx, r.pool, p.MerchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
 		if err := insertPaymentIntent(ctx, tx, p); err != nil {
 			return err
 		}
@@ -62,7 +63,7 @@ func (r *Repo) CreateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev 
 // domain.ErrConcurrentUpdate; otherwise → domain.ErrPaymentIntentNotFound, so
 // another merchant's intent is indistinguishable from a missing one.
 func (r *Repo) UpdateWithOutbox(ctx context.Context, p domain.PaymentIntent, ev application.OutboxMessage) error {
-	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+	return pgtenant.WithMerchant(ctx, r.pool, p.MerchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
 		const q = `
 			UPDATE payment_intents
 			SET status = $4, authorized_at = $5, captured_at = $6, failure_code = $7,
@@ -104,7 +105,8 @@ func nullableFailureCode(code domain.FailureCode) *string {
 }
 
 // MarkPublished is called by the relay worker once the broker has
-// confirmed the event.
+// confirmed the event. It runs without a merchant on purpose: outbox_messages
+// has no merchant_id and no RLS policy, and the relay connects as iris_worker.
 func (r *Repo) MarkPublished(ctx context.Context, ids []uuid.UUID, at time.Time) error {
 	if len(ids) == 0 {
 		return nil
@@ -146,8 +148,16 @@ func insertOutbox(ctx context.Context, db DBTX, ev application.OutboxMessage) er
 // yields ErrPaymentIntentNotFound, the same as a missing id.
 func (r *Repo) GetByID(ctx context.Context, merchantID, id uuid.UUID) (domain.PaymentIntent, error) {
 	const q = `SELECT ` + intentColumns + ` FROM payment_intents WHERE id = $1 AND merchant_id = $2`
-	row := r.pool.QueryRow(ctx, q, id, merchantID)
-	return scanIntent(row)
+	var p domain.PaymentIntent
+	err := pgtenant.WithMerchant(ctx, r.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
+		var scanErr error
+		p, scanErr = scanIntent(tx.QueryRow(ctx, q, id, merchantID))
+		return scanErr
+	})
+	if err != nil {
+		return domain.PaymentIntent{}, err
+	}
+	return p, nil
 }
 
 // ListByMerchant returns the merchant's intents, newest first.
@@ -162,20 +172,26 @@ func (r *Repo) ListByMerchant(ctx context.Context, merchantID uuid.UUID, limit i
 		ORDER BY created_at DESC
 		LIMIT $2
 	`
-	rows, err := r.pool.Query(ctx, q, merchantID, limit)
+	var out []domain.PaymentIntent
+	err := pgtenant.WithMerchant(ctx, r.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
+		rows, queryErr := tx.Query(ctx, q, merchantID, limit)
+		if queryErr != nil {
+			return queryErr
+		}
+		defer rows.Close()
+		for rows.Next() {
+			p, scanErr := scanIntent(rows)
+			if scanErr != nil {
+				return scanErr
+			}
+			out = append(out, p)
+		}
+		return rows.Err()
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []domain.PaymentIntent
-	for rows.Next() {
-		p, scanErr := scanIntent(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func scanIntent(row pgx.Row) (domain.PaymentIntent, error) {
@@ -205,7 +221,9 @@ func scanIntent(row pgx.Row) (domain.PaymentIntent, error) {
 // ---------- Outbox: relay worker (stub) ----------
 
 // PullUnpublished returns up to `limit` unpublished messages in FIFO order.
-// It implements kafkarelay.Source.
+// It implements kafkarelay.Source. It runs without a merchant on purpose: the
+// relay drains every tenant's outbox as iris_worker, and outbox_messages has
+// no merchant_id and no RLS policy.
 func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]kafkarelay.PendingMessage, error) {
 	const q = `
 		SELECT id, topic, msg_key, payload, headers
@@ -249,10 +267,13 @@ func (s *IdempotencyStore) Existing(ctx context.Context, merchantID uuid.UUID, s
 		WHERE merchant_id = $1 AND scope = $2 AND key = $3
 	`
 	var rec idempotency.Record
-	if err := s.pool.QueryRow(ctx, q, merchantID, scope, key).Scan(&rec.RequestHash, &rec.ResponseStatus, &rec.ResponseBody); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
+	err := pgtenant.WithMerchant(ctx, s.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
+		return tx.QueryRow(ctx, q, merchantID, scope, key).Scan(&rec.RequestHash, &rec.ResponseStatus, &rec.ResponseBody)
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	return &rec, nil
@@ -266,11 +287,18 @@ func (s *IdempotencyStore) Save(ctx context.Context, merchantID uuid.UUID, scope
 		VALUES ($1,$2,$3,$4,$5,$6)
 		ON CONFLICT (merchant_id, scope, key) DO NOTHING
 	`
-	tag, err := s.pool.Exec(ctx, q, merchantID, scope, key, requestHash, status, body)
+	err = pgtenant.WithMerchant(ctx, s.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
+		tag, execErr := tx.Exec(ctx, q, merchantID, scope, key, requestHash, status, body)
+		if execErr != nil {
+			return execErr
+		}
+		alreadyExists = tag.RowsAffected() == 0
+		return nil
+	})
 	if err != nil {
 		return false, err
 	}
-	return tag.RowsAffected() == 0, nil
+	return alreadyExists, nil
 }
 
 // ---------- Migrations ----------
