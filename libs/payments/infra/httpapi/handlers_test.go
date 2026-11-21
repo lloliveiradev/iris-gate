@@ -28,6 +28,11 @@ const (
 	// fakeAPIKeySecret is the secret part of the test API keys; the hasher
 	// stub accepts any secret.
 	fakeAPIKeySecret = "secret"
+
+	// Idempotency keys must be 8 to 128 characters (the middleware enforces
+	// the contract bounds). sharedIdempotencyKey is the key two merchants use.
+	testIdempotencyKey   = "idem-key-test-0001"
+	sharedIdempotencyKey = "idem-key-shared-0001"
 )
 
 var (
@@ -130,21 +135,34 @@ type memIdempotencyStore struct {
 
 func idemKey(m uuid.UUID, scope, key string) string { return m.String() + "|" + scope + "|" + key }
 
-func (s *memIdempotencyStore) Existing(_ context.Context, m uuid.UUID, scope, key string) (*idempotency.Record, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.records[idemKey(m, scope, key)], nil
-}
-
-func (s *memIdempotencyStore) Save(_ context.Context, m uuid.UUID, scope, key string, hash []byte, status int, body []byte) (bool, error) {
+func (s *memIdempotencyStore) Reserve(_ context.Context, m uuid.UUID, scope, key string, hash []byte) (*idempotency.Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := idemKey(m, scope, key)
-	if _, ok := s.records[k]; ok {
-		return true, nil
+	if rec, ok := s.records[k]; ok {
+		stored := *rec
+		return &stored, nil
 	}
-	s.records[k] = &idempotency.Record{RequestHash: hash, ResponseStatus: status, ResponseBody: body}
-	return false, nil
+	s.records[k] = &idempotency.Record{RequestHash: hash, InProgress: true}
+	return nil, nil
+}
+
+func (s *memIdempotencyStore) Complete(_ context.Context, m uuid.UUID, scope, key string, status int, body []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec := s.records[idemKey(m, scope, key)]
+	rec.InProgress, rec.ResponseStatus, rec.ResponseBody = false, status, body
+	return nil
+}
+
+func (s *memIdempotencyStore) Release(_ context.Context, m uuid.UUID, scope, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := idemKey(m, scope, key)
+	if rec, ok := s.records[k]; ok && rec.InProgress {
+		delete(s.records, k)
+	}
+	return nil
 }
 
 type countingAcquirer struct {
@@ -253,7 +271,7 @@ func problemTitle(t *testing.T, rec *httptest.ResponseRecorder) string {
 func TestForeignIntent_GetAuthorizeCapture_Return404AndLeaveIntentUnchanged(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+	id, _ := h.createIntent(t, h.tokenA, testIdempotencyKey, createBody)
 	intentID := uuid.MustParse(id)
 	before := h.repo.intents[intentID]
 	outboxBefore := h.repo.outbox
@@ -294,7 +312,7 @@ func TestForeignIntent_GetAuthorizeCapture_Return404AndLeaveIntentUnchanged(t *t
 func TestOwnIntent_GetAuthorizeCapture_Work(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+	id, _ := h.createIntent(t, h.tokenA, testIdempotencyKey, createBody)
 
 	if rec := h.do(http.MethodGet, "/v1/payment-intents/"+id, h.tokenA, "", ""); rec.Code != http.StatusOK {
 		t.Fatalf("get: %d %s", rec.Code, rec.Body)
@@ -313,8 +331,8 @@ func TestIdempotency_SameKeySameBody_TwoMerchants_EachGetsOwnIntent(t *testing.T
 	t.Parallel()
 	h := newHarness(t)
 
-	idA, recA := h.createIntent(t, h.tokenA, "shared-key", createBody)
-	idB, recB := h.createIntent(t, h.tokenB, "shared-key", createBody)
+	idA, recA := h.createIntent(t, h.tokenA, sharedIdempotencyKey, createBody)
+	idB, recB := h.createIntent(t, h.tokenB, sharedIdempotencyKey, createBody)
 
 	if recA.Code != http.StatusCreated || recB.Code != http.StatusCreated {
 		t.Fatalf("statuses A=%d B=%d, want 201 both", recA.Code, recB.Code)
@@ -336,9 +354,9 @@ func TestIdempotency_SameKeySameBody_TwoMerchants_EachGetsOwnIntent(t *testing.T
 func TestIdempotency_SameKeyDifferentBody_OtherMerchant_NoConflict(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	h.createIntent(t, h.tokenA, "shared-key", createBody)
+	h.createIntent(t, h.tokenA, sharedIdempotencyKey, createBody)
 
-	rec := h.do(http.MethodPost, "/v1/payment-intents", h.tokenB, "shared-key", otherBody)
+	rec := h.do(http.MethodPost, "/v1/payment-intents", h.tokenB, sharedIdempotencyKey, otherBody)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status %d, want 201 (keys are per merchant); body=%s", rec.Code, rec.Body)
 	}
@@ -347,9 +365,9 @@ func TestIdempotency_SameKeyDifferentBody_OtherMerchant_NoConflict(t *testing.T)
 func TestIdempotency_SameMerchant_SameKeySameBody_ReplaysStoredResponse(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	id, first := h.createIntent(t, h.tokenA, "k1", createBody)
+	id, first := h.createIntent(t, h.tokenA, testIdempotencyKey, createBody)
 
-	second := h.do(http.MethodPost, "/v1/payment-intents", h.tokenA, "k1", createBody)
+	second := h.do(http.MethodPost, "/v1/payment-intents", h.tokenA, testIdempotencyKey, createBody)
 
 	if second.Code != http.StatusCreated || second.Body.String() != first.Body.String() {
 		t.Fatalf("replay differs: %d %s vs %s", second.Code, second.Body, first.Body)
@@ -365,9 +383,9 @@ func TestIdempotency_SameMerchant_SameKeySameBody_ReplaysStoredResponse(t *testi
 func TestIdempotency_SameMerchant_SameKeyDifferentBody_Returns409(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	h.createIntent(t, h.tokenA, "k1", createBody)
+	h.createIntent(t, h.tokenA, testIdempotencyKey, createBody)
 
-	rec := h.do(http.MethodPost, "/v1/payment-intents", h.tokenA, "k1", otherBody)
+	rec := h.do(http.MethodPost, "/v1/payment-intents", h.tokenA, testIdempotencyKey, otherBody)
 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status %d, want 409; body=%s", rec.Code, rec.Body)
@@ -380,7 +398,7 @@ func TestIdempotency_SameMerchant_SameKeyDifferentBody_Returns409(t *testing.T) 
 func TestCreate_WithoutCredentials_Returns401(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	rec := h.do(http.MethodPost, "/v1/payment-intents", "garbage", "k1", createBody)
+	rec := h.do(http.MethodPost, "/v1/payment-intents", "garbage", testIdempotencyKey, createBody)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", rec.Code)
 	}
@@ -392,7 +410,7 @@ func TestCreate_WithoutCredentials_Returns401(t *testing.T) {
 func TestAuthorize_LostRace_Returns409ConcurrentUpdate(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+	id, _ := h.createIntent(t, h.tokenA, testIdempotencyKey, createBody)
 	h.repo.updateErr = domain.ErrConcurrentUpdate
 
 	rec := h.do(http.MethodPost, "/v1/payment-intents/"+id+"/authorize", h.tokenA, "", "")
@@ -409,7 +427,7 @@ func TestAuthorize_Declined_Returns200Failed(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	h.acquirer.decline = true
-	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+	id, _ := h.createIntent(t, h.tokenA, testIdempotencyKey, createBody)
 
 	rec := h.do(http.MethodPost, "/v1/payment-intents/"+id+"/authorize", h.tokenA, "", "")
 	if rec.Code != http.StatusOK {
@@ -426,7 +444,7 @@ func TestAuthorize_Declined_Returns200Failed(t *testing.T) {
 func TestAuthorize_Captured_Returns409InvalidTransition(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	id, _ := h.createIntent(t, h.tokenA, "k-a", createBody)
+	id, _ := h.createIntent(t, h.tokenA, testIdempotencyKey, createBody)
 	h.do(http.MethodPost, "/v1/payment-intents/"+id+"/authorize", h.tokenA, "", "")
 	h.do(http.MethodPost, "/v1/payment-intents/"+id+"/capture", h.tokenA, "", "")
 	calls := h.acquirer.calls
