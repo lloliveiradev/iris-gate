@@ -22,9 +22,7 @@ Go modules resolve through the repo `go.work`: `libs/identity`, `libs/payments`,
 
 Merchant and API key. `document` is 14 digits. A new merchant starts `pending`. The token format is `irk_<prefix>.<secret>`. Only the Argon2id PHC hash is stored. The plaintext secret leaves the process once, from issue.
 
-Use cases: create merchant, issue key, revoke key, authenticate. Postgres migrations live in `infra/pgstore/migrations/` and run on API startup. The HTTP handler mounts only `/v1/me`; merchants and keys are managed by `apps/api/cmd/irisctl`.
-
-`libs/identity/src/` is an unused TypeScript-shaped scaffold (`.gitkeep` only). The Go packages next to it are the library. Edit those.
+Use cases: create merchant, issue key, revoke key, authenticate. Postgres migrations live in `infra/pgstore/migrations/` and run with `make migrate` from the repo root (services do not migrate on startup). The HTTP handler mounts only `/v1/me`; merchants and keys are managed by `apps/api/cmd/irisctl`. The Go packages in this directory are the library.
 
 ## payments
 

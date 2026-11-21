@@ -17,8 +17,13 @@
 ### Idempotent-Replay header is set on cached responses.
 ### Cross-tenant access yields 404 (tenant isolation silently masks).
 ###
-### Prerequisite: identity.http must be run first (sections 1.1–1.2)
-### to seed merchant_id + api_key_token referenced below.
+### Prerequisite: create the bearer with irisctl (there is no identity HTTP
+### bootstrap). From the repo root:
+###
+###   make irisctl ARGS="create-merchant --legal-name 'Acme' --document 12345678000100 --contact-email ops@acme.example.com"
+###   make irisctl ARGS="issue-api-key --merchant-id <merchant id>"
+###
+### `issue-api-key` prints the secret once. Paste it into @api_key_token.
 ### =============================================================
 
 ### Variables
@@ -26,8 +31,8 @@
 @nonexistent_id = 00000000-0000-0000-0000-000000000000
 @malformed_uuid = not-a-uuid
 
-### Chained from identity.http bootstrap (run identity.http first)
-@api_key_token = {{ issueApiKey.response.body.secret }}
+### Secret from `make irisctl ARGS="issue-api-key --merchant-id <merchant id>"`.
+@api_key_token = irk_PASTE_THE_ISSUED_SECRET_HERE
 
 ### Idempotency keys — stable per scenario so we can replay deliberately
 @idem_key_happy = key-happy-001
