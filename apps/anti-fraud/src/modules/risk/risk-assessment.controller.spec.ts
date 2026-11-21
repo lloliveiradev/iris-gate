@@ -26,6 +26,7 @@ import {
 import type { ProblemDto, RiskAssessmentResponseDto } from './risk-assessment.dto';
 import { RISK_ASSESSMENTS_PATH } from './risk-assessment.controller';
 import { RiskModule } from './risk.module';
+import { ServiceTokenGuard } from './service-token.guard';
 
 const DEFAULT_VELOCITY_LIMIT = 5;
 
@@ -183,6 +184,31 @@ describe('POST /internal/v1/risk-assessments (HTTP)', () => {
   });
 
   describe('AC4: service token authentication and FRAUD_TEST_HOOKS gate', () => {
+    it('runs ServiceTokenGuard once per request and still rejects a missing token', async () => {
+      const canActivate = jest.spyOn(ServiceTokenGuard.prototype, 'canActivate');
+      try {
+        harness = await startInternalHttpHarness();
+
+        const denied = await postRiskAssessment<ProblemDto>(
+          harness.baseUrl,
+          validRiskRequestDto({ payment_intent_id: randomUUID() }),
+          null,
+        );
+        expect(denied.status).toBe(401);
+        expect(canActivate).toHaveBeenCalledTimes(1);
+
+        canActivate.mockClear();
+        const allowed = await postRiskAssessment<RiskAssessmentResponseDto>(
+          harness.baseUrl,
+          validRiskRequestDto({ payment_intent_id: randomUUID() }),
+        );
+        expect(allowed.status).toBe(200);
+        expect(canActivate).toHaveBeenCalledTimes(1);
+      } finally {
+        canActivate.mockRestore();
+      }
+    });
+
     it.each<[string, string | null]>([
       ['missing Authorization header', null],
       ['wrong Bearer token (same byte length)', `Bearer ${WRONG_SAME_LENGTH_TOKEN}`],
