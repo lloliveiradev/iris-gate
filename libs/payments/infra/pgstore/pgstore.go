@@ -253,52 +253,130 @@ func (r *Repo) PullUnpublished(ctx context.Context, limit int) ([]kafkarelay.Pen
 // ---------- Idempotency store ----------
 
 // IdempotencyStore is the Postgres store of the HTTP idempotency middleware.
+//
+// A key is reserved by a row whose response_status is reservedResponseStatus,
+// inserted before the handler runs. Completing the request writes the
+// response on that row; releasing it deletes the row. Every statement runs
+// inside pgtenant.WithMerchant, because idempotency_records has forced
+// row-level security.
 type IdempotencyStore struct{ pool *pgxpool.Pool }
 
 // NewIdempotencyStore returns an IdempotencyStore on pool.
 func NewIdempotencyStore(pool *pgxpool.Pool) *IdempotencyStore { return &IdempotencyStore{pool: pool} }
 
-// Existing returns the stored record for (merchantID, scope, key), or
-// (nil, nil) when there is none. Records are never shared across merchants.
-func (s *IdempotencyStore) Existing(ctx context.Context, merchantID uuid.UUID, scope, key string) (*idempotency.Record, error) {
+// reservedResponseStatus is the response_status of a reservation: a key
+// claimed by a request whose response is not stored yet. HTTP statuses start
+// at 100, so no stored response has it, and the existing columns hold a
+// reservation without a schema change.
+const reservedResponseStatus = 0
+
+// reserveAttempts bounds how often Reserve claims the key again when the row
+// it collided with was released before Reserve could read it.
+const reserveAttempts = 3
+
+// errReservationContended is returned when the key was released and claimed
+// again by other requests on every attempt.
+var errReservationContended = errors.New("idempotency key kept changing hands during reservation")
+
+// errNoReservation is returned by Complete when the key holds no reservation,
+// so a stored response is never overwritten.
+var errNoReservation = errors.New("idempotency key holds no reservation")
+
+// Reserve claims (merchantID, scope, key) with a reservation row, or returns
+// the record already stored for it. Records are never shared across merchants.
+//
+// The INSERT ... ON CONFLICT DO NOTHING waits for a concurrent, uncommitted
+// insert of the same key, so of several racing callers exactly one inserts.
+// The others then read the winner's row: under READ COMMITTED (the default
+// WithMerchant keeps) each statement takes a new snapshot, so the SELECT sees
+// the row the INSERT collided with. If that row was released in between, the
+// key is free again and Reserve claims it again.
+func (s *IdempotencyStore) Reserve(ctx context.Context, merchantID uuid.UUID, scope, key string, requestHash []byte) (*idempotency.Record, error) {
+	const q = `
+		INSERT INTO idempotency_records (merchant_id, scope, key, request_hash, response_status, response_body)
+		VALUES ($1, $2, $3, $4, $5, '')
+		ON CONFLICT (merchant_id, scope, key) DO NOTHING
+	`
+	var existing *idempotency.Record
+	err := pgtenant.WithMerchant(ctx, s.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
+		for range reserveAttempts {
+			tag, err := tx.Exec(ctx, q, merchantID, scope, key, requestHash, reservedResponseStatus)
+			if err != nil {
+				return fmt.Errorf("insert idempotency reservation: %w", err)
+			}
+			if tag.RowsAffected() == 1 {
+				return nil
+			}
+			rec, err := selectIdempotencyRecord(ctx, tx, merchantID, scope, key)
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue // released between the two statements: claim it again
+			}
+			if err != nil {
+				return err
+			}
+			existing = rec
+			return nil
+		}
+		return errReservationContended
+	})
+	if err != nil {
+		return nil, err
+	}
+	return existing, nil
+}
+
+func selectIdempotencyRecord(ctx context.Context, db DBTX, merchantID uuid.UUID, scope, key string) (*idempotency.Record, error) {
 	const q = `
 		SELECT request_hash, response_status, response_body
 		FROM idempotency_records
 		WHERE merchant_id = $1 AND scope = $2 AND key = $3
 	`
 	var rec idempotency.Record
-	err := pgtenant.WithMerchant(ctx, s.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
-		return tx.QueryRow(ctx, q, merchantID, scope, key).Scan(&rec.RequestHash, &rec.ResponseStatus, &rec.ResponseBody)
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
+	err := db.QueryRow(ctx, q, merchantID, scope, key).Scan(&rec.RequestHash, &rec.ResponseStatus, &rec.ResponseBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read idempotency record: %w", err)
 	}
+	rec.InProgress = rec.ResponseStatus == reservedResponseStatus
 	return &rec, nil
 }
 
-// Save stores the result of an operation for (merchantID, scope, key). It
-// returns alreadyExists=true when a parallel request stored it first.
-func (s *IdempotencyStore) Save(ctx context.Context, merchantID uuid.UUID, scope, key string, requestHash []byte, status int, body []byte) (alreadyExists bool, err error) {
+// Complete stores the response on the reservation of (merchantID, scope,
+// key). It returns errNoReservation when the key holds no reservation.
+func (s *IdempotencyStore) Complete(ctx context.Context, merchantID uuid.UUID, scope, key string, status int, body []byte) error {
 	const q = `
-		INSERT INTO idempotency_records (merchant_id, scope, key, request_hash, response_status, response_body)
-		VALUES ($1,$2,$3,$4,$5,$6)
-		ON CONFLICT (merchant_id, scope, key) DO NOTHING
+		UPDATE idempotency_records
+		SET response_status = $4, response_body = $5
+		WHERE merchant_id = $1 AND scope = $2 AND key = $3 AND response_status = $6
 	`
-	err = pgtenant.WithMerchant(ctx, s.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
-		tag, execErr := tx.Exec(ctx, q, merchantID, scope, key, requestHash, status, body)
-		if execErr != nil {
-			return execErr
+	// response_body is NOT NULL, and pgx sends a nil slice as NULL.
+	if body == nil {
+		body = []byte{}
+	}
+	return pgtenant.WithMerchant(ctx, s.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, q, merchantID, scope, key, status, body, reservedResponseStatus)
+		if err != nil {
+			return fmt.Errorf("complete idempotency record: %w", err)
 		}
-		alreadyExists = tag.RowsAffected() == 0
+		if tag.RowsAffected() == 0 {
+			return errNoReservation
+		}
 		return nil
 	})
-	if err != nil {
-		return false, err
-	}
-	return alreadyExists, nil
+}
+
+// Release deletes the reservation of (merchantID, scope, key). A completed
+// record, or a key with no record, is left as it is.
+func (s *IdempotencyStore) Release(ctx context.Context, merchantID uuid.UUID, scope, key string) error {
+	const q = `
+		DELETE FROM idempotency_records
+		WHERE merchant_id = $1 AND scope = $2 AND key = $3 AND response_status = $4
+	`
+	return pgtenant.WithMerchant(ctx, s.pool, merchantID.String(), func(ctx context.Context, tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, q, merchantID, scope, key, reservedResponseStatus); err != nil {
+			return fmt.Errorf("release idempotency reservation: %w", err)
+		}
+		return nil
+	})
 }
 
 // ---------- Migrations ----------

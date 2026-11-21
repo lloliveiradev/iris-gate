@@ -3,6 +3,7 @@
 package pgstore_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/application"
 	"github.com/iris-gate/iris-gate/libs/payments/domain"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/acquirer"
+	"github.com/iris-gate/iris-gate/libs/payments/infra/idempotency"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/pgstore"
 	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
 	"github.com/iris-gate/iris-gate/libs/shared/pgtenant"
@@ -141,28 +143,78 @@ func TestIntegration_IdempotencyKeyIsPerMerchantAndScope(t *testing.T) {
 	a, b := seedMerchant(t, pool), seedMerchant(t, pool)
 	key := uuid.NewString()
 
-	exists, err := store.Save(ctx, a, idempotencyScope, key, []byte("ha"), idempotencyResponseStatus, []byte(`{"a":1}`))
-	if err != nil || exists {
-		t.Fatalf("A save: exists=%v err=%v", exists, err)
+	hashA, hashB, hashOtherScope, hashRetry := []byte("ha"), []byte("hb"), []byte("hc"), []byte("hz")
+
+	storeIdempotencyRecord(t, store, a, idempotencyScope, key, hashA)
+	storeIdempotencyRecord(t, store, b, idempotencyScope, key, hashB)
+	storeIdempotencyRecord(t, store, a, "other_scope", key, hashOtherScope)
+
+	recA, err := store.Reserve(ctx, a, idempotencyScope, key, hashRetry)
+	if err != nil || recA == nil || recA.InProgress || !bytes.Equal(recA.RequestHash, hashA) {
+		t.Fatalf("A retry = %+v err=%v, want A's completed record", recA, err)
 	}
-	if exists, err = store.Save(ctx, b, idempotencyScope, key, []byte("hb"), idempotencyResponseStatus, []byte(`{"b":1}`)); err != nil || exists {
-		t.Fatalf("B save with the same key: exists=%v err=%v", exists, err)
+	recB, err := store.Reserve(ctx, b, idempotencyScope, key, hashRetry)
+	if err != nil || recB == nil || recB.InProgress || !bytes.Equal(recB.RequestHash, hashB) {
+		t.Fatalf("B retry = %+v err=%v, want B's completed record", recB, err)
 	}
-	if exists, err = store.Save(ctx, a, "other_scope", key, []byte("hc"), idempotencyResponseStatus, idempotencyResponseBody); err != nil || exists {
-		t.Fatalf("A save in another scope: exists=%v err=%v", exists, err)
+}
+
+// TestIntegration_IdempotencyStore_ReservationLifecycle walks one key through
+// the store: a reservation another caller sees in progress, a release that
+// frees the key, a completion that a retry replays, and a release that leaves
+// the completed record alone.
+func TestIntegration_IdempotencyStore_ReservationLifecycle(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	store := pgstore.NewIdempotencyStore(pool)
+	merchant := seedMerchant(t, pool)
+	key := uuid.NewString()
+	reserve := func(step string) *idempotency.Record {
+		t.Helper()
+		rec, err := store.Reserve(ctx, merchant, idempotencyScope, key, idempotencyRequestHash)
+		if err != nil {
+			t.Fatalf("%s: reserve: %v", step, err)
+		}
+		return rec
 	}
-	if exists, err = store.Save(ctx, a, idempotencyScope, key, []byte("hz"), idempotencyResponseStatus, idempotencyResponseBody); err != nil || !exists {
-		t.Fatalf("A duplicate save: exists=%v err=%v, want alreadyExists", exists, err)
+	release := func(step string) {
+		t.Helper()
+		if err := store.Release(ctx, merchant, idempotencyScope, key); err != nil {
+			t.Fatalf("%s: release: %v", step, err)
+		}
+	}
+	wantStored := func(step string) {
+		t.Helper()
+		rec := reserve(step)
+		if rec == nil || rec.InProgress || rec.ResponseStatus != idempotencyResponseStatus ||
+			!bytes.Equal(rec.ResponseBody, idempotencyResponseBody) {
+			t.Fatalf("%s: record = %+v, want the stored %d response", step, rec, idempotencyResponseStatus)
+		}
 	}
 
-	recA, _ := store.Existing(ctx, a, idempotencyScope, key)
-	recB, _ := store.Existing(ctx, b, idempotencyScope, key)
-	if recA == nil || string(recA.RequestHash) != "ha" || recB == nil || string(recB.RequestHash) != "hb" {
-		t.Fatalf("records mixed up: A=%+v B=%+v", recA, recB)
+	if rec := reserve("first"); rec != nil {
+		t.Fatalf("first reserve = %+v, want the reservation (nil)", rec)
 	}
-	if rec, _ := store.Existing(ctx, uuid.New(), idempotencyScope, key); rec != nil {
-		t.Error("unknown merchant saw a record")
+	if rec := reserve("while held"); rec == nil || !rec.InProgress || !bytes.Equal(rec.RequestHash, idempotencyRequestHash) {
+		t.Fatalf("reserve while held = %+v, want an in-progress record with the request hash", rec)
 	}
+
+	release("after a failed handler")
+	if rec := reserve("after release"); rec != nil {
+		t.Fatalf("reserve after release = %+v, want a new reservation (nil)", rec)
+	}
+
+	if err := store.Complete(ctx, merchant, idempotencyScope, key, idempotencyResponseStatus, idempotencyResponseBody); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	wantStored("after complete")
+
+	release("after complete")
+	wantStored("after a release of the completed record")
+	if err := store.Complete(ctx, merchant, idempotencyScope, key, http.StatusOK, idempotencyResponseBody); err == nil {
+		t.Fatal("second complete succeeded, want an error: a stored response is never overwritten")
+	}
+	wantStored("after a second complete")
 }
 
 // ---------- D3, D4: persisted declines and optimistic locking ----------
@@ -505,12 +557,21 @@ func newAppPool(t *testing.T) *pgxpool.Pool {
 func seedIdempotencyRecord(t *testing.T, pool *pgxpool.Pool, merchantID uuid.UUID) string {
 	t.Helper()
 	key := uuid.NewString()
-	exists, err := pgstore.NewIdempotencyStore(pool).Save(context.Background(), merchantID, idempotencyScope, key,
-		idempotencyRequestHash, idempotencyResponseStatus, idempotencyResponseBody)
-	if err != nil || exists {
-		t.Fatalf("seed idempotency record: exists=%v err=%v", exists, err)
-	}
+	storeIdempotencyRecord(t, pgstore.NewIdempotencyStore(pool), merchantID, idempotencyScope, key, idempotencyRequestHash)
 	return key
+}
+
+// storeIdempotencyRecord reserves a free key and completes it with the fake
+// response, as the middleware does for a successful first request.
+func storeIdempotencyRecord(t *testing.T, store *pgstore.IdempotencyStore, merchantID uuid.UUID, scope, key string, requestHash []byte) {
+	t.Helper()
+	ctx := context.Background()
+	if rec, err := store.Reserve(ctx, merchantID, scope, key, requestHash); err != nil || rec != nil {
+		t.Fatalf("reserve idempotency key: record=%+v err=%v, want a new reservation", rec, err)
+	}
+	if err := store.Complete(ctx, merchantID, scope, key, idempotencyResponseStatus, idempotencyResponseBody); err != nil {
+		t.Fatalf("complete idempotency record: %v", err)
+	}
 }
 
 // countAsMerchant runs a count(*) query on pool inside WithMerchant(merchantID).
@@ -662,7 +723,6 @@ func TestIntegration_RLS_OwnRowCannotMoveToAnotherMerchant(t *testing.T) {
 func TestIntegration_RLS_IdempotencyRecordsIsolated(t *testing.T) {
 	pool := newPool(t)
 	appPool := newAppPool(t)
-	ctx := context.Background()
 	a, b := seedMerchant(t, pool), seedMerchant(t, pool)
 	keyA := seedIdempotencyRecord(t, pool, a)
 	keyB := seedIdempotencyRecord(t, pool, b)
@@ -686,8 +746,8 @@ func TestIntegration_RLS_IdempotencyRecordsIsolated(t *testing.T) {
 	if tag.RowsAffected() != 0 {
 		t.Errorf("A deleted %d of B's idempotency records, want 0", tag.RowsAffected())
 	}
-	if rec, err := pgstore.NewIdempotencyStore(pool).Existing(ctx, b, idempotencyScope, keyB); err != nil || rec == nil {
-		t.Errorf("B's idempotency record = %+v err=%v, want it unchanged", rec, err)
+	if n := countAsMerchant(t, pool, b, selectIdempotencyByKeySQL, b, idempotencyScope, keyB); n != 1 {
+		t.Errorf("B's idempotency records = %d, want 1 (unchanged)", n)
 	}
 }
 
@@ -774,10 +834,22 @@ func TestIntegration_RLS_RepositoriesWorkAsIrisApp(t *testing.T) {
 
 	store := pgstore.NewIdempotencyStore(appPool)
 	key := uuid.NewString()
-	if exists, err := store.Save(ctx, owner, idempotencyScope, key, idempotencyRequestHash, idempotencyResponseStatus, idempotencyResponseBody); err != nil || exists {
-		t.Fatalf("save: exists=%v err=%v", exists, err)
+	storeIdempotencyRecord(t, store, owner, idempotencyScope, key, idempotencyRequestHash)
+	if rec, err := store.Reserve(ctx, owner, idempotencyScope, key, idempotencyRequestHash); err != nil || rec == nil || rec.InProgress {
+		t.Errorf("owner retry = %+v err=%v, want the stored record", rec, err)
 	}
-	if rec, err := store.Existing(ctx, other, idempotencyScope, key); err != nil || rec != nil {
-		t.Errorf("foreign idempotency read = %+v err=%v, want none", rec, err)
+	if n := countAsMerchant(t, appPool, other, selectIdempotencyByKeySQL, owner, idempotencyScope, key); n != 0 {
+		t.Errorf("foreign idempotency read = %d rows, want 0", n)
+	}
+
+	releasedKey := uuid.NewString()
+	if rec, err := store.Reserve(ctx, owner, idempotencyScope, releasedKey, idempotencyRequestHash); err != nil || rec != nil {
+		t.Fatalf("reserve: record=%+v err=%v, want a new reservation", rec, err)
+	}
+	if err := store.Release(ctx, owner, idempotencyScope, releasedKey); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	if n := countAsMerchant(t, appPool, owner, selectIdempotencyByKeySQL, owner, idempotencyScope, releasedKey); n != 0 {
+		t.Errorf("released reservation rows = %d, want 0", n)
 	}
 }
