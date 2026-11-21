@@ -16,7 +16,9 @@ RUN npm install -g corepack@0.34.0 && corepack enable
 
 WORKDIR /repo
 
-# --- Layer 1: workspace manifests + lockfile (Yarn 4 needs ALL workspaces to validate lockfile) ---
+# --- Layer 1: workspace manifests + lockfile ---
+# The lockfile names every workspace, so the other manifests have to be
+# present. The install below does not link them.
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY apps/anti-fraud/package.json apps/anti-fraud/package.json
 COPY apps/web/package.json apps/web/package.json
@@ -28,9 +30,13 @@ COPY libs/sdk-web/package.json libs/sdk-web/package.json
 COPY apps/anti-fraud/prisma apps/anti-fraud/prisma
 COPY apps/anti-fraud/prisma.config.ts apps/anti-fraud/prisma.config.ts
 
-# --- Layer 3: install deps ---
+# --- Layer 3: anti-fraud, @iris-gate/fraud, and their dependencies ---
+# `workspaces focus` materializes only those workspaces. Dev dependencies stay
+# (Nest CLI, Prisma CLI, tsc) because `yarn dev` builds the lib and starts the
+# watcher. Next.js, Playwright, and the rest of apps/web are not installed.
+# focus has no --immutable flag; the env var is that same lockfile check.
 ENV YARN_ENABLE_GLOBAL_CACHE=false
-RUN yarn install --immutable
+RUN YARN_ENABLE_IMMUTABLE_INSTALLS=true yarn workspaces focus @iris-gate/anti-fraud
 
 # --- Layer 4: shared tool configs (tsconfig bases), then the fraud lib source + build ---
 COPY configs configs

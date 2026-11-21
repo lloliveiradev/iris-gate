@@ -45,7 +45,7 @@ Rules evaluate a `FeatureSnapshot` and ship as specifications, with default weig
 | `VELOCITY`       | 0.5    | `{ maxAttempts24h: 5 }`    | Placeholder pending owner review |
 | `DECLINE_BURST`  | 0.7    | `{ maxDeclines24h: 3 }`    | Placeholder pending owner review |
 
-`DecisionThresholds.defaults()` is review at 30 and reject at 70. A score at or above reject is `REJECT`, at or above review is `REVIEW`, otherwise `APPROVE`. `ScoreRiskUseCase` is idempotent by `payment_intent_id` and writes the assessment, `features_snapshot`, `attempted` outcome, and outbox event in one transaction through `ScoredAssessmentStore`. The package must be built (`make -C libs/fraud build`) before the Nest app runs; the `dev`, `build`, and `typecheck` scripts in `apps/anti-fraud` do that.
+`DecisionThresholds.defaults()` is review at 30 and reject at 70. A score at or above reject is `REJECT`, at or above review is `REVIEW`, otherwise `APPROVE`. `ScoreRiskUseCase` is idempotent by `payment_intent_id` and writes the assessment, `features_snapshot`, `attempted` outcome, and outbox event in one transaction through `ScoredAssessmentStore`. The package must be built (`make -C libs/fraud build`) before the Nest app runs; the `dev`, `build`, `typecheck`, and `test` scripts in `apps/anti-fraud` do that.
 
 ## contracts
 
