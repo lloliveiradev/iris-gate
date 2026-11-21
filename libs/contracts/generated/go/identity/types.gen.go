@@ -11,26 +11,513 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for MerchantStatus.
+// Defines values for AccessTokenTokenType.
 const (
-	Active    MerchantStatus = "active"
-	Pending   MerchantStatus = "pending"
-	Suspended MerchantStatus = "suspended"
+	AccessTokenTokenTypeBearer AccessTokenTokenType = "Bearer"
 )
 
-// Valid indicates whether the value is a known member of the MerchantStatus enum.
-func (e MerchantStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the AccessTokenTokenType enum.
+func (e AccessTokenTokenType) Valid() bool {
 	switch e {
-	case Active:
-		return true
-	case Pending:
-		return true
-	case Suspended:
+	case AccessTokenTokenTypeBearer:
 		return true
 	default:
 		return false
 	}
 }
+
+// Defines values for ActorType.
+const (
+	ActorTypeApiKey       ActorType = "api_key"
+	ActorTypePlatformUser ActorType = "platform_user"
+	ActorTypeSystem       ActorType = "system"
+	ActorTypeUser         ActorType = "user"
+)
+
+// Valid indicates whether the value is a known member of the ActorType enum.
+func (e ActorType) Valid() bool {
+	switch e {
+	case ActorTypeApiKey:
+		return true
+	case ActorTypePlatformUser:
+		return true
+	case ActorTypeSystem:
+		return true
+	case ActorTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ApiKeyKind.
+const (
+	Publishable ApiKeyKind = "publishable"
+	Restricted  ApiKeyKind = "restricted"
+	Secret      ApiKeyKind = "secret"
+)
+
+// Valid indicates whether the value is a known member of the ApiKeyKind enum.
+func (e ApiKeyKind) Valid() bool {
+	switch e {
+	case Publishable:
+		return true
+	case Restricted:
+		return true
+	case Secret:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ApiKeyStatus.
+const (
+	ApiKeyStatusActive  ApiKeyStatus = "active"
+	ApiKeyStatusExpired ApiKeyStatus = "expired"
+	ApiKeyStatusRevoked ApiKeyStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the ApiKeyStatus enum.
+func (e ApiKeyStatus) Valid() bool {
+	switch e {
+	case ApiKeyStatusActive:
+		return true
+	case ApiKeyStatusExpired:
+		return true
+	case ApiKeyStatusRevoked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssignableMemberRole.
+const (
+	AssignableMemberRoleAdmin       AssignableMemberRole = "admin"
+	AssignableMemberRoleDeveloper   AssignableMemberRole = "developer"
+	AssignableMemberRoleOperations  AssignableMemberRole = "operations"
+	AssignableMemberRoleRiskAnalyst AssignableMemberRole = "risk_analyst"
+	AssignableMemberRoleViewer      AssignableMemberRole = "viewer"
+)
+
+// Valid indicates whether the value is a known member of the AssignableMemberRole enum.
+func (e AssignableMemberRole) Valid() bool {
+	switch e {
+	case AssignableMemberRoleAdmin:
+		return true
+	case AssignableMemberRoleDeveloper:
+		return true
+	case AssignableMemberRoleOperations:
+		return true
+	case AssignableMemberRoleRiskAnalyst:
+		return true
+	case AssignableMemberRoleViewer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InvitationStatus.
+const (
+	InvitationStatusAccepted InvitationStatus = "accepted"
+	InvitationStatusExpired  InvitationStatus = "expired"
+	InvitationStatusPending  InvitationStatus = "pending"
+	InvitationStatusRevoked  InvitationStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the InvitationStatus enum.
+func (e InvitationStatus) Valid() bool {
+	switch e {
+	case InvitationStatusAccepted:
+		return true
+	case InvitationStatusExpired:
+		return true
+	case InvitationStatusPending:
+		return true
+	case InvitationStatusRevoked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JwkAlg.
+const (
+	EdDSA JwkAlg = "EdDSA"
+)
+
+// Valid indicates whether the value is a known member of the JwkAlg enum.
+func (e JwkAlg) Valid() bool {
+	switch e {
+	case EdDSA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JwkCrv.
+const (
+	Ed25519 JwkCrv = "Ed25519"
+)
+
+// Valid indicates whether the value is a known member of the JwkCrv enum.
+func (e JwkCrv) Valid() bool {
+	switch e {
+	case Ed25519:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JwkKty.
+const (
+	OKP JwkKty = "OKP"
+)
+
+// Valid indicates whether the value is a known member of the JwkKty enum.
+func (e JwkKty) Valid() bool {
+	switch e {
+	case OKP:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JwkUse.
+const (
+	Sig JwkUse = "sig"
+)
+
+// Valid indicates whether the value is a known member of the JwkUse enum.
+func (e JwkUse) Valid() bool {
+	switch e {
+	case Sig:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MemberStatus.
+const (
+	MemberStatusActive  MemberStatus = "active"
+	MemberStatusRemoved MemberStatus = "removed"
+)
+
+// Valid indicates whether the value is a known member of the MemberStatus enum.
+func (e MemberStatus) Valid() bool {
+	switch e {
+	case MemberStatusActive:
+		return true
+	case MemberStatusRemoved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MemberRole.
+const (
+	MemberRoleAdmin       MemberRole = "admin"
+	MemberRoleDeveloper   MemberRole = "developer"
+	MemberRoleOperations  MemberRole = "operations"
+	MemberRoleOwner       MemberRole = "owner"
+	MemberRoleRiskAnalyst MemberRole = "risk_analyst"
+	MemberRoleViewer      MemberRole = "viewer"
+)
+
+// Valid indicates whether the value is a known member of the MemberRole enum.
+func (e MemberRole) Valid() bool {
+	switch e {
+	case MemberRoleAdmin:
+		return true
+	case MemberRoleDeveloper:
+		return true
+	case MemberRoleOperations:
+		return true
+	case MemberRoleOwner:
+		return true
+	case MemberRoleRiskAnalyst:
+		return true
+	case MemberRoleViewer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MerchantStatus.
+const (
+	MerchantStatusActive    MerchantStatus = "active"
+	MerchantStatusPending   MerchantStatus = "pending"
+	MerchantStatusSuspended MerchantStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the MerchantStatus enum.
+func (e MerchantStatus) Valid() bool {
+	switch e {
+	case MerchantStatusActive:
+		return true
+	case MerchantStatusPending:
+		return true
+	case MerchantStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TokenAudience.
+const (
+	IrisDashboard TokenAudience = "iris-dashboard"
+	IrisPlatform  TokenAudience = "iris-platform"
+)
+
+// Valid indicates whether the value is a known member of the TokenAudience enum.
+func (e TokenAudience) Valid() bool {
+	switch e {
+	case IrisDashboard:
+		return true
+	case IrisPlatform:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TokenPairTokenType.
+const (
+	TokenPairTokenTypeBearer TokenPairTokenType = "Bearer"
+)
+
+// Valid indicates whether the value is a known member of the TokenPairTokenType enum.
+func (e TokenPairTokenType) Valid() bool {
+	switch e {
+	case TokenPairTokenTypeBearer:
+		return true
+	default:
+		return false
+	}
+}
+
+// AcceptInvitationRequest defines model for AcceptInvitationRequest.
+type AcceptInvitationRequest struct {
+	// Name Required when no user exists for the invited email.
+	Name *string `json:"name,omitempty"`
+
+	// Password Required when no user exists (new password) and, for an existing user
+	// without an access JWT, to prove ownership of the account.
+	Password *string `json:"password,omitempty"`
+}
+
+// AccessToken defines model for AccessToken.
+type AccessToken struct {
+	AccessToken string `json:"access_token"`
+
+	// AuthTime When the user last proved the password (the `auth_time` claim). Step-up needs it within 5 minutes.
+	AuthTime time.Time `json:"auth_time"`
+
+	// ExpiresIn Access token lifetime in seconds.
+	ExpiresIn int                  `json:"expires_in"`
+	TokenType AccessTokenTokenType `json:"token_type"`
+}
+
+// AccessTokenTokenType defines model for AccessToken.TokenType.
+type AccessTokenTokenType string
+
+// ActorType defines model for ActorType.
+type ActorType string
+
+// ApiKey defines model for ApiKey.
+type ApiKey struct {
+	CreatedAt  time.Time          `json:"created_at"`
+	ExpiresAt  *time.Time         `json:"expires_at,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+	Kind       ApiKeyKind         `json:"kind"`
+	LastUsedAt *time.Time         `json:"last_used_at,omitempty"`
+	Name       string             `json:"name"`
+	Prefix     string             `json:"prefix"`
+
+	// PublishableKey Public `ipk_` value. Present only when `kind` is `publishable`.
+	PublishableKey *string    `json:"publishable_key,omitempty"`
+	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
+
+	// Scopes Permissions of a `restricted` key. Empty for the other kinds.
+	Scopes []Permission `json:"scopes"`
+	Status ApiKeyStatus `json:"status"`
+}
+
+// ApiKeyKind defines model for ApiKeyKind.
+type ApiKeyKind string
+
+// ApiKeyList defines model for ApiKeyList.
+type ApiKeyList struct {
+	Data []ApiKey `json:"data"`
+}
+
+// ApiKeyStatus defines model for ApiKeyStatus.
+type ApiKeyStatus string
+
+// AssignableMemberRole Roles that can be granted by invitation or role change. `owner` only moves through ownership transfer.
+type AssignableMemberRole string
+
+// AuditEvent defines model for AuditEvent.
+type AuditEvent struct {
+	// Action For example `api_key.created`, `member.role_changed`.
+	Action    string    `json:"action"`
+	ActorId   string    `json:"actor_id"`
+	ActorType ActorType `json:"actor_type"`
+
+	// Data Sanitized details. Never contains secrets, tokens or raw emails.
+	Data       *map[string]interface{} `json:"data,omitempty"`
+	EntityId   *string                 `json:"entity_id,omitempty"`
+	EntityType string                  `json:"entity_type"`
+	Id         openapi_types.UUID      `json:"id"`
+	OccurredAt time.Time               `json:"occurred_at"`
+	RequestId  *string                 `json:"request_id,omitempty"`
+}
+
+// AuditEventPage defines model for AuditEventPage.
+type AuditEventPage struct {
+	Data       []AuditEvent `json:"data"`
+	NextCursor *string      `json:"next_cursor,omitempty"`
+}
+
+// ChangeMemberRoleRequest defines model for ChangeMemberRoleRequest.
+type ChangeMemberRoleRequest struct {
+	// Role Roles that can be granted by invitation or role change. `owner` only moves through ownership transfer.
+	Role AssignableMemberRole `json:"role"`
+}
+
+// CreateApiKeyRequest defines model for CreateApiKeyRequest.
+type CreateApiKeyRequest struct {
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Kind      ApiKeyKind `json:"kind"`
+	Name      string     `json:"name"`
+
+	// Scopes Required for `restricted`, ignored otherwise.
+	Scopes *[]Permission `json:"scopes,omitempty"`
+}
+
+// CreateInvitationRequest defines model for CreateInvitationRequest.
+type CreateInvitationRequest struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Role Roles that can be granted by invitation or role change. `owner` only moves through ownership transfer.
+	Role AssignableMemberRole `json:"role"`
+}
+
+// CreatePlatformMerchantRequest defines model for CreatePlatformMerchantRequest.
+type CreatePlatformMerchantRequest struct {
+	Document   string              `json:"document"`
+	LegalName  string              `json:"legal_name"`
+	OwnerEmail openapi_types.Email `json:"owner_email"`
+}
+
+// Invitation defines model for Invitation.
+type Invitation struct {
+	CreatedAt time.Time           `json:"created_at"`
+	Email     openapi_types.Email `json:"email"`
+	ExpiresAt time.Time           `json:"expires_at"`
+	Id        openapi_types.UUID  `json:"id"`
+	Role      MemberRole          `json:"role"`
+	Status    InvitationStatus    `json:"status"`
+}
+
+// InvitationStatus defines model for Invitation.Status.
+type InvitationStatus string
+
+// InvitationList defines model for InvitationList.
+type InvitationList struct {
+	Data []Invitation `json:"data"`
+}
+
+// IssuedApiKey defines model for IssuedApiKey.
+type IssuedApiKey struct {
+	CreatedAt  time.Time          `json:"created_at"`
+	ExpiresAt  *time.Time         `json:"expires_at,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+	Kind       ApiKeyKind         `json:"kind"`
+	LastUsedAt *time.Time         `json:"last_used_at,omitempty"`
+	Name       string             `json:"name"`
+	Prefix     string             `json:"prefix"`
+
+	// PublishableKey Public `ipk_` value. Present only when `kind` is `publishable`.
+	PublishableKey *string    `json:"publishable_key,omitempty"`
+	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
+
+	// Scopes Permissions of a `restricted` key. Empty for the other kinds.
+	Scopes []Permission `json:"scopes"`
+
+	// Secret Plaintext `irk_` or `irr_` token, returned once. Absent for `publishable` keys.
+	Secret *string      `json:"secret,omitempty"`
+	Status ApiKeyStatus `json:"status"`
+}
+
+// Jwk defines model for Jwk.
+type Jwk struct {
+	Alg JwkAlg `json:"alg"`
+	Crv JwkCrv `json:"crv"`
+	Kid string `json:"kid"`
+	Kty JwkKty `json:"kty"`
+	Use JwkUse `json:"use"`
+
+	// X Base64url public key.
+	X string `json:"x"`
+}
+
+// JwkAlg defines model for Jwk.Alg.
+type JwkAlg string
+
+// JwkCrv defines model for Jwk.Crv.
+type JwkCrv string
+
+// JwkKty defines model for Jwk.Kty.
+type JwkKty string
+
+// JwkUse defines model for Jwk.Use.
+type JwkUse string
+
+// JwkSet defines model for JwkSet.
+type JwkSet struct {
+	Keys []Jwk `json:"keys"`
+}
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Audience *TokenAudience      `json:"audience,omitempty"`
+	Email    openapi_types.Email `json:"email"`
+
+	// MerchantId Active merchant to sign in to. Defaults to the default membership of the user.
+	MerchantId *openapi_types.UUID `json:"merchant_id,omitempty"`
+	Password   *string             `json:"password,omitempty"`
+}
+
+// Member defines model for Member.
+type Member struct {
+	CreatedAt time.Time           `json:"created_at"`
+	Email     openapi_types.Email `json:"email"`
+	Name      string              `json:"name"`
+	Role      MemberRole          `json:"role"`
+	Status    MemberStatus        `json:"status"`
+	UserId    openapi_types.UUID  `json:"user_id"`
+}
+
+// MemberStatus defines model for Member.Status.
+type MemberStatus string
+
+// MemberList defines model for MemberList.
+type MemberList struct {
+	Data []Member `json:"data"`
+}
+
+// MemberRole defines model for MemberRole.
+type MemberRole string
 
 // Merchant defines model for Merchant.
 type Merchant struct {
@@ -42,11 +529,46 @@ type Merchant struct {
 	Status       MerchantStatus      `json:"status"`
 }
 
+// MerchantPage defines model for MerchantPage.
+type MerchantPage struct {
+	Data       []Merchant `json:"data"`
+	NextCursor *string    `json:"next_cursor,omitempty"`
+}
+
 // MerchantStatus defines model for MerchantStatus.
 type MerchantStatus string
 
+// Password defines model for Password.
+type Password = string
+
+// PasswordChangeRequest defines model for PasswordChangeRequest.
+type PasswordChangeRequest struct {
+	CurrentPassword *string   `json:"current_password,omitempty"`
+	NewPassword     *Password `json:"new_password,omitempty"`
+}
+
+// PasswordResetConfirmRequest defines model for PasswordResetConfirmRequest.
+type PasswordResetConfirmRequest struct {
+	NewPassword *Password `json:"new_password,omitempty"`
+	Token       string    `json:"token"`
+}
+
+// PasswordResetRequest defines model for PasswordResetRequest.
+type PasswordResetRequest struct {
+	Email openapi_types.Email `json:"email"`
+}
+
+// Permission A merchant permission (see the role matrix in the design docs), for example `payments.read`.
+type Permission = string
+
 // Problem defines model for Problem.
 type Problem struct {
+	// Code Stable error code, for example `invalid_credentials`,
+	// `reauthentication_required`, `merchant_not_active`,
+	// `concurrent_refresh`, `refresh_token_reused`, `cannot_remove_owner`,
+	// `invitation_unavailable`, `invalid_status_transition`,
+	// `rate_limited`, `validation_error`.
+	Code                 *string                `json:"code,omitempty"`
 	Detail               *string                `json:"detail,omitempty"`
 	Instance             *string                `json:"instance,omitempty"`
 	Status               int                    `json:"status"`
@@ -55,11 +577,190 @@ type Problem struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
+// ReauthenticateRequest defines model for ReauthenticateRequest.
+type ReauthenticateRequest struct {
+	Password *string `json:"password,omitempty"`
+}
+
+// RefreshRequest defines model for RefreshRequest.
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// RollApiKeyRequest defines model for RollApiKeyRequest.
+type RollApiKeyRequest struct {
+	// OverlapSeconds How long the old key keeps working. Default 86400 (24 hours), maximum 604800 (7 days).
+	OverlapSeconds *int `json:"overlap_seconds,omitempty"`
+}
+
+// SignUpRequest defines model for SignUpRequest.
+type SignUpRequest struct {
+	Document  string              `json:"document"`
+	Email     openapi_types.Email `json:"email"`
+	LegalName string              `json:"legal_name"`
+	Name      string              `json:"name"`
+	Password  *Password           `json:"password,omitempty"`
+}
+
+// SignUpResponse defines model for SignUpResponse.
+type SignUpResponse struct {
+	MerchantId     openapi_types.UUID `json:"merchant_id"`
+	MerchantStatus MerchantStatus     `json:"merchant_status"`
+	UserId         openapi_types.UUID `json:"user_id"`
+}
+
+// SuspendMerchantRequest defines model for SuspendMerchantRequest.
+type SuspendMerchantRequest struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
+// SwitchMerchantRequest defines model for SwitchMerchantRequest.
+type SwitchMerchantRequest struct {
+	TargetMerchantId openapi_types.UUID `json:"target_merchant_id"`
+}
+
+// TokenAudience defines model for TokenAudience.
+type TokenAudience string
+
+// TokenPair defines model for TokenPair.
+type TokenPair struct {
+	AccessToken string `json:"access_token"`
+
+	// AuthTime When the user last proved the password (the `auth_time` claim). Step-up needs it within 5 minutes.
+	AuthTime time.Time `json:"auth_time"`
+
+	// ExpiresIn Access token lifetime in seconds.
+	ExpiresIn int `json:"expires_in"`
+
+	// RefreshToken Opaque, single-use refresh token. Shown only here; store it server-side.
+	RefreshToken string             `json:"refresh_token"`
+	TokenType    TokenPairTokenType `json:"token_type"`
+}
+
+// TokenPairTokenType defines model for TokenPair.TokenType.
+type TokenPairTokenType string
+
+// TokenRequest defines model for TokenRequest.
+type TokenRequest struct {
+	Token string `json:"token"`
+}
+
+// TransferOwnershipRequest defines model for TransferOwnershipRequest.
+type TransferOwnershipRequest struct {
+	TargetUserId openapi_types.UUID `json:"target_user_id"`
+}
+
+// ApiKeyId defines model for ApiKeyId.
+type ApiKeyId = openapi_types.UUID
+
+// Cursor defines model for Cursor.
+type Cursor = string
+
+// InvitationId defines model for InvitationId.
+type InvitationId = openapi_types.UUID
+
+// Limit defines model for Limit.
+type Limit = int
+
+// MerchantId defines model for MerchantId.
+type MerchantId = openapi_types.UUID
+
+// UserId defines model for UserId.
+type UserId = openapi_types.UUID
+
+// BadRequest defines model for BadRequest.
+type BadRequest = Problem
+
+// Conflict defines model for Conflict.
+type Conflict = Problem
+
 // Forbidden defines model for Forbidden.
 type Forbidden = Problem
 
+// Gone defines model for Gone.
+type Gone = Problem
+
+// NotFound defines model for NotFound.
+type NotFound = Problem
+
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = Problem
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Problem
+
+// ListAuditEventsParams defines parameters for ListAuditEvents.
+type ListAuditEventsParams struct {
+	// Action Exact action, for example `api_key.created`.
+	Action *string `form:"action,omitempty" json:"action,omitempty"`
+
+	// Cursor Opaque cursor from `next_cursor` of the previous page.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListPlatformMerchantsParams defines parameters for ListPlatformMerchants.
+type ListPlatformMerchantsParams struct {
+	Status *MerchantStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Q Case-insensitive match on the legal name.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Cursor Opaque cursor from `next_cursor` of the previous page.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
+type CreateApiKeyJSONRequestBody = CreateApiKeyRequest
+
+// RollApiKeyJSONRequestBody defines body for RollApiKey for application/json ContentType.
+type RollApiKeyJSONRequestBody = RollApiKeyRequest
+
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = LoginRequest
+
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody = PasswordChangeRequest
+
+// RequestPasswordResetJSONRequestBody defines body for RequestPasswordReset for application/json ContentType.
+type RequestPasswordResetJSONRequestBody = PasswordResetRequest
+
+// ConfirmPasswordResetJSONRequestBody defines body for ConfirmPasswordReset for application/json ContentType.
+type ConfirmPasswordResetJSONRequestBody = PasswordResetConfirmRequest
+
+// ReauthenticateJSONRequestBody defines body for Reauthenticate for application/json ContentType.
+type ReauthenticateJSONRequestBody = ReauthenticateRequest
+
+// RefreshSessionJSONRequestBody defines body for RefreshSession for application/json ContentType.
+type RefreshSessionJSONRequestBody = RefreshRequest
+
+// SignUpJSONRequestBody defines body for SignUp for application/json ContentType.
+type SignUpJSONRequestBody = SignUpRequest
+
+// SwitchMerchantJSONRequestBody defines body for SwitchMerchant for application/json ContentType.
+type SwitchMerchantJSONRequestBody = SwitchMerchantRequest
+
+// VerifyEmailJSONRequestBody defines body for VerifyEmail for application/json ContentType.
+type VerifyEmailJSONRequestBody = TokenRequest
+
+// CreateInvitationJSONRequestBody defines body for CreateInvitation for application/json ContentType.
+type CreateInvitationJSONRequestBody = CreateInvitationRequest
+
+// AcceptInvitationJSONRequestBody defines body for AcceptInvitation for application/json ContentType.
+type AcceptInvitationJSONRequestBody = AcceptInvitationRequest
+
+// TransferOwnershipJSONRequestBody defines body for TransferOwnership for application/json ContentType.
+type TransferOwnershipJSONRequestBody = TransferOwnershipRequest
+
+// ChangeMemberRoleJSONRequestBody defines body for ChangeMemberRole for application/json ContentType.
+type ChangeMemberRoleJSONRequestBody = ChangeMemberRoleRequest
+
+// CreatePlatformMerchantJSONRequestBody defines body for CreatePlatformMerchant for application/json ContentType.
+type CreatePlatformMerchantJSONRequestBody = CreatePlatformMerchantRequest
+
+// SuspendPlatformMerchantJSONRequestBody defines body for SuspendPlatformMerchant for application/json ContentType.
+type SuspendPlatformMerchantJSONRequestBody = SuspendMerchantRequest
 
 // Getter for additional properties for Problem. Returns the specified
 // element and whether it was found
@@ -84,6 +785,14 @@ func (a *Problem) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, &object)
 	if err != nil {
 		return err
+	}
+
+	if raw, found := object["code"]; found {
+		err = json.Unmarshal(raw, &a.Code)
+		if err != nil {
+			return fmt.Errorf("error reading 'code': %w", err)
+		}
+		delete(object, "code")
 	}
 
 	if raw, found := object["detail"]; found {
@@ -144,6 +853,13 @@ func (a *Problem) UnmarshalJSON(b []byte) error {
 func (a Problem) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
+
+	if a.Code != nil {
+		object["code"], err = json.Marshal(a.Code)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'code': %w", err)
+		}
+	}
 
 	if a.Detail != nil {
 		object["detail"], err = json.Marshal(a.Detail)

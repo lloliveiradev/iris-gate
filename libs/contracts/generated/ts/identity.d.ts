@@ -12,13 +12,586 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Resolve merchant from API key (auth gate test)
-         * @description Endpoint protegido. Requer `Authorization: Bearer <api-key>` no formato
-         *     `irk_<prefix>.<secret>`. Retorna o merchant dono da chave.
+         * Resolve the merchant of the caller (auth gate test)
+         * @description Protected endpoint. Requires `Authorization: Bearer <credential>`, either
+         *     an API key (`irk_<prefix>.<secret>`) or a dashboard access JWT. Returns the
+         *     merchant that owns the credential. Open to `pending` merchants.
          */
         get: operations["getCurrentMerchant"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/jwks.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public signing keys
+         * @description JSON Web Key Set with the Ed25519 public keys (`kty: OKP`, `crv: Ed25519`,
+         *     `alg: EdDSA`) that verify access JWTs. During a rotation the previous key
+         *     stays listed until the tokens it signed expire. Never exposes private
+         *     key material.
+         */
+        get: operations["getJwks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Self-signup
+         * @description Creates an unverified user, a `pending` merchant and an `owner` membership,
+         *     then sends a verification email. Rate limited per IP and per email.
+         */
+        post: operations["signUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify an email address with a single-use token */
+        post: operations["verifyEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in with email and password
+         * @description Answers one generic `401 invalid_credentials` for an unknown email, a wrong
+         *     password, or an unverified or disabled user. Rate limited per IP and per
+         *     email. `audience` selects the dashboard or the platform console.
+         */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate the refresh token and issue a new access token
+         * @description Presenting an already rotated refresh token outside the grace window
+         *     revokes the whole family (`401 refresh_token_reused`). A concurrent
+         *     refresh with the same token inside the grace window gets the same new
+         *     pair, or `409 concurrent_refresh` when that pair is no longer available;
+         *     the family is not revoked in that case.
+         */
+        post: operations["refreshSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke the refresh family of the current session */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a password reset email
+         * @description Always answers 202, whether or not the email belongs to a user, so the
+         *     endpoint does not reveal which emails exist. The reset token is
+         *     single-use and valid for one hour. Rate limited.
+         */
+        post: operations["requestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password with a reset token
+         * @description Revokes every refresh family of the user.
+         */
+        post: operations["confirmPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/password-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the password of the signed-in user
+         * @description Revokes every refresh family of the user.
+         */
+        post: operations["changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/reauthenticate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Step-up re-authentication
+         * @description Verifies the password of the current user and issues a fresh access
+         *     token whose `auth_time` is now. Sensitive actions (creating or rolling an
+         *     API key, changing a member role, transferring ownership) require an
+         *     `auth_time` within the last 5 minutes and otherwise answer
+         *     `403 reauthentication_required`.
+         */
+        post: operations["reauthenticate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/switch-merchant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue an access token for another membership
+         * @description The user must have an active membership in the target merchant. A
+         *     merchant the user does not belong to answers 404, so existence is not
+         *     leaked. `auth_time` is preserved.
+         */
+        post: operations["switchMerchant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the members of the active merchant
+         * @description Requires `members.manage`.
+         */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members/transfer-ownership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer ownership to another active member
+         * @description Only the current `owner` can call it, and it needs step-up
+         *     (`403 reauthentication_required`). The current owner becomes `admin`.
+         *     There is exactly one owner per merchant.
+         */
+        post: operations["transferOwnership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a member
+         * @description Requires `members.manage`. The sole owner cannot be removed
+         *     (`409 cannot_remove_owner`). The member loses access within one access
+         *     token lifetime and refresh fails immediately.
+         */
+        delete: operations["removeMember"];
+        options?: never;
+        head?: never;
+        /**
+         * Change the role of a member
+         * @description Requires `members.manage` and step-up (`403 reauthentication_required`).
+         *     The role cannot be set to `owner` (use ownership transfer) and the owner
+         *     cannot be demoted.
+         */
+        patch: operations["changeMemberRole"];
+        trace?: never;
+    };
+    "/v1/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the invitations of the active merchant
+         * @description Requires `members.manage`. Open to `pending` merchants.
+         */
+        get: operations["listInvitations"];
+        put?: never;
+        /**
+         * Invite a member by email
+         * @description Requires `members.manage`. The invitation token is single-use, stored as
+         *     a hash and valid for 72 hours; it is only sent by email. The role cannot
+         *     be `owner`. Open to `pending` merchants.
+         */
+        post: operations["createInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitations/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a pending invitation
+         * @description Requires `members.manage`. Scoped to the active merchant.
+         */
+        post: operations["revokeInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Single-use invitation token received by email. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invitation
+         * @description The token is claimed atomically: only one caller wins; a second accept
+         *     answers `410 invitation_unavailable`.
+         *
+         *     - If no user exists for the invited email, `name` and `password` are
+         *       required and an active, email-verified user is created.
+         *     - If a user already exists, the caller must prove ownership of that
+         *       account, either with an access JWT of that user or with `password`.
+         *       An unauthenticated request without the password is rejected
+         *       (`401 authentication_required`), so a leaked invitation email cannot
+         *       hijack an existing account.
+         *     Rate limited.
+         */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the API keys of the active merchant
+         * @description Requires `api_keys.manage`. Returns metadata only. Never returns a hash or
+         *     the secret of a `secret` or `restricted` key; a `publishable` key is
+         *     public and its `publishable_key` is returned.
+         */
+        get: operations["listApiKeys"];
+        put?: never;
+        /**
+         * Create an API key
+         * @description Requires `api_keys.manage` and step-up (`403 reauthentication_required`).
+         *     The plaintext `secret` of a `secret` or `restricted` key is returned
+         *     once, in this response. Open to `pending` merchants.
+         */
+        post: operations["createApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/api-keys/{id}/roll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApiKeyId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Roll an API key
+         * @description Requires `api_keys.manage` and step-up. Issues a new key with the same
+         *     kind, name and scopes, and sets the expiry of the old key to now plus
+         *     `overlap_seconds` (default 24 hours, maximum 7 days). Both keys work
+         *     during the overlap. Rolling a revoked or expired key answers 409.
+         */
+        post: operations["rollApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/api-keys/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApiKeyId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke an API key
+         * @description Requires `api_keys.manage`. Idempotent, so revoking a revoked key returns it unchanged.
+         */
+        post: operations["revokeApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audit-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the audit events of the active merchant
+         * @description Requires `logs.read`. Only events of the caller's merchant are returned,
+         *     newest first. Open to `pending` merchants.
+         */
+        get: operations["listAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/platform/merchants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List merchants (platform console)
+         * @description Requires a platform access JWT (`aud` = `iris-platform`) with the `platform_admin` role.
+         */
+        get: operations["listPlatformMerchants"];
+        put?: never;
+        /**
+         * Create a merchant (sales-led)
+         * @description Creates an `active` merchant and an owner invitation, and sends the
+         *     invitation email after commit.
+         */
+        post: operations["createPlatformMerchant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/platform/merchants/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MerchantId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a pending merchant
+         * @description `pending` to `active`. Any other status answers 409 `invalid_status_transition`.
+         */
+        post: operations["approvePlatformMerchant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/platform/merchants/{id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MerchantId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend an active merchant
+         * @description `active` to `suspended`. Any other status answers 409 `invalid_status_transition`.
+         */
+        post: operations["suspendPlatformMerchant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/platform/merchants/{id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MerchantId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate a suspended merchant
+         * @description `suspended` to `active`. Any other status answers 409 `invalid_status_transition`.
+         */
+        post: operations["reactivatePlatformMerchant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -42,6 +615,240 @@ export interface components {
         };
         /** @enum {string} */
         MerchantStatus: "pending" | "active" | "suspended";
+        MerchantPage: {
+            data: components["schemas"]["Merchant"][];
+            next_cursor?: string | null;
+        };
+        /** @enum {string} */
+        MemberRole: "owner" | "admin" | "developer" | "operations" | "risk_analyst" | "viewer";
+        /**
+         * @description Roles that can be granted by invitation or role change. `owner` only moves through ownership transfer.
+         * @enum {string}
+         */
+        AssignableMemberRole: "admin" | "developer" | "operations" | "risk_analyst" | "viewer";
+        /** Format: password */
+        Password: string;
+        TokenRequest: {
+            token: string;
+        };
+        SignUpRequest: {
+            name: string;
+            /** Format: email */
+            email: string;
+            password: components["schemas"]["Password"];
+            legal_name: string;
+            document: string;
+        };
+        SignUpResponse: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            merchant_id: string;
+            merchant_status: components["schemas"]["MerchantStatus"];
+        };
+        /** @enum {string} */
+        TokenAudience: "iris-dashboard" | "iris-platform";
+        LoginRequest: {
+            /** Format: email */
+            email: string;
+            /** Format: password */
+            password: string;
+            audience?: components["schemas"]["TokenAudience"];
+            /**
+             * Format: uuid
+             * @description Active merchant to sign in to. Defaults to the default membership of the user.
+             */
+            merchant_id?: string;
+        };
+        RefreshRequest: {
+            refresh_token: string;
+        };
+        AccessToken: {
+            access_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            /** @description Access token lifetime in seconds. */
+            expires_in: number;
+            /**
+             * Format: date-time
+             * @description When the user last proved the password (the `auth_time` claim). Step-up needs it within 5 minutes.
+             */
+            auth_time: string;
+        };
+        TokenPair: components["schemas"]["AccessToken"] & {
+            /** @description Opaque, single-use refresh token. Shown only here; store it server-side. */
+            refresh_token: string;
+        };
+        PasswordResetRequest: {
+            /** Format: email */
+            email: string;
+        };
+        PasswordResetConfirmRequest: {
+            token: string;
+            new_password: components["schemas"]["Password"];
+        };
+        PasswordChangeRequest: {
+            /** Format: password */
+            current_password: string;
+            new_password: components["schemas"]["Password"];
+        };
+        ReauthenticateRequest: {
+            /** Format: password */
+            password: string;
+        };
+        SwitchMerchantRequest: {
+            /** Format: uuid */
+            target_merchant_id: string;
+        };
+        Member: {
+            /** Format: uuid */
+            user_id: string;
+            name: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["MemberRole"];
+            /** @enum {string} */
+            status: "active" | "removed";
+            /** Format: date-time */
+            created_at: string;
+        };
+        MemberList: {
+            data: components["schemas"]["Member"][];
+        };
+        ChangeMemberRoleRequest: {
+            role: components["schemas"]["AssignableMemberRole"];
+        };
+        TransferOwnershipRequest: {
+            /** Format: uuid */
+            target_user_id: string;
+        };
+        Invitation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["MemberRole"];
+            /** @enum {string} */
+            status: "pending" | "accepted" | "expired" | "revoked";
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InvitationList: {
+            data: components["schemas"]["Invitation"][];
+        };
+        CreateInvitationRequest: {
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["AssignableMemberRole"];
+        };
+        AcceptInvitationRequest: {
+            /** @description Required when no user exists for the invited email. */
+            name?: string;
+            /**
+             * Format: password
+             * @description Required when no user exists (new password) and, for an existing user
+             *     without an access JWT, to prove ownership of the account.
+             */
+            password?: string;
+        };
+        /** @enum {string} */
+        ApiKeyKind: "secret" | "restricted" | "publishable";
+        /** @enum {string} */
+        ApiKeyStatus: "active" | "revoked" | "expired";
+        /** @description A merchant permission (see the role matrix in the design docs), for example `payments.read`. */
+        Permission: string;
+        ApiKey: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["ApiKeyKind"];
+            name: string;
+            prefix: string;
+            /** @description Permissions of a `restricted` key. Empty for the other kinds. */
+            scopes: components["schemas"]["Permission"][];
+            status: components["schemas"]["ApiKeyStatus"];
+            /** @description Public `ipk_` value. Present only when `kind` is `publishable`. */
+            publishable_key?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: date-time */
+            revoked_at?: string | null;
+        };
+        ApiKeyList: {
+            data: components["schemas"]["ApiKey"][];
+        };
+        IssuedApiKey: components["schemas"]["ApiKey"] & {
+            /** @description Plaintext `irk_` or `irr_` token, returned once. Absent for `publishable` keys. */
+            secret?: string;
+        };
+        CreateApiKeyRequest: {
+            kind: components["schemas"]["ApiKeyKind"];
+            name: string;
+            /** @description Required for `restricted`, ignored otherwise. */
+            scopes?: components["schemas"]["Permission"][];
+            /** Format: date-time */
+            expires_at?: string;
+        };
+        RollApiKeyRequest: {
+            /**
+             * @description How long the old key keeps working. Default 86400 (24 hours), maximum 604800 (7 days).
+             * @default 86400
+             */
+            overlap_seconds: number;
+        };
+        /** @enum {string} */
+        ActorType: "user" | "api_key" | "platform_user" | "system";
+        AuditEvent: {
+            /** Format: uuid */
+            id: string;
+            /** @description For example `api_key.created`, `member.role_changed`. */
+            action: string;
+            entity_type: string;
+            entity_id?: string | null;
+            actor_type: components["schemas"]["ActorType"];
+            actor_id: string;
+            request_id?: string | null;
+            /** @description Sanitized details. Never contains secrets, tokens or raw emails. */
+            data?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            occurred_at: string;
+        };
+        AuditEventPage: {
+            data: components["schemas"]["AuditEvent"][];
+            next_cursor?: string | null;
+        };
+        CreatePlatformMerchantRequest: {
+            legal_name: string;
+            document: string;
+            /** Format: email */
+            owner_email: string;
+        };
+        SuspendMerchantRequest: {
+            reason?: string;
+        };
+        Jwk: {
+            /** @enum {string} */
+            kty: "OKP";
+            /** @enum {string} */
+            crv: "Ed25519";
+            /** @enum {string} */
+            alg: "EdDSA";
+            /** @enum {string} */
+            use: "sig";
+            kid: string;
+            /** @description Base64url public key. */
+            x: string;
+        };
+        JwkSet: {
+            keys: components["schemas"]["Jwk"][];
+        };
         Problem: {
             /** Format: uri */
             type: string;
@@ -50,12 +857,29 @@ export interface components {
             detail?: string;
             /** Format: uri */
             instance?: string;
+            /**
+             * @description Stable error code, for example `invalid_credentials`,
+             *     `reauthentication_required`, `merchant_not_active`,
+             *     `concurrent_refresh`, `refresh_token_reused`, `cannot_remove_owner`,
+             *     `invitation_unavailable`, `invalid_status_transition`,
+             *     `rate_limited`, `validation_error`.
+             */
+            code?: string;
         } & {
             [key: string]: unknown;
         };
     };
     responses: {
-        /** @description API key ausente, malformada ou inválida. */
+        /** @description Invalid request body or query (`validation_error`). */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Credential missing, malformed, expired or invalid (`invalid_credentials`, `refresh_token_reused`, `authentication_required`). */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
@@ -64,7 +888,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description API key revogada ou sem permissão. */
+        /** @description Revoked credential, missing permission, `merchant_not_active` or `reauthentication_required`. */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
@@ -73,8 +897,54 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Resource not found, or it belongs to another merchant (`not_found`). */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description State conflict (`concurrent_refresh`, `cannot_remove_owner`, `invalid_status_transition`, duplicate email or document). */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Token expired, already used or revoked (`token_invalid`, `invitation_unavailable`). */
+        Gone: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Rate limit exceeded (`rate_limited`). */
+        TooManyRequests: {
+            headers: {
+                /** @description Seconds to wait before retrying. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
-    parameters: never;
+    parameters: {
+        UserId: string;
+        InvitationId: string;
+        ApiKeyId: string;
+        MerchantId: string;
+        /** @description Opaque cursor from `next_cursor` of the previous page. */
+        Cursor: string;
+        Limit: number;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -101,6 +971,759 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    getJwks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JwkSet"];
+                };
+            };
+        };
+    };
+    signUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignUpRequest"];
+            };
+        };
+        responses: {
+            /** @description Account created; verification email sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignUpResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    verifyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Email verified. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            410: components["responses"]["Gone"];
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    refreshSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Session refreshed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    requestPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    confirmPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            410: components["responses"]["Gone"];
+        };
+    };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    reauthenticate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReauthenticateRequest"];
+            };
+        };
+        responses: {
+            /** @description Fresh access token. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessToken"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    switchMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwitchMerchantRequest"];
+            };
+        };
+        responses: {
+            /** @description Access token for the target merchant. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessToken"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    transferOwnership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferOwnershipRequest"];
+            };
+        };
+        responses: {
+            /** @description Ownership transferred. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeMemberRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeMemberRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Invitation created and email sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    revokeInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Single-use invitation token received by email. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Invitation accepted; the user is signed in on the merchant. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            410: components["responses"]["Gone"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listApiKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApiKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description API key created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuedApiKey"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    rollApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApiKeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RollApiKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description New key issued; its secret is shown once. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuedApiKey"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    revokeApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApiKeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAuditEvents: {
+        parameters: {
+            query?: {
+                /** @description Exact action, for example `api_key.created`. */
+                action?: string;
+                /** @description Opaque cursor from `next_cursor` of the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listPlatformMerchants: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["MerchantStatus"];
+                /** @description Case-insensitive match on the legal name. */
+                q?: string;
+                /** @description Opaque cursor from `next_cursor` of the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MerchantPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createPlatformMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlatformMerchantRequest"];
+            };
+        };
+        responses: {
+            /** @description Merchant created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Merchant"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    approvePlatformMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MerchantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Merchant"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    suspendPlatformMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MerchantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SuspendMerchantRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Merchant"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    reactivatePlatformMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MerchantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Merchant"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }
