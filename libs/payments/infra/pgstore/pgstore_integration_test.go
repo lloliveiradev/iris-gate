@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -21,6 +22,18 @@ import (
 	"github.com/iris-gate/iris-gate/libs/payments/infra/acquirer"
 	"github.com/iris-gate/iris-gate/libs/payments/infra/pgstore"
 	"github.com/iris-gate/iris-gate/libs/payments/testfixtures"
+	"github.com/iris-gate/iris-gate/libs/shared/pgtenant"
+)
+
+// appURLEnv names the variable holding the iris_app connection URL, the role
+// row-level security applies to (it has no BYPASSRLS).
+const appURLEnv = "IRIS_APP_DATABASE_URL"
+
+// Statements the row-level security tests run as iris_app.
+const (
+	selectAllIntentsSQL = `SELECT count(*) FROM payment_intents`
+	updateAnyIntentSQL  = `UPDATE payment_intents SET description = $1 WHERE id = $2`
+	foreignUpdateMarker = "tampered"
 )
 
 // newPool connects to DATABASE_URL, applies identity then payments migrations
@@ -441,5 +454,127 @@ func TestIntegration_Migration0003_DeletesLegacyRows(t *testing.T) {
 		WHERE i.indrelid = 'idempotency_records'::regclass AND i.indisprimary`).Scan(&pk)
 	if err != nil || pk != "merchant_id,scope,key" {
 		t.Fatalf("primary key = %q err=%v, want merchant_id,scope,key", pk, err)
+	}
+}
+
+// ---------- Phase 07: row-level security on payments tables ----------
+
+// newAppPool connects as iris_app. The test skips when IRIS_APP_DATABASE_URL
+// is unset.
+func newAppPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	url := os.Getenv(appURLEnv)
+	if url == "" {
+		t.Skip(appURLEnv + " not set")
+	}
+	pool, err := pgxpool.New(context.Background(), url)
+	if err != nil {
+		t.Fatalf("connect as iris_app: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+func seedIntentFor(t *testing.T, repo *pgstore.Repo, merchantID uuid.UUID) domain.PaymentIntent {
+	t.Helper()
+	return seedPendingIntent(t, repo, merchantID, testfixtures.TokenApproved)
+}
+
+// TestIntegration_RLS_NoMerchantSeesNoRows covers spec 07 AC3: without
+// app.merchant_id, iris_app reads zero rows even though rows exist.
+func TestIntegration_RLS_NoMerchantSeesNoRows(t *testing.T) {
+	pool := newPool(t)
+	appPool := newAppPool(t)
+	ctx := context.Background()
+	seedIntentFor(t, pgstore.New(pool), seedMerchant(t, pool))
+
+	// Twice, so the second statement may reuse a connection whose
+	// transaction-local setting already ended (empty string, not NULL).
+	for range 2 {
+		var n int
+		if err := appPool.QueryRow(ctx, selectAllIntentsSQL).Scan(&n); err != nil {
+			t.Fatalf("select without merchant: %v", err)
+		}
+		if n != 0 {
+			t.Errorf("payment_intents rows visible without merchant = %d, want 0", n)
+		}
+	}
+}
+
+// TestIntegration_RLS_OtherMerchantInvisibleAndImmutable covers spec 07 AC4:
+// with app.merchant_id = A, merchant B's rows are invisible and cannot be
+// updated or inserted.
+func TestIntegration_RLS_OtherMerchantInvisibleAndImmutable(t *testing.T) {
+	pool := newPool(t)
+	appPool := newAppPool(t)
+	ctx := context.Background()
+	repo := pgstore.New(pool)
+	a, b := seedMerchant(t, pool), seedMerchant(t, pool)
+	intentB := seedIntentFor(t, repo, b)
+
+	err := pgtenant.WithMerchant(ctx, appPool, a.String(), func(ctx context.Context, tx pgx.Tx) error {
+		var n int
+		if err := tx.QueryRow(ctx, selectAllIntentsSQL).Scan(&n); err != nil {
+			return err
+		}
+		if n != 0 {
+			t.Errorf("A sees %d rows, want 0 (only B has intents)", n)
+		}
+		tag, err := tx.Exec(ctx, updateAnyIntentSQL, foreignUpdateMarker, intentB.ID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 0 {
+			t.Errorf("A updated %d of B's rows, want 0", tag.RowsAffected())
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	insertErr := pgtenant.WithMerchant(ctx, appPool, a.String(), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO payment_intents (id, merchant_id, amount_cents, currency, status, card_token, created_at)
+			VALUES ($1,$2,1,'BRL','pending',$3,now())`, uuid.New(), b, testfixtures.TokenApproved)
+		return err
+	})
+	if insertErr == nil {
+		t.Error("A inserted a row for merchant B, want an RLS violation")
+	}
+
+	got, err := repo.GetByID(ctx, b, intentB.ID)
+	if err != nil || got.Description != intentB.Description {
+		t.Errorf("B's intent changed: %+v err=%v", got, err)
+	}
+}
+
+// TestIntegration_RLS_RepositoriesWorkAsIrisApp runs the repositories on the
+// iris_app pool: the owner reads and writes, another merchant cannot.
+func TestIntegration_RLS_RepositoriesWorkAsIrisApp(t *testing.T) {
+	pool := newPool(t)
+	appPool := newAppPool(t)
+	ctx := context.Background()
+	repo := pgstore.New(appPool)
+	owner, other := seedMerchant(t, pool), seedMerchant(t, pool)
+	pi := seedIntentFor(t, repo, owner)
+
+	if _, err := repo.GetByID(ctx, owner, pi.ID); err != nil {
+		t.Errorf("owner read: %v", err)
+	}
+	if _, err := repo.GetByID(ctx, other, pi.ID); !errors.Is(err, domain.ErrPaymentIntentNotFound) {
+		t.Errorf("foreign read err = %v, want ErrPaymentIntentNotFound", err)
+	}
+	list, err := repo.ListByMerchant(ctx, other, 10)
+	if err != nil || len(list) != 0 {
+		t.Errorf("foreign list = %d err=%v, want empty", len(list), err)
+	}
+
+	store := pgstore.NewIdempotencyStore(appPool)
+	key := uuid.NewString()
+	if exists, err := store.Save(ctx, owner, "create_payment_intent", key, []byte("h"), 201, []byte(`{}`)); err != nil || exists {
+		t.Fatalf("save: exists=%v err=%v", exists, err)
+	}
+	if rec, err := store.Existing(ctx, other, "create_payment_intent", key); err != nil || rec != nil {
+		t.Errorf("foreign idempotency read = %+v err=%v, want none", rec, err)
 	}
 }

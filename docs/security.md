@@ -28,7 +28,8 @@ Iris Gate never runs in production and accepts only test card numbers. The contr
 | Users            | MFA                                                                | later                                                                                      |
 | Authorization    | Role-based permissions, route registry test                        | phase 8                                                                                    |
 | Tenant isolation | Merchant check on every by-id route                                | implemented                                                                                |
-| Tenant isolation | Postgres row-level security, cross-tenant test suite               | phase 7                                                                                    |
+| Tenant isolation | Postgres row-level security on payments tables                     | implemented (migration `0005`, `pgtenant.WithMerchant`)                                    |
+| Tenant isolation | Cross-tenant test suite                                            | phase 7                                                                                    |
 | Database         | Separate migrator, app and worker roles per database               | implemented (Postgres init scripts in `infra/docker`)                                      |
 | Database         | TLS to Postgres                                                    | later (phase 21)                                                                           |
 | Idempotency      | `Idempotency-Key` on intent creation with body hash                | implemented (keyed by `(merchant_id, scope, key)`)                                         |
@@ -90,7 +91,7 @@ Phases 6 and 7. Details in [`design/to-be.md`](design/to-be.md) section 9.
 - **Principal-only merchant id (implemented):** the merchant id comes only from the authenticated principal.
 - **Merchant-scoped repositories (implemented):** repository methods take the merchant id as a parameter.
 - **404 policy (implemented):** a resource of another merchant answers 404.
-- **Row-level security (phase 7):** Postgres RLS (`FORCE ROW LEVEL SECURITY`) on merchant-scoped tables, with the merchant set per transaction through `set_config('app.merchant_id', ..., true)`.
+- **Row-level security (payments implemented; identity in phase 7):** Postgres RLS (`FORCE ROW LEVEL SECURITY`) on merchant-scoped tables, with the merchant set per transaction through `set_config('app.merchant_id', ..., true)`.
 - **Cross-tenant test suite (phase 7):** covers every route, and a meta-test fails when a new route is not covered.
 
 ## 7. Service-to-service authentication

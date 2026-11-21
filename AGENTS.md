@@ -143,6 +143,7 @@ The sections below describe current behavior. When a phase changes one of them, 
 - Every repository read by id takes the merchant: `GetByID(ctx, merchantID, id)`. Get, authorize and capture load through it, with the merchant taken from the authenticated principal, never from the request. An intent of another merchant answers 404 `payment_intent_not_found`, the same as a missing id. Do not add an id-only lookup.
 - Idempotency records are keyed by `(merchant_id, scope, key)`. The scope is the route (`create_payment_intent`); the middleware reads the merchant from the principal and must be mounted after authentication (no principal → 401). `GetByMerchantAndIdempotencyKey` was removed: replay lives in the middleware, not in `payment_intents`.
 - `POST /v1/payment-intents` requires `Idempotency-Key`. Authorize and capture are idempotent in the domain; do not add a second side effect on retry.
+- Merchant-scoped payments statements (`payment_intents`, `idempotency_records`) run inside `pgtenant.WithMerchant`; both tables have forced RLS (migration `0005`), so a statement outside it sees no rows as `iris_app`. `outbox_messages` has no `merchant_id` and no RLS; the relay reads it as `iris_worker` without a merchant.
 - Insert the aggregate and the outbox row in the same transaction. Publishing belongs to `libs/payments/infra/kafkarelay`. Use cases do not call Kafka.
 - Empty `ACQUIRER_URL` selects the fake acquirer. Do not point that default at a real processor.
 

@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iris-gate/iris-gate/libs/contracts/generated/go v0.0.0-00010101000000-000000000000
 	github.com/iris-gate/iris-gate/libs/identity v0.0.0-00010101000000-000000000000
+	github.com/iris-gate/iris-gate/libs/shared v0.0.0-00010101000000-000000000000
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/oapi-codegen/runtime v1.8.0
 	github.com/segmentio/kafka-go v0.4.51
@@ -28,4 +29,5 @@ require (
 replace (
 	github.com/iris-gate/iris-gate/libs/contracts/generated/go => ../contracts/generated/go
 	github.com/iris-gate/iris-gate/libs/identity => ../identity
+	github.com/iris-gate/iris-gate/libs/shared => ../shared
 )
