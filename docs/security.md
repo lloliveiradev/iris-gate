@@ -91,7 +91,7 @@ Phases 6 and 7. Details in [`design/to-be.md`](design/to-be.md) section 9.
 - **Principal-only merchant id (implemented):** the merchant id comes only from the authenticated principal.
 - **Merchant-scoped repositories (implemented):** repository methods take the merchant id as a parameter.
 - **404 policy (implemented):** a resource of another merchant answers 404.
-- **Row-level security (payments implemented; identity in phase 7):** Postgres RLS (`FORCE ROW LEVEL SECURITY`) on merchant-scoped tables, with the merchant set per transaction through `set_config('app.merchant_id', ..., true)`.
+- **Row-level security (implemented for payments):** Postgres RLS (`ENABLE` and `FORCE ROW LEVEL SECURITY`) on the merchant-scoped payments tables (`payment_intents`, `idempotency_records`), with the merchant set per transaction through `set_config('app.merchant_id', ..., true)` (`pgtenant.WithMerchant`). Every policy uses `merchant_id = NULLIF(current_setting('app.merchant_id', true), '')::uuid` in both `USING` and `WITH CHECK`: a pooled connection keeps an empty string after a transaction-local `set_config`, and `''::uuid` would raise instead of matching no row. Identity tables are not under RLS ([`design/to-be.md`](design/to-be.md) section 8.1); explicit merchant scoping and the cross-tenant suite cover them. The RLS integration tests run as `iris_app` in the CI `api-int` job.
 - **Cross-tenant test suite (phase 7):** covers every route, and a meta-test fails when a new route is not covered.
 
 ## 7. Service-to-service authentication

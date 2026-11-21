@@ -905,7 +905,7 @@ erDiagram
 
 1. **Principal is the only source of `merchant_id`.** Request bodies and paths never set it.
 2. **Repository signatures require it**, for example `GetByID(ctx, merchantID, id)`. Forgetting the filter becomes a compile error. D1 is exactly that mistake.
-3. **Row-level security.** Each request runs in a transaction that starts with `SELECT set_config('app.merchant_id', $1, true)`. Policies on RLS tables use `merchant_id = current_setting('app.merchant_id', true)::uuid`. When the setting is missing the comparison is null and no row matches. Tables use `FORCE ROW LEVEL SECURITY`.
+3. **Row-level security.** Each request runs in a transaction that starts with `SELECT set_config('app.merchant_id', $1, true)`. Policies on RLS tables use `merchant_id = NULLIF(current_setting('app.merchant_id', true), '')::uuid`. When the setting is missing the comparison is null and no row matches. `NULLIF` is required because a pooled connection keeps an empty string after a transaction-local `set_config`, and `''::uuid` would raise instead of matching no row. Tables use `FORCE ROW LEVEL SECURITY`.
 4. **404 for other merchants' resources**, so a response never confirms that an id exists.
 5. **Cross-tenant test suite.** For every route that reads or changes a merchant resource, a test creates the resource as merchant A and calls the route as merchant B (secret key, restricted key, and user JWT). Expected: 404, and no side effect. It runs in CI.
 
