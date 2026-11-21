@@ -8,11 +8,11 @@ The design was approved by the project owner on 2026-11-10. The overall picture,
 
 | Phase | Spec                                                                       | Depends on | Status                            |
 | ----- | -------------------------------------------------------------------------- | ---------- | --------------------------------- |
-| 06    | [Security baseline](phase-06-security-baseline.md)                         | none       | in progress                       |
+| 06    | [Security baseline](phase-06-security-baseline.md)                         | none       | done                              |
 | 07    | [Database roles and tenant isolation](phase-07-tenant-isolation.md)        | 06         | ready                             |
 | 08    | [Identity and access API](phase-08-identity-access-api.md)                 | 07         | in progress                       |
 | 09    | [Dashboard and console access](phase-09-dashboard-console-access.md)       | 08         | ready                             |
-| 10    | [Synchronous risk scoring](phase-10-sync-risk-scoring.md)                  | 06         | in progress                       |
+| 10    | [Synchronous risk scoring](phase-10-sync-risk-scoring.md)                  | 06         | done                              |
 | 11    | [Payment lifecycle and review](phase-11-payment-lifecycle.md)              | 09, 10     | ready                             |
 | 12    | [Background jobs](phase-12-background-jobs.md)                             | 11         | ready                             |
 | 13    | [Kafka event backbone](phase-13-kafka-backbone.md)                         | 11         | ready                             |
@@ -23,6 +23,8 @@ The design was approved by the project owner on 2026-11-10. The overall picture,
 | 18    | [Visual identity refresh](phase-18-visual-identity.md)                     | 09         | **blocked: owner design session** |
 
 Phase 10 can run in parallel with 07 to 09. Phases 12, 13 and 14 can run in parallel after 11.
+
+The owner approved phases 06 and 10 as `done` on 2026-11-20 after local verification. Anti-fraud p99 was 6.98 ms in process and 11 to 14 ms against the container, under the 100 ms target, and the full local stack verification passed.
 
 Later, without a spec yet: observability, AWS deployment with Terraform, ledger, embedded card fields, 3-D Secure, partial capture, `platform_support` role and impersonation, MFA.
 
