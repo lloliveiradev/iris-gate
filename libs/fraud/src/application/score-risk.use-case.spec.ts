@@ -23,6 +23,7 @@ import {
   FAKE_CARD_BRAND,
   FAKE_CARD_FINGERPRINT,
   FAKE_CONFLICTING_AMOUNT_CENTS,
+  FAKE_CONFLICTING_CARD_FINGERPRINT,
   FAKE_CONFLICTING_CURRENCY,
   FAKE_CONFLICTING_MERCHANT_ID,
   FAKE_CURRENCY,
@@ -111,7 +112,14 @@ const CONFLICTING_REQUESTS: [string, Partial<ScoreRiskInput>][] = [
   ['merchant_id', { merchantId: FAKE_CONFLICTING_MERCHANT_ID }],
   ['amount_cents', { amountCents: FAKE_CONFLICTING_AMOUNT_CENTS }],
   ['currency', { currency: FAKE_CONFLICTING_CURRENCY }],
+  ['card_fingerprint', { cardFingerprint: FAKE_CONFLICTING_CARD_FINGERPRINT }],
 ];
+
+function conflictError(fields: string): AssessmentConflictError {
+  return new AssessmentConflictError(
+    `payment intent ${FAKE_PAYMENT_INTENT_ID} was assessed with a different ${fields}`,
+  );
+}
 
 describe('ScoreRiskUseCase', () => {
   describe('rules on a new payment intent (phase 10 AC1)', () => {
@@ -314,18 +322,44 @@ describe('ScoreRiskUseCase', () => {
       expect(store.saved).toEqual([]);
     });
 
+    it('rejects a repeat after scoring when the card fingerprint differs, without persisting again', async () => {
+      const { features, store, useCase } = setup();
+      await useCase.execute(scoreRiskInput());
+
+      await expect(
+        useCase.execute(scoreRiskInput({ cardFingerprint: FAKE_CONFLICTING_CARD_FINGERPRINT })),
+      ).rejects.toThrow(conflictError('card_fingerprint'));
+      expect(features.queries).toHaveLength(1);
+      expect(store.saved).toHaveLength(1);
+    });
+
     it.each(CONFLICTING_REQUESTS)(
       'rejects a repeat with a different %s as a conflict, without loading features',
-      async (_field, overrides) => {
+      async (field, overrides) => {
         const { features, store, useCase } = setup();
         store.seed(completedAssessment({ decision: Decision.APPROVE, score: 0, reasons: [] }));
         await expect(useCase.execute(scoreRiskInput(overrides))).rejects.toThrow(
-          AssessmentConflictError,
+          conflictError(field),
         );
         expect(features.queries).toEqual([]);
         expect(store.saved).toEqual([]);
       },
     );
+
+    it('lists every conflicting field in the conflict error message', async () => {
+      const { features, store, useCase } = setup();
+      store.seed(completedAssessment({ decision: Decision.APPROVE, score: 0, reasons: [] }));
+      await expect(
+        useCase.execute(
+          scoreRiskInput({
+            amountCents: FAKE_CONFLICTING_AMOUNT_CENTS,
+            cardFingerprint: FAKE_CONFLICTING_CARD_FINGERPRINT,
+          }),
+        ),
+      ).rejects.toThrow(conflictError('amount_cents, card_fingerprint'));
+      expect(features.queries).toEqual([]);
+      expect(store.saved).toEqual([]);
+    });
 
     it('fails instead of approving when the stored assessment has no decision', async () => {
       const { store, useCase } = setup();
@@ -353,7 +387,7 @@ describe('ScoreRiskUseCase', () => {
 
     it.each(CONFLICTING_REQUESTS)(
       'rejects as a conflict when a concurrent winner has a different %s',
-      async (_field, overrides) => {
+      async (field, overrides) => {
         const { store, useCase } = setup();
         store.loseNextSaveTo(
           completedAssessment({
@@ -363,7 +397,7 @@ describe('ScoreRiskUseCase', () => {
           }),
         );
         await expect(useCase.execute(scoreRiskInput(overrides))).rejects.toThrow(
-          AssessmentConflictError,
+          conflictError(field),
         );
         expect(store.saved).toEqual([]);
       },
