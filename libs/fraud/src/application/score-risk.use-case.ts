@@ -54,8 +54,8 @@ export interface ScoreRiskOutput {
  * Scores a payment intent synchronously, once per `payment_intent_id`.
  *
  * - A repeat returns the stored assessment without rescoring or writing anything. A
- *   repeat whose `merchant_id`, `amount_cents` or `currency` differs from the stored
- *   assessment throws `AssessmentConflictError`.
+ *   repeat whose `merchant_id`, `amount_cents`, `currency` or `card_fingerprint`
+ *   differs from the stored assessment throws `AssessmentConflictError`.
  * - A new request loads one feature snapshot, runs the rules and stores the
  *   assessment, the snapshot, the `attempted` outcome and the outbox event together.
  * - Losing the insert race to a concurrent request (`DuplicateAssessmentError`)
@@ -230,6 +230,7 @@ function conflictingFields(stored: RiskAssessment, input: ScoreRiskInput): strin
   if (stored.merchantId !== input.merchantId) fields.push('merchant_id');
   if (stored.amountCents !== input.amountCents) fields.push('amount_cents');
   if (stored.currency !== input.currency) fields.push('currency');
+  if (stored.accountRef !== input.cardFingerprint) fields.push('card_fingerprint');
   return fields;
 }
 

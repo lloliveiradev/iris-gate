@@ -8,6 +8,7 @@ import {
   FIXTURE_CARD_FINGERPRINT,
   FIXTURE_CUSTOMER_REF,
   FIXTURE_NOW,
+  FIXTURE_OTHER_CARD_FINGERPRINT,
   NORMAL_AMOUNT_CENTS,
 } from './fixtures';
 import { ScoredAssessment, ScoredAssessmentStore } from './score-risk.ports';
@@ -30,6 +31,7 @@ export const FAKE_STORED_LATENCY_MS = 42;
 export const FAKE_CONFLICTING_MERCHANT_ID = '00000000-0000-4000-8000-0000000000b2';
 export const FAKE_CONFLICTING_AMOUNT_CENTS = FAKE_AMOUNT_CENTS + 1;
 export const FAKE_CONFLICTING_CURRENCY = 'USD';
+export const FAKE_CONFLICTING_CARD_FINGERPRINT = FIXTURE_OTHER_CARD_FINGERPRINT;
 
 /**
  * Ids a fresh `SequentialIdGen` hands out on a new payment intent: the assessment
