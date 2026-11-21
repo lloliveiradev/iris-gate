@@ -3,15 +3,17 @@
 --
 -- Administrative actions are written here in the same transaction as the
 -- change. Rows are chained through prev_hash and hash under a
--- transaction-scoped advisory lock, and id is a bigserial, so id order is chain
--- order. merchant_id is NULL for platform-wide actions such as staff changes.
--- Entity and actor ids have no foreign key: history must outlive what it
--- describes.
+-- transaction-scoped advisory lock: the chain is ordered by the prev_hash ->
+-- hash links the writer lays down while it holds the lock, not by id (a UUID
+-- carries no order). Listings order by occurred_at, then id, which is only a
+-- tiebreaker. merchant_id is NULL for platform-wide actions such as staff
+-- changes. Entity and actor ids have no foreign key: history must outlive what
+-- it describes.
 --
 -- Append-only. The default privileges in 10-roles.sh give iris_app and
 -- iris_worker SELECT, INSERT, UPDATE and DELETE on every table the migrator
--- creates, plus USAGE on its sequences (the id sequence included). This file
--- revokes UPDATE and DELETE from both; iris_platform keeps SELECT only.
+-- creates. This file revokes UPDATE and DELETE from both; iris_platform keeps
+-- SELECT only.
 -- BYPASSRLS skips row-level security, not table privileges, so it does not give
 -- them back.
 --
@@ -27,7 +29,7 @@
 BEGIN;
 
 CREATE TABLE audit_events (
-    id          BIGSERIAL   PRIMARY KEY,
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     merchant_id UUID,
     action      TEXT        NOT NULL,
     entity_type TEXT        NOT NULL,

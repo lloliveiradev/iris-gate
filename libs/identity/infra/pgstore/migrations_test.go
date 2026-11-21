@@ -3,6 +3,7 @@ package pgstore_test
 import (
 	"io/fs"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -16,6 +17,9 @@ const (
 )
 
 var phase08Migrations = []string{migration0006, migration0007, migration0008, migration0009}
+
+// uuidIDColumn matches the audit_events id column whatever the column spacing.
+var uuidIDColumn = regexp.MustCompile(`(?m)^id\s+UUID\s+PRIMARY KEY\s+DEFAULT\s+gen_random_uuid\(\),$`)
 
 func readMigration(t *testing.T, name string) string {
 	t.Helper()
@@ -122,5 +126,20 @@ func TestMigration0009_MakesAuditEventsAppendOnly(t *testing.T) {
 	}
 	if strings.Contains(sql, "GRANT ") {
 		t.Error("0009 must not grant any privilege")
+	}
+}
+
+// TestMigration0009_AuditEventIDIsUUID checks that audit_events.id is a UUID
+// with a database default, as AuditEvent.id is in the 08.1 contract, and not a
+// serial.
+func TestMigration0009_AuditEventIDIsUUID(t *testing.T) {
+	t.Parallel()
+	sql := strings.Join(statements(readMigration(t, migration0009)), "\n")
+
+	if !uuidIDColumn.MatchString(sql) {
+		t.Errorf("audit_events.id must be UUID PRIMARY KEY DEFAULT gen_random_uuid()")
+	}
+	if strings.Contains(strings.ToUpper(sql), "SERIAL") {
+		t.Error("audit_events must not use a serial column")
 	}
 }

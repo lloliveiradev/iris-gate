@@ -338,8 +338,7 @@ func execRolledBack(ctx context.Context, conn *pgx.Conn, stmt string) error {
 
 // TestRoles_AuditEventsAreAppendOnly covers phase 08 acceptance criterion 9:
 // migration 0009 revokes UPDATE and DELETE on audit_events from iris_app and
-// iris_worker, which keep INSERT and SELECT (the id sequence included), and
-// iris_platform only reads. BYPASSRLS does not give table privileges back.
+// iris_worker, which keep INSERT and SELECT, and iris_platform only reads. BYPASSRLS does not give table privileges back.
 // Every statement is rolled back, so the test leaves no row in the
 // append-only table and changes nothing if a revoke ever regresses.
 func TestRoles_AuditEventsAreAppendOnly(t *testing.T) {

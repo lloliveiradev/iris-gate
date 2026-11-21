@@ -236,6 +236,27 @@ func requireViolation(t *testing.T, what string, err error, code, constraint str
 	}
 }
 
+// requireAuditEventIDIsUUID checks audit_events.id as the database reports it:
+// type uuid, with a default, as AuditEvent.id is in the 08.1 contract.
+func requireAuditEventIDIsUUID(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	var dataType string
+	var columnDefault *string
+	err := pool.QueryRow(ctx, `SELECT data_type, column_default
+		FROM information_schema.columns
+		WHERE table_schema = current_schema() AND table_name = 'audit_events' AND column_name = 'id'`).
+		Scan(&dataType, &columnDefault)
+	if err != nil {
+		t.Fatalf("read audit_events.id: %v", err)
+	}
+	if dataType != "uuid" {
+		t.Errorf("audit_events.id type = %q, want uuid", dataType)
+	}
+	if columnDefault == nil || !strings.Contains(*columnDefault, "gen_random_uuid()") {
+		t.Errorf("audit_events.id default = %v, want gen_random_uuid()", columnDefault)
+	}
+}
+
 // TestMigrations_ApplyToAnEmptySchemaOnce covers M1: every identity migration
 // applies to an empty schema, and a second run applies nothing.
 func TestMigrations_ApplyToAnEmptySchemaOnce(t *testing.T) {
@@ -256,6 +277,7 @@ func TestMigrations_ApplyToAnEmptySchemaOnce(t *testing.T) {
 			t.Errorf("table %s does not exist", table)
 		}
 	}
+	requireAuditEventIDIsUUID(ctx, t, pool)
 
 	migrateAll(ctx, t, pool)
 	if got := appliedMigrations(ctx, t, pool); !slices.Equal(got, want) {
