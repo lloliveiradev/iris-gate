@@ -9,11 +9,11 @@
 
 The audit of the legacy `go-gateway` found a textbook dual write. `InvoiceService.Create()` calls `repo.Save(invoice)` and then `kafkaProducer.Publish(...)` outside the transaction. The two writes can part company in three ways:
 
-| Failure | What the system is left with |
-| --- | --- |
-| Save succeeds, publish fails | An invoice in the database and no event. Anti-fraud never scores it. The status stays `pending`. |
-| Save fails after a publish that already happened | Anti-fraud scores an invoice that does not exist. |
-| The process crashes between the two calls | The same gap as the first row. |
+| Failure                                          | What the system is left with                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Save succeeds, publish fails                     | An invoice in the database and no event. Anti-fraud never scores it. The status stays `pending`. |
+| Save fails after a publish that already happened | Anti-fraud scores an invoice that does not exist.                                                |
+| The process crashes between the two calls        | The same gap as the first row.                                                                   |
 
 The audit of the legacy `anti-fraud` found the matching bug on the read side. The consumer is not idempotent. A Kafka redelivery, which happens on rebalance and on a failed offset commit, runs the handler again and inserts a second `FraudHistory` row.
 

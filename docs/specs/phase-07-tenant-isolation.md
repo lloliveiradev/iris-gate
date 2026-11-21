@@ -13,6 +13,7 @@ Make tenant isolation a property of the database and of the type system, not onl
    - `antifraud_migrator`, `antifraud_app` for database `antifraud`.
 
    `REVOKE CONNECT ... FROM PUBLIC` on each database, then `GRANT CONNECT` only to its own roles. The migrator owns the tables; the app role gets `SELECT, INSERT, UPDATE, DELETE` on its tables and `USAGE` on sequences, nothing else.
+
 2. **Wiring.** Migrations (Go `make migrate`, Prisma `migrate deploy`) use the migrator DSN. apps/api request handlers use `iris_app`. The outbox relay uses `iris_worker`. apps/anti-fraud runtime uses `antifraud_app`. Separate env vars per role, documented in `.env.example`.
 3. **RLS** on every merchant-scoped table of the payments context that exists after phase 06 (`payment_intents`, `idempotency_records`, and any other with `merchant_id`). Policy: `merchant_id = current_setting('app.merchant_id', true)::uuid`. `ENABLE` and `FORCE ROW LEVEL SECURITY`. `iris_worker` and `iris_platform` have `BYPASSRLS`; `iris_app` does not.
 4. **Tenant transaction helper** in `libs/shared` (for example `pgtenant.WithMerchant(ctx, pool, merchantID, fn)`), which opens a transaction and runs `SELECT set_config('app.merchant_id', $1, true)` first. Payments repositories run every merchant-scoped statement inside it.

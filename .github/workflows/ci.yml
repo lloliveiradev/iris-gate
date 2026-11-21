@@ -32,6 +32,7 @@ jobs:
       fraud: ${{ steps.filter.outputs.fraud }}
       contracts: ${{ steps.filter.outputs.contracts }}
       node-root: ${{ steps.filter.outputs.node-root }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -106,6 +107,14 @@ jobs:
               - 'package.json'
               - 'yarn.lock'
               - '.yarnrc.yml'
+            # Markdown only. Vendored skills stay out via .prettierignore.
+            # A docs-only change matches none of the jobs above.
+            docs:
+              - '**/*.md'
+              - '*.md'
+              - '.prettierignore'
+              - '.prettierrc.json'
+              - '.github/workflows/ci.yml'
 
   # Fails when generated/ drifts from the specs (ADR-0003).
   contracts:
@@ -438,6 +447,24 @@ jobs:
       - run: make app-anti-fraud CMD=lint
       - run: make app-anti-fraud CMD=test
       - run: make app-anti-fraud CMD=build
+
+  # Cheapest node job for docs: install is the same as sdk-web, then Prettier only.
+  markdown:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      # Node 25+ no longer bundles corepack; install it for the selected Node.
+      - run: npm install -g corepack@0.34.0 && corepack enable
+      - run: yarn install --immutable
+      - name: Check Markdown formatting
+        run: yarn prettier --check "**/*.md"
 
   gitleaks:
     runs-on: ubuntu-latest

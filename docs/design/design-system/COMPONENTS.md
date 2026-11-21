@@ -14,13 +14,13 @@ Compact status / metadata pill.
 
 **Variants:** `default` | `secondary` | `outline` | `success` | `warning` | `destructive`
 
-| Variant | Use |
-|---|---|
-| `default` | Generic emphasis (rare — prefer the others) |
-| `outline` | Neutral meta (e.g., "Now in private beta") |
-| `success` | "captured", "approved", "active" |
-| `warning` | "review", "pending review" |
-| `destructive` | "failed", "declined" |
+| Variant       | Use                                         |
+| ------------- | ------------------------------------------- |
+| `default`     | Generic emphasis (rare — prefer the others) |
+| `outline`     | Neutral meta (e.g., "Now in private beta")  |
+| `success`     | "captured", "approved", "active"            |
+| `warning`     | "review", "pending review"                  |
+| `destructive` | "failed", "declined"                        |
 
 ```tsx
 <Badge variant="success">captured</Badge>
@@ -35,14 +35,14 @@ Status badges should not rely on color alone — see `ACCESSIBILITY.md §3`.
 **Variants:** `default` | `destructive` | `outline` | `secondary` | `ghost` | `link`
 **Sizes:** `default` | `sm` | `lg` | `icon`
 
-| Variant | When |
-|---|---|
-| `default` | Primary CTA on the page — one per view |
-| `secondary` | Premium / copper CTA — "Upgrade to Pro", "Capture R$ 1.990" |
-| `outline` | Co-equal alternative ("Cancel", "Back") |
-| `ghost` | Toolbar / icon buttons inside dense UI (header, sidebar) |
-| `link` | Inline text-styled action |
-| `destructive` | Confirmed-destruction in a dialog ("Delete merchant") |
+| Variant       | When                                                        |
+| ------------- | ----------------------------------------------------------- |
+| `default`     | Primary CTA on the page — one per view                      |
+| `secondary`   | Premium / copper CTA — "Upgrade to Pro", "Capture R$ 1.990" |
+| `outline`     | Co-equal alternative ("Cancel", "Back")                     |
+| `ghost`       | Toolbar / icon buttons inside dense UI (header, sidebar)    |
+| `link`        | Inline text-styled action                                   |
+| `destructive` | Confirmed-destruction in a dialog ("Delete merchant")       |
 
 ```tsx
 <Button>Connect merchant</Button>

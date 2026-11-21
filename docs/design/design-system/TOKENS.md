@@ -19,8 +19,8 @@ The 6 brand colors the founder picked, plus 2 derived neutrals to make a 3-tier 
 | `--brand-mint`                   | `#96CDB0` | `oklch(0.79 0.063 158)` | Accent — hover, focus, success-soft    |
 | `--brand-copper`                 | `#C18D52` | `oklch(0.67 0.105 65)`  | Secondary brand — premium CTAs, alerts |
 | `--brand-cream`                  | `#EEE8B2` | `oklch(0.92 0.058 102)` | Dark-mode body text; marketing accent  |
-| `--brand-petrol-mid` *(derived)* | `#142E2A` | `oklch(0.25 0.018 178)` | Mid layer for 3-tier dark surfaces     |
-| `--brand-cream-soft` *(derived)* | `#F5EFC9` | `oklch(0.95 0.04 100)`  | Marketing accent (paired with cream)   |
+| `--brand-petrol-mid` _(derived)_ | `#142E2A` | `oklch(0.25 0.018 178)` | Mid layer for 3-tier dark surfaces     |
+| `--brand-cream-soft` _(derived)_ | `#F5EFC9` | `oklch(0.95 0.04 100)`  | Marketing accent (paired with cream)   |
 
 **Personality:** "artisanal fintech" — petrol + sage as the trust backbone, copper used assertively (CTAs and alerts), cream as the inversion. Anti-corporate-blue.
 
@@ -112,29 +112,29 @@ Apply by setting `class="light"` on `<html>` (or scoping to a subtree).
 
 No pure white, no cream-as-base. Surfaces are near-white off-grays with a whisper of petrol hue (~174) at very low chroma — calm "paper-but-not-parchment" feel that pairs cleanly with copper/sage accents and won't fatigue the eyes. Cream primitives stay available for marketing accents only.
 
-| Variable               | Value                          | Used by                                  | Rationale                                  |
-| ---------------------- | ------------------------------ | ---------------------------------------- | ------------------------------------------ |
-| `--background`         | `oklch(0.97 0.003 174)`        | `<body>`, scaffolds                      | L1 — neutral mist with petrol whisper      |
-| `--surface`            | `oklch(0.955 0.004 174)`       | Sidebar, panels, table headers           | L2 — one step down from bg                 |
-| `--card` / `--popover` | `oklch(0.985 0.003 174)`       | Cards, dialogs, dropdowns                | L3 — elevated above bg, never pure white   |
+| Variable               | Value                    | Used by                        | Rationale                                |
+| ---------------------- | ------------------------ | ------------------------------ | ---------------------------------------- |
+| `--background`         | `oklch(0.97 0.003 174)`  | `<body>`, scaffolds            | L1 — neutral mist with petrol whisper    |
+| `--surface`            | `oklch(0.955 0.004 174)` | Sidebar, panels, table headers | L2 — one step down from bg               |
+| `--card` / `--popover` | `oklch(0.985 0.003 174)` | Cards, dialogs, dropdowns      | L3 — elevated above bg, never pure white |
 
 ### Text
 
-| Variable             | Value                          | Use            |
-| -------------------- | ------------------------------ | -------------- |
-| `--foreground`       | `--brand-ink` (`#081B1B`)      | Body           |
-| `--muted-foreground` | `oklch(0.36 0.025 174)` solid  | Secondary text |
+| Variable             | Value                         | Use            |
+| -------------------- | ----------------------------- | -------------- |
+| `--foreground`       | `--brand-ink` (`#081B1B`)     | Body           |
+| `--muted-foreground` | `oklch(0.36 0.025 174)` solid | Secondary text |
 
 ### Brand actions
 
-| Variable                 | Value                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `--primary`              | `--brand-petrol` (`#203B37`) — reads as strong primary on neutral mist         |
-| `--primary-foreground`   | `oklch(0.985 0.003 174)` — same near-white as card, so CTAs are solid blocks   |
-| `--secondary`            | `--brand-copper` (`#C18D52`) — same as dark                                    |
-| `--secondary-foreground` | `--brand-ink`                                                                  |
-| `--accent`               | `--brand-sage` at 22% (subtle mint-tint)                                       |
-| `--accent-foreground`    | `--brand-petrol`                                                               |
+| Variable                 | Value                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `--primary`              | `--brand-petrol` (`#203B37`) — reads as strong primary on neutral mist       |
+| `--primary-foreground`   | `oklch(0.985 0.003 174)` — same near-white as card, so CTAs are solid blocks |
+| `--secondary`            | `--brand-copper` (`#C18D52`) — same as dark                                  |
+| `--secondary-foreground` | `--brand-ink`                                                                |
+| `--accent`               | `--brand-sage` at 22% (subtle mint-tint)                                     |
+| `--accent-foreground`    | `--brand-petrol`                                                             |
 
 ### Borders / inputs / focus
 
@@ -158,6 +158,7 @@ No pure white, no cream-as-base. Surfaces are near-white off-grays with a whispe
 | `--font-mono`    | **Geist Mono**                | `geist` npm pkg              | Code, monetary amounts, UUIDs, timestamps                    |
 
 **Application rule of thumb:**
+
 - `<h1>` hero → `font-display italic`
 - `<h2>` section → `font-serif` (regular)
 - `<h3>`, card titles → `font-serif` (or `font-sans semibold` if dense)
@@ -254,21 +255,21 @@ Computed against WCAG 2.1 AA (4.5:1 normal, 3:1 large/UI).
 
 | Pair                                                       | Ratio   | Result |
 | ---------------------------------------------------------- | ------- | ------ |
-| `#EEE8B2` cream on `#081B1B` ink (body text)               | ~14.8:1 | ✅ AAA  |
-| `#EEE8B2` cream on `#203B37` petrol (card text)            | ~11.0:1 | ✅ AAA  |
-| `#081B1B` ink on `#5A8F76` sage (primary button label)     | ~5.4:1  | ✅ AA   |
-| `#081B1B` ink on `#96CDB0` mint (accent button label)      | ~8.8:1  | ✅ AAA  |
-| `#081B1B` ink on `#C18D52` copper (secondary button label) | ~5.8:1  | ✅ AA   |
-| `#96CDB0` mint @70% on `#081B1B` (muted text)              | ~6.5:1  | ✅ AA   |
+| `#EEE8B2` cream on `#081B1B` ink (body text)               | ~14.8:1 | ✅ AAA |
+| `#EEE8B2` cream on `#203B37` petrol (card text)            | ~11.0:1 | ✅ AAA |
+| `#081B1B` ink on `#5A8F76` sage (primary button label)     | ~5.4:1  | ✅ AA  |
+| `#081B1B` ink on `#96CDB0` mint (accent button label)      | ~8.8:1  | ✅ AAA |
+| `#081B1B` ink on `#C18D52` copper (secondary button label) | ~5.8:1  | ✅ AA  |
+| `#96CDB0` mint @70% on `#081B1B` (muted text)              | ~6.5:1  | ✅ AA  |
 
 ### Light theme
 
-| Pair                                                                       | Ratio   | Result |
-| -------------------------------------------------------------------------- | ------- | ------ |
-| `#081B1B` ink on `oklch(0.97 0.003 174)` mist (body)                       | ~18.2:1 | ✅ AAA  |
-| `#081B1B` ink on `oklch(0.985 0.003 174)` near-white (card text)           | ~19.5:1 | ✅ AAA  |
-| `oklch(0.985 0.003 174)` near-white on `#203B37` petrol (primary button)   | ~12.4:1 | ✅ AAA  |
-| `#081B1B` ink on `#C18D52` copper (secondary button)                       | ~5.8:1  | ✅ AA   |
+| Pair                                                                     | Ratio   | Result |
+| ------------------------------------------------------------------------ | ------- | ------ |
+| `#081B1B` ink on `oklch(0.97 0.003 174)` mist (body)                     | ~18.2:1 | ✅ AAA |
+| `#081B1B` ink on `oklch(0.985 0.003 174)` near-white (card text)         | ~19.5:1 | ✅ AAA |
+| `oklch(0.985 0.003 174)` near-white on `#203B37` petrol (primary button) | ~12.4:1 | ✅ AAA |
+| `#081B1B` ink on `#C18D52` copper (secondary button)                     | ~5.8:1  | ✅ AA  |
 
 ### What NOT to do
 
@@ -284,41 +285,31 @@ Computed against WCAG 2.1 AA (4.5:1 normal, 3:1 large/UI).
 ```html
 <!-- Page scaffold (dark default) -->
 <body class="bg-background text-foreground">
+  <!-- Section header on landing -->
+  <h1 class="font-display italic text-5xl text-foreground">Payments without noise.</h1>
 
-<!-- Section header on landing -->
-<h1 class="font-display italic text-5xl text-foreground">
-  Payments without noise.
-</h1>
+  <!-- Card title in dashboard -->
+  <h3 class="font-serif text-2xl text-card-foreground">Recent payment intents</h3>
 
-<!-- Card title in dashboard -->
-<h3 class="font-serif text-2xl text-card-foreground">
-  Recent payment intents
-</h3>
+  <!-- UI label -->
+  <label class="font-sans text-sm font-medium text-muted-foreground"> Email </label>
 
-<!-- UI label -->
-<label class="font-sans text-sm font-medium text-muted-foreground">
-  Email
-</label>
+  <!-- Money display -->
+  <span class="font-mono text-xl text-foreground tabular-nums"> R$ 1.990,00 </span>
 
-<!-- Money display -->
-<span class="font-mono text-xl text-foreground tabular-nums">
-  R$ 1.990,00
-</span>
+  <!-- Primary CTA -->
+  <button class="bg-primary text-primary-foreground hover:bg-primary/90">Connect merchant</button>
 
-<!-- Primary CTA -->
-<button class="bg-primary text-primary-foreground hover:bg-primary/90">
-  Connect merchant
-</button>
+  <!-- Premium CTA -->
+  <button class="bg-secondary text-secondary-foreground hover:bg-secondary/90">
+    Upgrade to Pro
+  </button>
 
-<!-- Premium CTA -->
-<button class="bg-secondary text-secondary-foreground hover:bg-secondary/90">
-  Upgrade to Pro
-</button>
-
-<!-- Status badges -->
-<span class="bg-accent text-accent-foreground">captured</span>
-<span class="bg-secondary text-secondary-foreground">review</span>
-<span class="bg-destructive text-destructive-foreground">failed</span>
+  <!-- Status badges -->
+  <span class="bg-accent text-accent-foreground">captured</span>
+  <span class="bg-secondary text-secondary-foreground">review</span>
+  <span class="bg-destructive text-destructive-foreground">failed</span>
+</body>
 ```
 
 ---

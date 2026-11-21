@@ -31,16 +31,16 @@ Invoices of 10,000 or more were published to `pending_transactions`; results cam
 
 ### Findings
 
-| Severity | Problem |
-| --- | --- |
-| Critical | PAN in memory in plain text across layers |
-| Critical | API keys stored in plain text |
-| Critical | No idempotency on invoice creation |
-| Critical | Save then publish to Kafka, not atomic: a failed publish left a permanent inconsistency |
-| High | Approval decided by `rand.Float64()` |
-| High | No tests at all |
-| High | No migration runner |
-| Medium | Domain coupled to infrastructure types; every service error mapped to HTTP 500; no request id, traces or metrics |
+| Severity | Problem                                                                                                          |
+| -------- | ---------------------------------------------------------------------------------------------------------------- |
+| Critical | PAN in memory in plain text across layers                                                                        |
+| Critical | API keys stored in plain text                                                                                    |
+| Critical | No idempotency on invoice creation                                                                               |
+| Critical | Save then publish to Kafka, not atomic: a failed publish left a permanent inconsistency                          |
+| High     | Approval decided by `rand.Float64()`                                                                             |
+| High     | No tests at all                                                                                                  |
+| High     | No migration runner                                                                                              |
+| Medium   | Domain coupled to infrastructure types; every service error mapped to HTTP 500; no request id, traces or metrics |
 
 ### Verdict
 
@@ -71,13 +71,13 @@ A specification pattern with an aggregator: `SuspiciousAccountSpecification`, `U
 
 ### Findings
 
-| Severity | Problem |
-| --- | --- |
-| Critical | Consumer not idempotent: a redelivery duplicated the decision |
-| Critical | No authentication between services: anyone reaching the broker could publish transactions |
-| High | No DLQ, no retry with backoff, no circuit breaker; a Kafka failure crashed the app at startup |
-| High | No global validation pipe: DTO decorators were never enforced |
-| Medium | Controllers called Prisma directly; binary scores; tests only checked `toBeDefined()` |
+| Severity | Problem                                                                                       |
+| -------- | --------------------------------------------------------------------------------------------- |
+| Critical | Consumer not idempotent: a redelivery duplicated the decision                                 |
+| Critical | No authentication between services: anyone reaching the broker could publish transactions     |
+| High     | No DLQ, no retry with backoff, no circuit breaker; a Kafka failure crashed the app at startup |
+| High     | No global validation pipe: DTO decorators were never enforced                                 |
+| Medium   | Controllers called Prisma directly; binary scores; tests only checked `toBeDefined()`         |
 
 ### Verdict
 
@@ -91,12 +91,12 @@ Next 15.2, React 19, Tailwind 3.4, shadcn/ui, React Hook Form, Zod, Sonner, next
 
 ### Findings
 
-| Severity | Problem |
-| --- | --- |
-| Critical | The login sent the API key from the browser, visible in devtools; the API URL was public |
-| Critical | The `apiKey` cookie had no `httpOnly`, `Secure` or `SameSite=Strict` |
-| High | Backend types duplicated by hand, so drift was guaranteed; no controlled cache revalidation |
-| Medium | Empty detail and PDF routes; generic untyped fetch errors; no loading states |
+| Severity | Problem                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------- |
+| Critical | The login sent the API key from the browser, visible in devtools; the API URL was public    |
+| Critical | The `apiKey` cookie had no `httpOnly`, `Secure` or `SameSite=Strict`                        |
+| High     | Backend types duplicated by hand, so drift was guaranteed; no controlled cache revalidation |
+| Medium   | Empty detail and PDF routes; generic untyped fetch errors; no loading states                |
 
 ### Verdict
 

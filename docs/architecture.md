@@ -17,30 +17,30 @@ This document is the living reference for how Iris Gate is structured and which 
 
 ## 2. Deployable units
 
-| Unit | Stack | Owns | Status |
-| --- | --- | --- | --- |
-| `apps/api` | Go 1.27, chi, pgx v5, slog | identity, payments; later checkout, webhooks; HTTP API and background worker | exists |
-| `apps/anti-fraud` | NestJS 12, KafkaJS, Prisma 7 | fraud scoring, features and labels | exists (async today; sync endpoint in phase 10) |
-| `apps/web` | Next.js 16.4, React 19.3, Tailwind 4, shadcn/ui, next-intl | merchant dashboard, platform console, hosted checkout; backend for frontend | exists (dashboard only) |
-| `apps/vault` | Go | card tokenization and detokenization | phase 14 |
-| Postgres 18 | | databases `iris`, `antifraud`, later `vault` | exists |
-| Kafka (KRaft) + Karapace | | event backbone and schema registry | exists |
-| OpenBao | | key manager (Transit) for the vault and webhook secrets | phase 14 |
-| Mailpit | | local SMTP for user emails | phase 8 |
+| Unit                     | Stack                                                      | Owns                                                                         | Status                                          |
+| ------------------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
+| `apps/api`               | Go 1.27, chi, pgx v5, slog                                 | identity, payments; later checkout, webhooks; HTTP API and background worker | exists                                          |
+| `apps/anti-fraud`        | NestJS 12, KafkaJS, Prisma 7                               | fraud scoring, features and labels                                           | exists (async today; sync endpoint in phase 10) |
+| `apps/web`               | Next.js 16.4, React 19.3, Tailwind 4, shadcn/ui, next-intl | merchant dashboard, platform console, hosted checkout; backend for frontend  | exists (dashboard only)                         |
+| `apps/vault`             | Go                                                         | card tokenization and detokenization                                         | phase 14                                        |
+| Postgres 18              |                                                            | databases `iris`, `antifraud`, later `vault`                                 | exists                                          |
+| Kafka (KRaft) + Karapace |                                                            | event backbone and schema registry                                           | exists                                          |
+| OpenBao                  |                                                            | key manager (Transit) for the vault and webhook secrets                      | phase 14                                        |
+| Mailpit                  |                                                            | local SMTP for user emails                                                   | phase 8                                         |
 
 The component diagram of the target system is in [`design/to-be.md`](design/to-be.md) section 3.
 
 ## 3. Bounded contexts
 
-| Context | Code | Ubiquitous language | Responsibility | Status |
-| --- | --- | --- | --- | --- |
-| Identity | `libs/identity` (Go) | Merchant, User, Membership, Role, Permission, APIKey, Principal | merchants, users, sessions, roles, API keys, platform staff, audit log | merchants and API keys exist; users and RBAC in phase 8 |
-| Payments | `libs/payments` (Go) | PaymentIntent, Money, Attempt, Review, Refund, PaymentSettings | payment lifecycle, risk call, acquirer calls, capture policy, reviews, refunds | exists; new lifecycle in phase 11 |
-| Checkout | `libs/checkout` (Go) | Product, Price, CheckoutSession, PaymentLink, CheckoutSettings | catalog, hosted checkout sessions, payment links, branding | phase 15 |
-| Webhooks | `libs/webhooks` (Go) | WebhookEndpoint, Delivery | signed event delivery to merchants, request log | phase 16 |
-| Fraud | `libs/fraud` (TypeScript), run by `apps/anti-fraud` | RiskAssessment, Specification, Score, Decision, FeatureSnapshot | risk scoring, features, labels | exists |
-| Vault | `libs/vault` (Go), run by `apps/vault` | CardToken, Fingerprint, DataKey | test-card tokenization, envelope encryption | phase 14 |
-| Ledger | `libs/ledger` | Account, JournalEntry | double-entry postings from payment events | later |
+| Context  | Code                                                | Ubiquitous language                                             | Responsibility                                                                 | Status                                                  |
+| -------- | --------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Identity | `libs/identity` (Go)                                | Merchant, User, Membership, Role, Permission, APIKey, Principal | merchants, users, sessions, roles, API keys, platform staff, audit log         | merchants and API keys exist; users and RBAC in phase 8 |
+| Payments | `libs/payments` (Go)                                | PaymentIntent, Money, Attempt, Review, Refund, PaymentSettings  | payment lifecycle, risk call, acquirer calls, capture policy, reviews, refunds | exists; new lifecycle in phase 11                       |
+| Checkout | `libs/checkout` (Go)                                | Product, Price, CheckoutSession, PaymentLink, CheckoutSettings  | catalog, hosted checkout sessions, payment links, branding                     | phase 15                                                |
+| Webhooks | `libs/webhooks` (Go)                                | WebhookEndpoint, Delivery                                       | signed event delivery to merchants, request log                                | phase 16                                                |
+| Fraud    | `libs/fraud` (TypeScript), run by `apps/anti-fraud` | RiskAssessment, Specification, Score, Decision, FeatureSnapshot | risk scoring, features, labels                                                 | exists                                                  |
+| Vault    | `libs/vault` (Go), run by `apps/vault`              | CardToken, Fingerprint, DataKey                                 | test-card tokenization, envelope encryption                                    | phase 14                                                |
+| Ledger   | `libs/ledger`                                       | Account, JournalEntry                                           | double-entry postings from payment events                                      | later                                                   |
 
 `libs/shared` holds the shared kernel: the `Actor` value object (phase 8) and the tenant transaction helper (phase 7).
 
@@ -113,25 +113,25 @@ Dependency rule: `infra → application → domain`. `domain` imports nothing fr
 
 ## 6. Communication rules
 
-| Kind | Mechanism | Used for |
-| --- | --- | --- |
-| In process, across contexts | application port + adapter | checkout → payments |
+| Kind                         | Mechanism                                               | Used for                                                               |
+| ---------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| In process, across contexts  | application port + adapter                              | checkout → payments                                                    |
 | Synchronous, across services | internal HTTP with a timeout and a fail-closed fallback | payments → anti-fraud (300 ms budget), acquirer adapter → vault (mTLS) |
-| Asynchronous | Kafka, outbox on the producer, inbox on the consumer | facts for features, labels, audit, webhooks, ledger |
-| Shared data | none | contexts never read or write another context's tables |
+| Asynchronous                 | Kafka, outbox on the producer, inbox on the consumer    | facts for features, labels, audit, webhooks, ledger                    |
+| Shared data                  | none                                                    | contexts never read or write another context's tables                  |
 
 ## 7. Cross-cutting patterns
 
-| Pattern | Rule | Where it is specified |
-| --- | --- | --- |
-| Outbox | the state change and its outbox row commit in one transaction; a relay publishes and marks `published_at` | ADR-0002 |
-| Inbox | a consumer inserts the event id before any side effect; a duplicate is skipped | ADR-0002 |
-| Idempotency keys | mutating merchant routes that create resources require `Idempotency-Key`; records are keyed by merchant, scope and key; same body replays, different body is 409 | to-be section 12, phase 6 |
-| Optimistic locking | aggregates carry `version`; updates are conditional; a lost race is 409 | phases 6 and 11 |
-| Tenant scoping | merchant id from the principal; repositories require it; Postgres RLS on merchant tables; other merchants' resources are 404 | to-be section 9, phase 7 |
-| Actor attribution | every mutation records `actor_type`, `actor_id`, `request_id` | to-be section 4.5, phase 8 |
-| Fail closed | risk unavailable means `REVIEW`; key manager unavailable means 503 | to-be decisions 8 and 22 |
-| Retry and DLQ | transient consumer errors go to retry topics with backoff, then to a DLQ; poison messages go straight to the DLQ | to-be section 7.2, phase 13 |
+| Pattern            | Rule                                                                                                                                                             | Where it is specified       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Outbox             | the state change and its outbox row commit in one transaction; a relay publishes and marks `published_at`                                                        | ADR-0002                    |
+| Inbox              | a consumer inserts the event id before any side effect; a duplicate is skipped                                                                                   | ADR-0002                    |
+| Idempotency keys   | mutating merchant routes that create resources require `Idempotency-Key`; records are keyed by merchant, scope and key; same body replays, different body is 409 | to-be section 12, phase 6   |
+| Optimistic locking | aggregates carry `version`; updates are conditional; a lost race is 409                                                                                          | phases 6 and 11             |
+| Tenant scoping     | merchant id from the principal; repositories require it; Postgres RLS on merchant tables; other merchants' resources are 404                                     | to-be section 9, phase 7    |
+| Actor attribution  | every mutation records `actor_type`, `actor_id`, `request_id`                                                                                                    | to-be section 4.5, phase 8  |
+| Fail closed        | risk unavailable means `REVIEW`; key manager unavailable means 503                                                                                               | to-be decisions 8 and 22    |
+| Retry and DLQ      | transient consumer errors go to retry topics with backoff, then to a DLQ; poison messages go straight to the DLQ                                                 | to-be section 7.2, phase 13 |
 
 ## 8. Conventions
 
@@ -157,23 +157,23 @@ Dependency rule: `infra → application → domain`. `domain` imports nothing fr
 
 ## 9. Toolchain
 
-| Concern | Choice |
-| --- | --- |
-| Go | 1.27 (toolchain go1.27.4), workspace via `go.work` |
-| Node | 26 LTS runtime (`engines` `>=24.11.0`), Yarn 4.18 workspaces through Corepack (`nodeLinker: node-modules`), TypeScript 6.0 |
-| Task runner | Make (root delegates to each app and infra) |
-| HTTP router (Go) | chi v5 |
-| SQL (Go) | pgx v5 with hand-written queries; migrations embedded with `go:embed` and applied in order |
-| ORM (TypeScript) | Prisma 7 with the `@prisma/adapter-pg` driver adapter; client generated into `src/infra/prisma/generated/` |
-| Kafka clients | segmentio/kafka-go (Go), KafkaJS 2.2 (Node) |
-| Contracts codegen | oapi-codegen (Go), openapi-typescript (TS) |
-| Web | Next.js 16.4, React 19.3, TanStack Query 5 and Table 9, Tailwind 4 (OKLCH tokens), shadcn/ui, next-intl (`en`, `pt`, `es`), iron-session |
-| Lint and format | golangci-lint v2.15 and ESLint 10 flat config, both from `configs/`, with architecture rules (depguard, `no-restricted-imports`); gofumpt and Prettier |
-| Shared configs | `configs/`: TypeScript bases, ESLint for Node packages, golangci-lint |
-| Git hooks | lefthook: format, vet, gitleaks, Conventional Commits |
-| Tests | Go `testing` with `-race`, Jest 30 (Nest, run with `--experimental-vm-modules` because NestJS 12 ships ES modules), Vitest 5 (web), Playwright (end to end) |
-| CI | GitHub Actions with per-app path filters |
-| Local infra | Docker Compose: Postgres 18.6, Kafka 4.4 (KRaft), Karapace 6.2; later OpenBao and Mailpit |
+| Concern           | Choice                                                                                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Go                | 1.27 (toolchain go1.27.4), workspace via `go.work`                                                                                                          |
+| Node              | 26 LTS runtime (`engines` `>=24.11.0`), Yarn 4.18 workspaces through Corepack (`nodeLinker: node-modules`), TypeScript 6.0                                  |
+| Task runner       | Make (root delegates to each app and infra)                                                                                                                 |
+| HTTP router (Go)  | chi v5                                                                                                                                                      |
+| SQL (Go)          | pgx v5 with hand-written queries; migrations embedded with `go:embed` and applied in order                                                                  |
+| ORM (TypeScript)  | Prisma 7 with the `@prisma/adapter-pg` driver adapter; client generated into `src/infra/prisma/generated/`                                                  |
+| Kafka clients     | segmentio/kafka-go (Go), KafkaJS 2.2 (Node)                                                                                                                 |
+| Contracts codegen | oapi-codegen (Go), openapi-typescript (TS)                                                                                                                  |
+| Web               | Next.js 16.4, React 19.3, TanStack Query 5 and Table 9, Tailwind 4 (OKLCH tokens), shadcn/ui, next-intl (`en`, `pt`, `es`), iron-session                    |
+| Lint and format   | golangci-lint v2.15 and ESLint 10 flat config, both from `configs/`, with architecture rules (depguard, `no-restricted-imports`); gofumpt and Prettier      |
+| Shared configs    | `configs/`: TypeScript bases, ESLint for Node packages, golangci-lint                                                                                       |
+| Git hooks         | lefthook: format, vet, gitleaks, Conventional Commits                                                                                                       |
+| Tests             | Go `testing` with `-race`, Jest 30 (Nest, run with `--experimental-vm-modules` because NestJS 12 ships ES modules), Vitest 5 (web), Playwright (end to end) |
+| CI                | GitHub Actions with per-app path filters                                                                                                                    |
+| Local infra       | Docker Compose: Postgres 18.6, Kafka 4.4 (KRaft), Karapace 6.2; later OpenBao and Mailpit                                                                   |
 
 ## 10. Not planned
 
