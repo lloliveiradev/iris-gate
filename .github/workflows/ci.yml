@@ -68,7 +68,10 @@ jobs:
             # Role proof. apps/api/** already covers cmd/migrate; the extra
             # line keeps that path visible. The anti-fraud schema and its
             # prisma-deploy target are included because the role test reads
-            # "_prisma_migrations". A docs-only change matches none of these.
+            # "_prisma_migrations". libs/payments/** (the RLS migration, its
+            # Makefile and tests) and libs/shared/** (pgtenant) are included
+            # because the payments RLS tests run here as iris_app. A docs-only
+            # change matches none of these.
             api-int:
               - 'infra/docker/postgres/**'
               - 'apps/api/cmd/migrate/**'
@@ -76,6 +79,8 @@ jobs:
               - 'apps/anti-fraud/prisma/**'
               - 'apps/anti-fraud/Makefile'
               - 'libs/**/*.go'
+              - 'libs/payments/**'
+              - 'libs/shared/**'
               - '.github/workflows/ci.yml'
             web:
               - 'apps/web/**'
@@ -228,7 +233,10 @@ jobs:
       - run: make -C libs/identity build
       - run: make -C libs/payments vet
       - run: make -C libs/payments test
-      - run: make -C libs/payments test-int
+      # No 10-roles.sh here, so no iris_app: the RLS tests are skipped by name
+      # on purpose and run in api-int, where an unset IRIS_APP_DATABASE_URL
+      # fails them.
+      - run: make -C libs/payments test-int SKIP_RLS=1
       - run: make -C libs/payments build
       - run: make -C libs/shared vet
       - run: make -C libs/shared test
@@ -364,6 +372,41 @@ jobs:
           do
             if ! grep -E "^--- PASS: ${name} [(]" "$log"; then
               echo "role test ${name} did not pass" >&2
+              exit 1
+            fi
+          done
+      # Runs after the role tests, so they see a database touched only by
+      # iris_migrator. DATABASE_URL is the bootstrap superuser: the tests seed
+      # merchants and rows of several tenants with it (its migrate call is a
+      # no-op, every migration is already recorded). IRIS_APP_DATABASE_URL is
+      # iris_app, the role row-level security applies to, on the same database.
+      - name: Run libs/payments integration tests as iris_app and reject skips
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+          export IRIS_APP_DATABASE_URL="postgres://iris_app:${IRIS_APP_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+          # test-int has no -v flag. GOFLAGS supplies it so a skip is visible.
+          GOFLAGS=-v make -C libs/payments test-int 2>&1 | tee "$log"
+          if ! grep -Eq '^--- (PASS|FAIL|SKIP):' "$log"; then
+            echo "go test produced no verbose results; refusing a silent pass" >&2
+            exit 1
+          fi
+          if grep -E '^[[:space:]]*--- SKIP:' "$log"; then
+            echo "libs/payments integration tests skipped; a skip is a false green" >&2
+            exit 1
+          fi
+          for name in \
+            TestIntegration_RLS_NoMerchantSeesNoRows \
+            TestIntegration_RLS_OtherMerchantInvisibleAndImmutable \
+            TestIntegration_RLS_OwnRowCannotMoveToAnotherMerchant \
+            TestIntegration_RLS_IdempotencyRecordsIsolated \
+            TestIntegration_RLS_EnabledAndForcedOnMerchantTables \
+            TestIntegration_RLS_UpdateWithOutboxAsIrisApp \
+            TestIntegration_RLS_RepositoriesWorkAsIrisApp
+          do
+            if ! grep -E "^--- PASS: ${name} [(]" "$log"; then
+              echo "RLS test ${name} did not pass" >&2
               exit 1
             fi
           done
