@@ -101,7 +101,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Repeat request for the same payment_intent_id conflicts with the stored assessment (merchant_id, amount_cents, or currency differs). */
+        /** @description Repeat request for the same payment_intent_id conflicts with the stored assessment (merchant_id, amount_cents, currency, or card_fingerprint differs). */
         Conflict: {
             headers: {
                 [name: string]: unknown;
