@@ -29,8 +29,16 @@ test: ## go test -race
 	$(GO) test -race -count=1 $(PKG)
 
 .PHONY: test-int
-test-int: ## go test -race with the integration tag (needs Postgres, DATABASE_URL)
-	$(GO) test -race -count=1 -tags=integration $(PKG)
+# The row-level security tests (TestIntegration_RLS_*) connect as iris_app and
+# fail when IRIS_APP_DATABASE_URL is unset. Where the database roles do not
+# exist (CI go-libs: bootstrap superuser only), opt out explicitly with
+# SKIP_RLS=1; CI api-int runs them with the roles.
+RLS_TEST_PATTERN := ^TestIntegration_RLS_
+ifeq ($(SKIP_RLS),1)
+TEST_INT_SKIP := -skip '$(RLS_TEST_PATTERN)'
+endif
+test-int: ## go test -race with the integration tag (needs Postgres, DATABASE_URL, IRIS_APP_DATABASE_URL; SKIP_RLS=1 skips the RLS tests)
+	$(GO) test -race -count=1 -tags=integration $(TEST_INT_SKIP) $(PKG)
 
 .PHONY: cover
 cover: ## go test with coverage
