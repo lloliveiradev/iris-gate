@@ -54,15 +54,35 @@ func decodeSegment(t *testing.T, s string) map[string]any {
 
 func validPayload() map[string]any {
 	return map[string]any{
-		"sub": testSubject, "aud": tokens.AudienceDashboard, "sid": testSessionID, "jti": testTokenID,
+		"sub": testSubject, "aud": tokens.AudienceDashboard, "mid": testMerchantID, "role": testRole,
+		"sid": testSessionID, "jti": testTokenID,
 		"iat": testNow.Unix(), "exp": testNow.Add(tokens.AccessTokenTTL).Unix(), "auth_time": testNow.Unix(),
 	}
 }
 
+// payloadWith returns validPayload with set applied and the drop claims removed.
+func payloadWith(set map[string]any, drop ...string) map[string]any {
+	p := validPayload()
+	for name, value := range set {
+		p[name] = value
+	}
+	for _, name := range drop {
+		delete(p, name)
+	}
+	return p
+}
+
+// unixAt returns testNow plus d as a JWT NumericDate.
+func unixAt(d time.Duration) int64 { return testNow.Add(d).Unix() }
+
 // forge signs an arbitrary header and payload with the given Ed25519 key.
 func forge(t *testing.T, key ed25519.PrivateKey, header, payload map[string]any) string {
 	t.Helper()
-	input := segment(t, header) + "." + segment(t, payload)
+	return signInput(key, segment(t, header)+"."+segment(t, payload))
+}
+
+// signInput signs an arbitrary signing input, for segments segment cannot build.
+func signInput(key ed25519.PrivateKey, input string) string {
 	return input + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, []byte(input)))
 }
 
@@ -132,16 +152,53 @@ func TestIssue_GeneratesTokenIDAndValidatesClaims(t *testing.T) {
 	}
 
 	for name, mutate := range map[string]func(*tokens.Claims){
-		"no subject":       func(c *tokens.Claims) { c.Subject = "" },
-		"no session":       func(c *tokens.Claims) { c.SessionID = "" },
-		"no auth_time":     func(c *tokens.Claims) { c.AuthTime = time.Time{} },
-		"unknown audience": func(c *tokens.Claims) { c.Audience = "other" },
+		"no subject":                      func(c *tokens.Claims) { c.Subject = "" },
+		"no session":                      func(c *tokens.Claims) { c.SessionID = "" },
+		"no role":                         func(c *tokens.Claims) { c.Role = "" },
+		"dashboard without mid":           func(c *tokens.Claims) { c.MerchantID = "" },
+		"platform without role":           func(c *tokens.Claims) { c.Audience, c.Role = tokens.AudiencePlatform, "" },
+		"no auth_time":                    func(c *tokens.Claims) { c.AuthTime = time.Time{} },
+		"auth_time at the epoch":          func(c *tokens.Claims) { c.AuthTime = time.Unix(0, 0) },
+		"negative auth_time":              func(c *tokens.Claims) { c.AuthTime = time.Unix(-1, 0) },
+		"auth_time one second after iat":  func(c *tokens.Claims) { c.AuthTime = testNow.Add(time.Second) },
+		"auth_time an hour in the future": func(c *tokens.Claims) { c.AuthTime = testNow.Add(time.Hour) },
+		"unknown audience":                func(c *tokens.Claims) { c.Audience = "other" },
 	} {
 		c := testClaims()
 		mutate(&c)
 		if _, err := issuer.Issue(c); !errors.Is(err, tokens.ErrInvalidClaims) {
 			t.Errorf("%s: err = %v", name, err)
 		}
+	}
+}
+
+func TestIssue_AcceptsClaimBoundaries(t *testing.T) {
+	now := testNow
+	keys := mustKeySet(t, testKIDOne, newTestKey(t, testKIDOne, nil))
+	issuer := tokens.NewIssuer(keys, clockAt(&now))
+	verifier := tokens.NewVerifier(keys, clockAt(&now))
+
+	tests := []struct {
+		name   string
+		mutate func(*tokens.Claims)
+	}{
+		{"platform token without mid", func(c *tokens.Claims) { c.Audience, c.MerchantID = tokens.AudiencePlatform, "" }},
+		{"auth_time equal to iat", func(c *tokens.Claims) { c.AuthTime = testNow }},
+		// iat and auth_time are whole seconds on the wire.
+		{"auth_time later within the same second as iat", func(c *tokens.Claims) { c.AuthTime = testNow.Add(time.Second / 2) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := testClaims()
+			tt.mutate(&c)
+			token, err := issuer.Issue(c)
+			if err != nil {
+				t.Fatalf("issue: %v", err)
+			}
+			if _, err := verifier.Verify(token, c.Audience); err != nil {
+				t.Fatalf("the verifier must accept what the issuer signs: %v", err)
+			}
+		})
 	}
 }
 
@@ -217,6 +274,27 @@ func TestVerify_Rejects(t *testing.T) {
 		{"issued in the future", forge(t, one.private, header(nil), futureIssued), tokens.AudienceDashboard},
 		{"missing exp", forge(t, one.private, header(nil), noExp), tokens.AudienceDashboard},
 		{"missing auth_time", forge(t, one.private, header(nil), noAuthTime), tokens.AudienceDashboard},
+		{"missing sub", forge(t, one.private, header(nil), payloadWith(nil, "sub")), tokens.AudienceDashboard},
+		{"missing sid", forge(t, one.private, header(nil), payloadWith(nil, "sid")), tokens.AudienceDashboard},
+		{"missing jti", forge(t, one.private, header(nil), payloadWith(nil, "jti")), tokens.AudienceDashboard},
+		{"missing iat", forge(t, one.private, header(nil), payloadWith(nil, "iat")), tokens.AudienceDashboard},
+		{"missing role", forge(t, one.private, header(nil), payloadWith(nil, "role")), tokens.AudienceDashboard},
+		{"empty role", forge(t, one.private, header(nil), payloadWith(map[string]any{"role": ""})), tokens.AudienceDashboard},
+		{"dashboard token without mid", forge(t, one.private, header(nil), payloadWith(nil, "mid")), tokens.AudienceDashboard},
+		{"platform token without role", forge(t, one.private, header(nil), payloadWith(map[string]any{"aud": tokens.AudiencePlatform}, "role", "mid")), tokens.AudiencePlatform},
+		{"auth_time zero", forge(t, one.private, header(nil), payloadWith(map[string]any{"auth_time": 0})), tokens.AudienceDashboard},
+		{"auth_time negative", forge(t, one.private, header(nil), payloadWith(map[string]any{"auth_time": -1})), tokens.AudienceDashboard},
+		{"auth_time after iat within the leeway", forge(t, one.private, header(nil), payloadWith(map[string]any{"auth_time": unixAt(10 * time.Second)})), tokens.AudienceDashboard},
+		{"auth_time an hour in the future", forge(t, one.private, header(nil), payloadWith(map[string]any{"auth_time": unixAt(time.Hour)})), tokens.AudienceDashboard},
+		{"exp equal to iat", forge(t, one.private, header(nil), payloadWith(map[string]any{"iat": unixAt(10 * time.Second), "exp": unixAt(10 * time.Second)})), tokens.AudienceDashboard},
+		{"exp before iat", forge(t, one.private, header(nil), payloadWith(map[string]any{"iat": unixAt(20 * time.Second), "exp": unixAt(10 * time.Second)})), tokens.AudienceDashboard},
+		{"nbf in the future", forge(t, one.private, header(nil), payloadWith(map[string]any{"nbf": unixAt(time.Minute)})), tokens.AudienceDashboard},
+		{"unknown claim", forge(t, one.private, header(nil), payloadWith(map[string]any{"scope": "admin"})), tokens.AudienceDashboard},
+		{"claim key in another case", forge(t, one.private, header(nil), payloadWith(map[string]any{"AUD": tokens.AudienceDashboard}, "aud")), tokens.AudienceDashboard},
+		{"aud as an array", forge(t, one.private, header(nil), payloadWith(map[string]any{"aud": []string{tokens.AudienceDashboard}})), tokens.AudienceDashboard},
+		{"alg in lower case", forge(t, one.private, header(map[string]any{"alg": "eddsa"}), validPayload()), tokens.AudienceDashboard},
+		{"crit header", forge(t, one.private, header(map[string]any{"crit": []string{"exp"}}), validPayload()), tokens.AudienceDashboard},
+		{"padded payload segment", signInput(one.private, segment(t, header(nil))+"."+segment(t, validPayload())+"="), tokens.AudienceDashboard},
 		{"two parts", validParts[0] + "." + validParts[1], tokens.AudienceDashboard},
 		{"four parts", valid + ".x", tokens.AudienceDashboard},
 		{"empty", "", tokens.AudienceDashboard},
@@ -227,6 +305,69 @@ func TestVerify_Rejects(t *testing.T) {
 				t.Fatalf("err = %v, want ErrInvalidToken", err)
 			}
 		})
+	}
+}
+
+// Control for TestVerify_Rejects: forged tokens differing from a rejected case
+// by one claim verify, so each rejection comes from the claim under test.
+func TestVerify_AcceptsForgedValidTokens(t *testing.T) {
+	now := testNow
+	one := newTestKey(t, testKIDOne, nil)
+	verifier := tokens.NewVerifier(mustKeySet(t, testKIDOne, one), clockAt(&now))
+	header := map[string]any{"alg": "EdDSA", "typ": "JWT", "kid": testKIDOne}
+
+	tests := []struct {
+		name    string
+		payload map[string]any
+		aud     string
+	}{
+		{"dashboard", validPayload(), tokens.AudienceDashboard},
+		{"platform without mid", payloadWith(map[string]any{"aud": tokens.AudiencePlatform}, "mid"), tokens.AudiencePlatform},
+		{"nbf now", payloadWith(map[string]any{"nbf": unixAt(0)}), tokens.AudienceDashboard},
+		{"iat ahead within the leeway, auth_time equal to iat", payloadWith(map[string]any{
+			"iat": unixAt(10 * time.Second), "auth_time": unixAt(10 * time.Second), "exp": unixAt(10*time.Second + tokens.AccessTokenTTL),
+		}), tokens.AudienceDashboard},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := verifier.Verify(forge(t, one.private, header, tt.payload), tt.aud); err != nil {
+				t.Fatalf("verify: %v", err)
+			}
+		})
+	}
+}
+
+// A nil or zero Issuer, Verifier or KeySet fails closed instead of panicking.
+func TestNilOrZeroKeySet_FailsClosed(t *testing.T) {
+	now := testNow
+	keys := mustKeySet(t, testKIDOne, newTestKey(t, testKIDOne, nil))
+	token, err := tokens.NewIssuer(keys, clockAt(&now)).Issue(testClaims())
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	var nilIssuer *tokens.Issuer
+	var nilVerifier *tokens.Verifier
+
+	for name, issuer := range map[string]*tokens.Issuer{
+		"nil issuer":   nilIssuer,
+		"zero issuer":  {},
+		"nil key set":  tokens.NewIssuer(nil, clockAt(&now)),
+		"zero key set": tokens.NewIssuer(&tokens.KeySet{}, clockAt(&now)),
+	} {
+		if _, err := issuer.Issue(testClaims()); !errors.Is(err, tokens.ErrNoSigningKeys) {
+			t.Errorf("issue with %s: err = %v, want ErrNoSigningKeys", name, err)
+		}
+	}
+	for name, verifier := range map[string]*tokens.Verifier{
+		"nil verifier":  nilVerifier,
+		"zero verifier": {},
+		"nil key set":   tokens.NewVerifier(nil, clockAt(&now)),
+		"zero key set":  tokens.NewVerifier(&tokens.KeySet{}, clockAt(&now)),
+	} {
+		_, err := verifier.Verify(token, tokens.AudienceDashboard)
+		if !errors.Is(err, tokens.ErrInvalidToken) || !errors.Is(err, tokens.ErrNoSigningKeys) {
+			t.Errorf("verify with %s: err = %v, want ErrInvalidToken wrapping ErrNoSigningKeys", name, err)
+		}
 	}
 }
 

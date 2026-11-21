@@ -6,6 +6,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -95,7 +96,8 @@ var (
 // set, and then both must describe a usable key set: there is no fallback key.
 var ErrInvalidJWTKeys = errors.New("JWT signing key settings are invalid")
 
-// SecretString holds a secret and prints as [REDACTED] in fmt and slog output.
+// SecretString holds a secret and prints as [REDACTED] in fmt, slog, JSON and
+// text encodings. Read the value with an explicit string(s) conversion.
 type SecretString string
 
 // String redacts the secret.
@@ -104,8 +106,18 @@ func (SecretString) String() string { return redactedValue }
 // GoString redacts the secret under %#v.
 func (SecretString) GoString() string { return redactedValue }
 
-// LogValue implements slog.LogValuer.
+// LogValue implements slog.LogValuer. slog resolves it only for a top-level
+// attribute value; a SecretString nested in a struct is covered by MarshalJSON
+// and MarshalText instead.
 func (SecretString) LogValue() slog.Value { return slog.StringValue(redactedValue) }
+
+// MarshalJSON redacts the secret under encoding/json, so json.Marshal of a
+// Config, or slog.JSONHandler logging one, never writes the secret.
+func (SecretString) MarshalJSON() ([]byte, error) { return json.Marshal(redactedValue) }
+
+// MarshalText redacts the secret for encoders that use encoding.TextMarshaler
+// (slog.TextHandler, encoding/xml, JSON map keys).
+func (SecretString) MarshalText() ([]byte, error) { return []byte(redactedValue), nil }
 
 // MailerConfig holds the outbound SMTP settings.
 type MailerConfig struct {
@@ -122,7 +134,7 @@ type MailerConfig struct {
 func (m MailerConfig) String() string {
 	password := ""
 	if m.Password != "" {
-		password = "[REDACTED]"
+		password = redactedValue
 	}
 	return fmt.Sprintf("MailerConfig{Host:%q Port:%d From:%q Username:%q Password:%q TLSMode:%q}",
 		m.Host, m.Port, m.From, m.Username, password, m.TLSMode)

@@ -13,8 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // Key set configuration errors. None of them echo key material.
@@ -23,8 +25,9 @@ var (
 	ErrNoSigningKeys = errors.New("no signing keys configured")
 	// ErrMalformedSigningKeys is returned when JWT_SIGNING_KEYS is not the documented JSON array.
 	ErrMalformedSigningKeys = errors.New("signing keys are malformed")
-	// ErrInvalidKeyID is returned when an entry has an empty or duplicate kid.
-	ErrInvalidKeyID = errors.New("signing key id is empty or duplicated")
+	// ErrInvalidKeyID is returned when an entry has an empty or duplicate kid, or
+	// a kid with surrounding whitespace or control characters.
+	ErrInvalidKeyID = errors.New("signing key id is empty, duplicated or malformed")
 	// ErrInvalidKeyMaterial is returned when an entry is not valid Ed25519 private key material.
 	ErrInvalidKeyMaterial = errors.New("signing key material is not a valid Ed25519 private key")
 	// ErrNoActiveKeyID is returned when JWT_ACTIVE_KID is empty.
@@ -92,7 +95,7 @@ func ParseKeySet(signingKeysJSON, activeKID string, now time.Time) (*KeySet, err
 		set.order = append(set.order, pair.kid)
 	}
 
-	if activeKID == "" {
+	if strings.TrimSpace(activeKID) == "" {
 		return nil, ErrNoActiveKeyID
 	}
 	active, ok := set.byKID[activeKID]
@@ -121,7 +124,7 @@ func decodeEntries(raw string) ([]signingKeyEntry, error) {
 }
 
 func newKeyPair(entry signingKeyEntry) (keyPair, error) {
-	if strings.TrimSpace(entry.KID) == "" {
+	if !validKeyID(entry.KID) {
 		return keyPair{}, ErrInvalidKeyID
 	}
 	private, err := decodePrivateKey(entry.PrivateKeyB64)
@@ -133,6 +136,13 @@ func newKeyPair(entry signingKeyEntry) (keyPair, error) {
 		return keyPair{}, ErrInvalidKeyMaterial
 	}
 	return keyPair{kid: entry.KID, private: private, public: public, notAfter: entry.NotAfter}, nil
+}
+
+// validKeyID rejects, rather than trims, a kid with surrounding whitespace or
+// control characters: such a kid is a configuration mistake, and normalizing
+// it would only move the mismatch to JWT_ACTIVE_KID or to the token header.
+func validKeyID(kid string) bool {
+	return kid != "" && kid == strings.TrimSpace(kid) && strings.IndexFunc(kid, unicode.IsControl) < 0
 }
 
 // decodePrivateKey accepts a base64url raw 64-byte Ed25519 private key or a
@@ -162,12 +172,44 @@ func decodePrivateKey(encoded string) (ed25519.PrivateKey, error) {
 	return private, nil
 }
 
-// ActiveKID returns the kid that signs newly issued tokens.
-func (s *KeySet) ActiveKID() string { return s.activeKID }
+// ActiveKID returns the kid that signs newly issued tokens, or "" for a nil key set.
+func (s *KeySet) ActiveKID() string {
+	if s == nil {
+		return ""
+	}
+	return s.activeKID
+}
 
-func (s *KeySet) active() keyPair { return s.byKID[s.activeKID] }
+// String describes the key set without key material: only the active kid and
+// the number of keys. Value receivers cover both KeySet and *KeySet in fmt.
+func (s KeySet) String() string {
+	return fmt.Sprintf("tokens.KeySet{ActiveKID:%q Keys:%d}", s.activeKID, len(s.byKID))
+}
+
+// GoString redacts the key material under %#v.
+func (s KeySet) GoString() string { return s.String() }
+
+// LogValue implements slog.LogValuer without key material.
+func (s KeySet) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("active_kid", s.activeKID), slog.Int("keys", len(s.byKID)))
+}
+
+// usable reports whether the key set was built by ParseKeySet: a nil or zero
+// KeySet has no key, and every method that needs one fails closed on it.
+func (s *KeySet) usable() bool { return s != nil && len(s.byKID) > 0 }
+
+func (s *KeySet) active() (keyPair, bool) {
+	if !s.usable() {
+		return keyPair{}, false
+	}
+	pair, ok := s.byKID[s.activeKID]
+	return pair, ok
+}
 
 func (s *KeySet) lookup(kid string) (keyPair, bool) {
+	if !s.usable() {
+		return keyPair{}, false
+	}
 	pair, ok := s.byKID[kid]
 	return pair, ok
 }

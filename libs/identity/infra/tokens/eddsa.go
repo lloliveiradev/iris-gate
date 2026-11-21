@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +38,8 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 	// ErrTokenExpired is wrapped together with ErrInvalidToken when exp has passed.
 	ErrTokenExpired = errors.New("token expired")
-	// ErrInvalidClaims is returned by Issue when required claims are missing or the audience is unknown.
+	// ErrInvalidClaims is returned by Issue when required claims are missing, the
+	// audience is unknown, or auth_time is not in 0 < auth_time <= iat.
 	ErrInvalidClaims = errors.New("invalid token claims")
 )
 
@@ -73,6 +75,14 @@ type wireHeader struct {
 	Type      string `json:"typ"`
 	KeyID     string `json:"kid"`
 }
+
+// headerFields and claimFields are the only keys a token may carry, matched
+// exactly. claimFields mirrors the json tags of wireClaims; Issue never sets
+// nbf, but Verify honors it.
+var (
+	headerFields = []string{headerFieldAlg, headerFieldTyp, headerFieldKID}
+	claimFields  = []string{"sub", "aud", "mid", "role", "sid", "jti", "iat", "exp", "nbf", "auth_time"}
+)
 
 // Option customizes an Issuer or Verifier.
 type Option func(*options)
@@ -112,13 +122,21 @@ func NewIssuer(keys *KeySet, opts ...Option) *Issuer {
 }
 
 // Issue signs a 15-minute access token. It refuses to sign with an active key
-// that has expired since startup.
+// that has expired since startup, and returns ErrNoSigningKeys for a nil
+// Issuer or a nil or zero KeySet. exp is always iat plus AccessTokenTTL, so
+// exp > iat holds by construction.
 func (i *Issuer) Issue(claims Claims) (string, error) {
-	if err := validateIssueClaims(claims); err != nil {
-		return "", err
+	if i == nil {
+		return "", ErrNoSigningKeys
+	}
+	active, ok := i.keys.active()
+	if !ok {
+		return "", ErrNoSigningKeys
 	}
 	now := i.opts.now()
-	active := i.keys.active()
+	if err := validateIssueClaims(claims, now); err != nil {
+		return "", err
+	}
 	if active.expiredAt(now) {
 		return "", ErrActiveKeyExpired
 	}
@@ -151,18 +169,41 @@ func (i *Issuer) Issue(claims Claims) (string, error) {
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(signature), nil
 }
 
-func validateIssueClaims(c Claims) error {
-	if c.Subject == "" || c.SessionID == "" || c.AuthTime.IsZero() {
-		return fmt.Errorf("%w: sub, sid and auth_time are required", ErrInvalidClaims)
-	}
+// validateIssueClaims applies at issue the same claim rules Verify enforces,
+// so the issuer never signs a token its own verifier would reject. issuedAt is
+// the iat the token will carry.
+func validateIssueClaims(c Claims, issuedAt time.Time) error {
 	if !knownAudience(c.Audience) {
 		return fmt.Errorf("%w: unknown audience", ErrInvalidClaims)
+	}
+	if !hasIdentityClaims(c) {
+		return fmt.Errorf("%w: sub, sid, role and, for the dashboard audience, mid are required", ErrInvalidClaims)
+	}
+	if !validAuthTime(c.AuthTime, issuedAt) {
+		return fmt.Errorf("%w: auth_time must be positive and not after iat", ErrInvalidClaims)
 	}
 	return nil
 }
 
 func knownAudience(aud string) bool {
 	return aud == AudienceDashboard || aud == AudiencePlatform
+}
+
+// hasIdentityClaims is the presence rule shared by Issue and Verify: sub, sid
+// and role are always required, and a dashboard token is always scoped to one
+// merchant, so it also needs mid.
+func hasIdentityClaims(c Claims) bool {
+	if c.Subject == "" || c.SessionID == "" || c.Role == "" {
+		return false
+	}
+	return c.Audience != AudienceDashboard || c.MerchantID != ""
+}
+
+// validAuthTime is the auth_time rule shared by Issue and Verify, in whole
+// seconds as on the wire: 0 < auth_time <= iat. A future auth_time would meet
+// a step-up check (now - auth_time <= 5m) for the whole token lifetime.
+func validAuthTime(authTime, issuedAt time.Time) bool {
+	return authTime.Unix() > 0 && authTime.Unix() <= issuedAt.Unix()
 }
 
 func encodeJSONSegment(v any) (string, error) {
@@ -185,9 +226,15 @@ func NewVerifier(keys *KeySet, opts ...Option) *Verifier {
 }
 
 // Verify checks the token and returns its claims. It requires alg EdDSA, a
-// known unexpired kid (never trying other keys), a valid signature, an
-// unexpired exp within the maximum TTL, a sane iat/nbf and the exact audience.
+// known unexpired kid (never trying other keys), a valid signature, only known
+// claims, an unexpired exp after iat and within the maximum TTL, a sane
+// iat/nbf/auth_time, the exact audience, and the identity claims of
+// hasIdentityClaims. A nil Verifier or a nil or zero KeySet rejects every
+// token with ErrInvalidToken wrapping ErrNoSigningKeys.
 func (v *Verifier) Verify(token, expectedAudience string) (Claims, error) {
+	if v == nil || !v.keys.usable() {
+		return Claims{}, fmt.Errorf("%w: %w", ErrInvalidToken, ErrNoSigningKeys)
+	}
 	if !knownAudience(expectedAudience) {
 		return Claims{}, fmt.Errorf("%w: unknown expected audience", ErrInvalidToken)
 	}
@@ -218,27 +265,35 @@ func reject(reason string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidToken, reason)
 }
 
-// decodeHeader enforces the strict header: alg EdDSA, typ JWT when present,
-// a kid, and no other field (so no embedded jwk, jku or crit).
-func decodeHeader(segment string) (wireHeader, error) {
+// decodeStrictSegment decodes one base64url JSON segment into v. Every key must
+// be in allowed, compared exactly: encoding/json alone ignores unknown keys and
+// matches keys case-insensitively, so "AUD" would otherwise fill aud.
+func decodeStrictSegment(segment, part string, allowed []string, v any) error {
 	raw, err := base64.RawURLEncoding.Strict().DecodeString(segment)
 	if err != nil {
-		return wireHeader{}, reject("malformed header")
+		return reject("malformed " + part)
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return wireHeader{}, reject("malformed header")
+		return reject("malformed " + part)
 	}
 	for name := range fields {
-		switch name {
-		case headerFieldAlg, headerFieldTyp, headerFieldKID:
-		default:
-			return wireHeader{}, reject("unexpected header field")
+		if !slices.Contains(allowed, name) {
+			return reject("unexpected " + part + " field")
 		}
 	}
+	if err := json.Unmarshal(raw, v); err != nil {
+		return reject("malformed " + part)
+	}
+	return nil
+}
+
+// decodeHeader enforces the strict header: alg EdDSA, typ JWT when present,
+// a kid, and no other field (so no embedded jwk, jku or crit).
+func decodeHeader(segment string) (wireHeader, error) {
 	var header wireHeader
-	if err := json.Unmarshal(raw, &header); err != nil {
-		return wireHeader{}, reject("malformed header")
+	if err := decodeStrictSegment(segment, "header", headerFields, &header); err != nil {
+		return wireHeader{}, err
 	}
 	if header.Algorithm != jwtAlgorithm {
 		return wireHeader{}, reject("unsupported alg")
@@ -250,35 +305,14 @@ func decodeHeader(segment string) (wireHeader, error) {
 }
 
 func decodeClaims(segment, expectedAudience string, now time.Time) (Claims, error) {
-	raw, err := base64.RawURLEncoding.Strict().DecodeString(segment)
-	if err != nil {
-		return Claims{}, reject("malformed payload")
-	}
 	var wire wireClaims
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		return Claims{}, reject("malformed payload")
+	if err := decodeStrictSegment(segment, "payload", claimFields, &wire); err != nil {
+		return Claims{}, err
 	}
-	if wire.IssuedAt == nil || wire.ExpiresAt == nil || wire.AuthTime == nil ||
-		wire.Subject == "" || wire.SessionID == "" || wire.TokenID == "" {
+	if wire.IssuedAt == nil || wire.ExpiresAt == nil || wire.AuthTime == nil || wire.TokenID == "" {
 		return Claims{}, reject("missing claim")
 	}
-	if wire.Audience != expectedAudience {
-		return Claims{}, reject("audience mismatch")
-	}
-	issuedAt, expiresAt := time.Unix(*wire.IssuedAt, 0), time.Unix(*wire.ExpiresAt, 0)
-	if !now.Before(expiresAt) {
-		return Claims{}, fmt.Errorf("%w: %w", ErrInvalidToken, ErrTokenExpired)
-	}
-	if expiresAt.Sub(issuedAt) > AccessTokenTTL {
-		return Claims{}, reject("lifetime too long")
-	}
-	if issuedAt.After(now.Add(issuedAtLeeway)) {
-		return Claims{}, reject("issued in the future")
-	}
-	if wire.NotBefore != nil && time.Unix(*wire.NotBefore, 0).After(now.Add(issuedAtLeeway)) {
-		return Claims{}, reject("not yet valid")
-	}
-	return Claims{
+	claims := Claims{
 		Subject:    wire.Subject,
 		Audience:   wire.Audience,
 		MerchantID: wire.MerchantID,
@@ -286,7 +320,43 @@ func decodeClaims(segment, expectedAudience string, now time.Time) (Claims, erro
 		SessionID:  wire.SessionID,
 		TokenID:    wire.TokenID,
 		AuthTime:   time.Unix(*wire.AuthTime, 0),
-		IssuedAt:   issuedAt,
-		ExpiresAt:  expiresAt,
-	}, nil
+		IssuedAt:   time.Unix(*wire.IssuedAt, 0),
+		ExpiresAt:  time.Unix(*wire.ExpiresAt, 0),
+	}
+	if claims.Audience != expectedAudience {
+		return Claims{}, reject("audience mismatch")
+	}
+	if !hasIdentityClaims(claims) {
+		return Claims{}, reject("missing claim")
+	}
+	if err := validateTimes(claims, wire.NotBefore, now); err != nil {
+		return Claims{}, err
+	}
+	return claims, nil
+}
+
+// validateTimes enforces now < exp (no leeway), iat < exp <= iat + TTL, iat and
+// nbf at most issuedAtLeeway ahead of now, and validAuthTime. Because iat is
+// bounded by now plus the leeway, auth_time <= iat bounds auth_time as well.
+func validateTimes(c Claims, notBefore *int64, now time.Time) error {
+	if !now.Before(c.ExpiresAt) {
+		return fmt.Errorf("%w: %w", ErrInvalidToken, ErrTokenExpired)
+	}
+	if !c.ExpiresAt.After(c.IssuedAt) {
+		return reject("exp not after iat")
+	}
+	if c.ExpiresAt.Sub(c.IssuedAt) > AccessTokenTTL {
+		return reject("lifetime too long")
+	}
+	latest := now.Add(issuedAtLeeway)
+	if c.IssuedAt.After(latest) {
+		return reject("issued in the future")
+	}
+	if notBefore != nil && time.Unix(*notBefore, 0).After(latest) {
+		return reject("not yet valid")
+	}
+	if !validAuthTime(c.AuthTime, c.IssuedAt) {
+		return reject("invalid auth_time")
+	}
+	return nil
 }

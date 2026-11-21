@@ -3,9 +3,12 @@ package tokens_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/iris-gate/iris-gate/libs/identity/infra/tokens"
 )
 
 type jwksView struct {
@@ -68,5 +71,18 @@ func TestJWKS_OmitsExpiredKeys(t *testing.T) {
 	}
 	if len(doc.Keys) != 1 || doc.Keys[0]["kid"] != testKIDTwo {
 		t.Fatalf("keys = %v", doc.Keys)
+	}
+}
+
+func TestJWKS_NilOrZeroKeySetFailsClosed(t *testing.T) {
+	var nilSet *tokens.KeySet
+	for name, keys := range map[string]*tokens.KeySet{"nil": nilSet, "zero": {}} {
+		raw, err := keys.JWKS(testNow)
+		if !errors.Is(err, tokens.ErrNoSigningKeys) || raw != nil {
+			t.Errorf("%s key set: jwks = %s, err = %v, want ErrNoSigningKeys", name, raw, err)
+		}
+		if kid := keys.ActiveKID(); kid != "" {
+			t.Errorf("%s key set: active kid = %q", name, kid)
+		}
 	}
 }

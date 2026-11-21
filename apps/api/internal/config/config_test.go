@@ -32,6 +32,7 @@ const (
 	testJWTKID           = "test-kid"
 	testJWTOtherKID      = "test-other-kid"
 	testJWTMalformedKeys = "not json"
+	redactedMarker       = "[REDACTED]"
 )
 
 func TestLoad_DatabaseURLs(t *testing.T) {
@@ -412,5 +413,53 @@ func TestLoad_JWTKeysNeverAppearInFormattedConfigOrErrors(t *testing.T) {
 	_, err = config.Load()
 	if err == nil || strings.Contains(err.Error(), secret) {
 		t.Fatalf("error must exist and not echo the key: %v", err)
+	}
+}
+
+// slog resolves LogValue only for a top-level attribute, so logging the whole
+// Config, or marshaling it, reaches the nested SecretString through
+// encoding/json or encoding.TextMarshaler instead.
+func TestLoad_JWTKeysNeverAppearInJSONOrStructLogs(t *testing.T) {
+	valid, secret := jwtKeysJSON(t, testJWTKID, nil)
+	setEnv(t, map[string]string{config.EnvJWTSigningKeys: valid, config.EnvJWTActiveKID: testJWTKID})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// Control: the base64url key is found verbatim in an unredacted JSON
+	// encoding (JSON escapes none of its characters), so the checks below can fail.
+	if unredacted, _ := json.Marshal(string(cfg.JWTSigningKeys)); !strings.Contains(string(unredacted), secret) {
+		t.Fatal("control: the raw key must be visible in an unredacted encoding")
+	}
+
+	byValue, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	byPointer, err := json.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("marshal config pointer: %v", err)
+	}
+	text, err := cfg.JWTSigningKeys.MarshalText()
+	if err != nil {
+		t.Fatalf("marshal text: %v", err)
+	}
+	var jsonLogs, textLogs bytes.Buffer
+	slog.New(slog.NewJSONHandler(&jsonLogs, nil)).Info("startup", "cfg", cfg)
+	slog.New(slog.NewTextHandler(&textLogs, nil)).Info("startup", "cfg", cfg)
+
+	for name, out := range map[string]string{
+		"json.Marshal(cfg)":  string(byValue),
+		"json.Marshal(&cfg)": string(byPointer),
+		"MarshalText":        string(text),
+		"slog JSON handler":  jsonLogs.String(),
+		"slog text handler":  textLogs.String(),
+	} {
+		if strings.Contains(out, secret) || strings.Contains(out, valid) {
+			t.Errorf("%s leaked the signing key", name)
+		}
+		if !strings.Contains(out, redactedMarker) {
+			t.Errorf("%s does not carry the redacted marker: %s", name, out)
+		}
 	}
 }

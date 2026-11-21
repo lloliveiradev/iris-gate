@@ -31,7 +31,11 @@ type jwksDocument struct {
 
 // JWKS renders the public key set as JSON, in configuration order, leaving out
 // keys whose not_after has passed at now. Private key bytes are never included.
+// A nil or zero KeySet returns ErrNoSigningKeys.
 func (s *KeySet) JWKS(now time.Time) ([]byte, error) {
+	if !s.usable() {
+		return nil, ErrNoSigningKeys
+	}
 	doc := jwksDocument{Keys: make([]publicJWK, 0, len(s.order))}
 	for _, kid := range s.order {
 		pair := s.byKID[kid]

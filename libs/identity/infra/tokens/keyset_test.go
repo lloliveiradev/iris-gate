@@ -1,12 +1,18 @@
 package tokens_test
 
 import (
+	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,6 +95,9 @@ func TestParseKeySet_FailsClosed(t *testing.T) {
 	mismatched[ed25519.PrivateKeySize-1] ^= 0xff
 	badSeed.entry["private_key_b64"] = base64.RawURLEncoding.EncodeToString(mismatched)
 	notEd25519 := testKey{entry: map[string]any{"kid": testKIDOne, "private_key_b64": notBase64}}
+	ecdsaPKCS8 := testKey{entry: map[string]any{"kid": testKIDOne, "private_key_b64": ecdsaPKCS8B64(t)}}
+	paddedKID := newTestKey(t, " "+testKIDOne, nil)
+	controlKID := newTestKey(t, "test-kid\x07one", nil)
 
 	tests := []struct {
 		name    string
@@ -106,7 +115,11 @@ func TestParseKeySet_FailsClosed(t *testing.T) {
 		{"short key material", keysJSON(t, rsaLike), testKIDOne, tokens.ErrInvalidKeyMaterial},
 		{"invalid base64", keysJSON(t, notEd25519), testKIDOne, tokens.ErrInvalidKeyMaterial},
 		{"public half does not match seed", keysJSON(t, badSeed), testKIDOne, tokens.ErrInvalidKeyMaterial},
+		{"PKCS#8 key that is not Ed25519", keysJSON(t, ecdsaPKCS8), testKIDOne, tokens.ErrInvalidKeyMaterial},
+		{"kid with surrounding whitespace", keysJSON(t, paddedKID), testKIDOne, tokens.ErrInvalidKeyID},
+		{"kid with a control character", keysJSON(t, controlKID), testKIDOne, tokens.ErrInvalidKeyID},
 		{"empty active kid", keysJSON(t, good), "", tokens.ErrNoActiveKeyID},
+		{"whitespace-only active kid", keysJSON(t, good), "   ", tokens.ErrNoActiveKeyID},
 		{"unknown active kid", keysJSON(t, good), testKIDUnknown, tokens.ErrUnknownActiveKeyID},
 		{"expired active key", keysJSON(t, expired), testKIDOne, tokens.ErrActiveKeyExpired},
 	}
@@ -139,6 +152,41 @@ func TestParseKeySet_AcceptsRawAndPKCS8(t *testing.T) {
 	}
 	if set.ActiveKID() != testKIDTwo {
 		t.Fatalf("active kid = %q", set.ActiveKID())
+	}
+}
+
+// ecdsaPKCS8B64 returns a well-formed PKCS#8 document for a P-256 key, so the
+// loader reaches its Ed25519 type check instead of failing to parse.
+func ecdsaPKCS8B64(t *testing.T) string {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate ecdsa key: %v", err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatalf("marshal pkcs8: %v", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(der)
+}
+
+func TestKeySet_FormattingNeverExposesKeyMaterial(t *testing.T) {
+	set := mustKeySet(t, testKIDOne, newTestKey(t, testKIDOne, nil), newTestKey(t, testKIDTwo, nil))
+	want := `tokens.KeySet{ActiveKID:"test-kid-one" Keys:2}`
+	for name, value := range map[string]any{"pointer": set, "value": *set} {
+		for _, verb := range []string{"%v", "%+v", "%#v", "%s"} {
+			if got := fmt.Sprintf(verb, value); got != want {
+				t.Errorf("%s %s = %s, want %s", name, verb, got, want)
+			}
+		}
+	}
+
+	var logs bytes.Buffer
+	slog.New(slog.NewJSONHandler(&logs, nil)).Info("keys", "pointer", set, "value", *set)
+	for _, name := range []string{"pointer", "value"} {
+		if want := `"` + name + `":{"active_kid":"test-kid-one","keys":2}`; !strings.Contains(logs.String(), want) {
+			t.Errorf("log = %s, want %s", logs.String(), want)
+		}
 	}
 }
 
