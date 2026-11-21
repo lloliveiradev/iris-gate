@@ -13,7 +13,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
+
+	"github.com/iris-gate/iris-gate/libs/identity/infra/tokens"
 )
 
 // Environment variable names of the per-role connection URLs.
@@ -32,6 +35,15 @@ const (
 	EnvMailerPassword = "MAILER_PASSWORD"
 	EnvMailerTLSMode  = "MAILER_TLS_MODE"
 )
+
+// Environment variable names of the access-token signing keys (ADR-0006).
+const (
+	EnvJWTSigningKeys = "JWT_SIGNING_KEYS"
+	EnvJWTActiveKID   = "JWT_ACTIVE_KID"
+)
+
+// redactedValue replaces a secret wherever a Config is formatted.
+const redactedValue = "[REDACTED]"
 
 // Defaults point at the local Compose Postgres with the role passwords of
 // infra/docker/.env.example, and at the local Mailpit SMTP container.
@@ -77,6 +89,23 @@ var (
 	// ErrInvalidMailerAuth is returned when MAILER_PASSWORD is set without MAILER_USERNAME or credentials contain control characters.
 	ErrInvalidMailerAuth = errors.New("mailer authentication settings are invalid")
 )
+
+// ErrInvalidJWTKeys is returned when the access-token signing key settings are
+// incomplete or invalid. Auth is enabled as soon as either JWT variable is
+// set, and then both must describe a usable key set: there is no fallback key.
+var ErrInvalidJWTKeys = errors.New("JWT signing key settings are invalid")
+
+// SecretString holds a secret and prints as [REDACTED] in fmt and slog output.
+type SecretString string
+
+// String redacts the secret.
+func (SecretString) String() string { return redactedValue }
+
+// GoString redacts the secret under %#v.
+func (SecretString) GoString() string { return redactedValue }
+
+// LogValue implements slog.LogValuer.
+func (SecretString) LogValue() slog.Value { return slog.StringValue(redactedValue) }
 
 // MailerConfig holds the outbound SMTP settings.
 type MailerConfig struct {
@@ -131,6 +160,13 @@ type Config struct {
 
 	// Mailer holds outbound SMTP settings (defaults target local Mailpit).
 	Mailer MailerConfig
+
+	// JWTSigningKeys is the JSON array of Ed25519 private keys and JWTActiveKID
+	// the kid that signs new tokens (ADR-0006). Both empty means auth is not
+	// enabled; either one set means both are validated at load. Nothing reads
+	// them yet (wired by a later phase 08 card).
+	JWTSigningKeys SecretString
+	JWTActiveKID   string
 }
 
 // MigratorConfig is the cmd/migrate configuration.
@@ -156,6 +192,11 @@ func Load() (Config, error) {
 		AcquirerToken:     env("ACQUIRER_TOKEN", ""),
 		RelayEnabled:      env("RELAY_ENABLED", "true") == "true",
 		Mailer:            mailerCfg,
+		JWTSigningKeys:    SecretString(env(EnvJWTSigningKeys, "")),
+		JWTActiveKID:      env(EnvJWTActiveKID, ""),
+	}
+	if err := validateJWTKeys(cfg.JWTSigningKeys, cfg.JWTActiveKID); err != nil {
+		return Config{}, err
 	}
 	if err := requireURL(EnvAppDatabaseURL, cfg.AppDatabaseURL); err != nil {
 		return Config{}, err
@@ -173,6 +214,19 @@ func LoadMigrator() (MigratorConfig, error) {
 		return MigratorConfig{}, err
 	}
 	return cfg, nil
+}
+
+// validateJWTKeys fails closed: when auth is enabled (either variable set) the
+// key set must parse and its active key must be usable now. Errors never echo
+// key material.
+func validateJWTKeys(signingKeys SecretString, activeKID string) error {
+	if signingKeys == "" && activeKID == "" {
+		return nil
+	}
+	if _, err := tokens.ParseKeySet(string(signingKeys), activeKID, time.Now()); err != nil {
+		return fmt.Errorf("%s/%s: %w: %w", EnvJWTSigningKeys, EnvJWTActiveKID, ErrInvalidJWTKeys, err)
+	}
+	return nil
 }
 
 func loadMailer() (MailerConfig, error) {
