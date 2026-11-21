@@ -2,9 +2,10 @@
 
 // Integration tests for the database roles that
 // infra/docker/postgres/initdb/10-roles.sh creates (phase 07, acceptance
-// criteria 1 and 2). They need the Compose Postgres initialized by that script
-// on an empty volume and migrated with `make migrate`, and the values of
-// infra/docker/.env in the environment:
+// criteria 1 and 2) and for the append-only audit_events table (phase 08,
+// acceptance criterion 9). They need the Compose Postgres initialized by that
+// script on an empty volume and migrated with `make migrate`, and the values
+// of infra/docker/.env in the environment:
 //
 //	set -a && . infra/docker/.env && set +a
 //	make -C apps/api test-int
@@ -319,6 +320,68 @@ func TestRoles_TablePrivilegesFollowTheDefaults(t *testing.T) {
 			for _, stmt := range tt.denied {
 				_, err := conn.Exec(ctx, stmt)
 				requireInsufficientPrivilege(t, stmt, err)
+			}
+		})
+	}
+}
+
+// execRolledBack runs stmt in a transaction that it always rolls back.
+func execRolledBack(ctx context.Context, conn *pgx.Conn, stmt string) error {
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = tx.Exec(ctx, stmt)
+	return err
+}
+
+// TestRoles_AuditEventsAreAppendOnly covers phase 08 acceptance criterion 9:
+// migration 0009 revokes UPDATE and DELETE on audit_events from iris_app and
+// iris_worker, which keep INSERT and SELECT, and iris_platform only reads. BYPASSRLS does not give table privileges back.
+// Every statement is rolled back, so the test leaves no row in the
+// append-only table and changes nothing if a revoke ever regresses.
+func TestRoles_AuditEventsAreAppendOnly(t *testing.T) {
+	s := loadStack(t)
+	ctx := context.Background()
+
+	const (
+		insertAuditEvent = `INSERT INTO audit_events
+			(action, entity_type, entity_id, actor_type, actor_id, request_id, prev_hash, hash)
+			VALUES ('roles_probe', 'roles_probe', 'roles_probe', 'system', 'roles_probe', 'roles_probe',
+			        decode('00', 'hex'), decode('00', 'hex'))`
+		selectAuditEvents = `SELECT count(*) FROM audit_events`
+		updateAuditEvents = `UPDATE audit_events SET action = action`
+		deleteAuditEvents = `DELETE FROM audit_events`
+	)
+	appendOnly := struct{ allowed, denied []string }{
+		allowed: []string{insertAuditEvent, selectAuditEvents},
+		denied:  []string{updateAuditEvents, deleteAuditEvents},
+	}
+
+	tests := []struct {
+		role    string
+		allowed []string
+		denied  []string
+	}{
+		{role: irisApp, allowed: appendOnly.allowed, denied: appendOnly.denied},
+		{role: irisWorker, allowed: appendOnly.allowed, denied: appendOnly.denied},
+		{
+			role:    irisPlatform,
+			allowed: []string{selectAuditEvents},
+			denied:  []string{insertAuditEvent, updateAuditEvents, deleteAuditEvents},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.role, func(t *testing.T) {
+			conn := s.connect(t, tt.role, s.irisDB)
+			for _, stmt := range tt.allowed {
+				if err := execRolledBack(ctx, conn, stmt); err != nil {
+					t.Errorf("%s: %v", stmt, err)
+				}
+			}
+			for _, stmt := range tt.denied {
+				requireInsufficientPrivilege(t, stmt, execRolledBack(ctx, conn, stmt))
 			}
 		})
 	}
