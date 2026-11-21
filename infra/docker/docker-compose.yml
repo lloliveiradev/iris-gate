@@ -184,6 +184,8 @@ services:
       ANTI_FRAUD_INTERNAL_HOST: 0.0.0.0
       ANTI_FRAUD_INTERNAL_PORT: 13002
       FRAUD_SERVICE_TOKEN: ${FRAUD_SERVICE_TOKEN:-fraud_service_token}
+      # Local dev only (NODE_ENV=development below). Boot refuses this value
+      # when NODE_ENV=production.
       FRAUD_TEST_HOOKS: ${FRAUD_TEST_HOOKS:-true}
       NODE_ENV: development
     volumes:

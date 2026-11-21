@@ -33,6 +33,43 @@ describe('loadRiskConfig', () => {
     expect(cfg.testHooksEnabled).toBe(expected);
   });
 
+  it('refuses FRAUD_TEST_HOOKS=true when NODE_ENV=production', () => {
+    expect(() =>
+      loadRiskConfig({
+        FRAUD_SERVICE_TOKEN: TEST_SERVICE_TOKEN,
+        NODE_ENV: 'production',
+        FRAUD_TEST_HOOKS: 'true',
+      }),
+    ).toThrow('FRAUD_TEST_HOOKS=true is refused when NODE_ENV=production');
+  });
+
+  it.each([
+    ['unset', undefined],
+    ['false', 'false'],
+    ['TRUE', 'TRUE'],
+    ['1', '1'],
+    ['empty', ''],
+  ])('allows FRAUD_TEST_HOOKS %s when NODE_ENV=production', (_label, rawValue) => {
+    const cfg = loadRiskConfig({
+      FRAUD_SERVICE_TOKEN: TEST_SERVICE_TOKEN,
+      NODE_ENV: 'production',
+      ...(rawValue === undefined ? {} : { FRAUD_TEST_HOOKS: rawValue }),
+    });
+    expect(cfg.testHooksEnabled).toBe(false);
+  });
+
+  it.each(['development', 'test', undefined])(
+    'allows FRAUD_TEST_HOOKS=true when NODE_ENV is %p',
+    (nodeEnv) => {
+      const cfg = loadRiskConfig({
+        FRAUD_SERVICE_TOKEN: TEST_SERVICE_TOKEN,
+        ...(nodeEnv === undefined ? {} : { NODE_ENV: nodeEnv }),
+        FRAUD_TEST_HOOKS: 'true',
+      });
+      expect(cfg.testHooksEnabled).toBe(true);
+    },
+  );
+
   it('reads custom ANTI_FRAUD_INTERNAL_PORT and ANTI_FRAUD_INTERNAL_HOST', () => {
     const cfg = loadRiskConfig({
       FRAUD_SERVICE_TOKEN: TEST_SERVICE_TOKEN,

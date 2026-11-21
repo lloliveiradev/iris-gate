@@ -24,7 +24,8 @@ import { ServiceTokenGuard } from './service-token.guard';
 
 /**
  * Wires `RiskConfig`, `ServiceTokenGuard`, and `ScoreRiskUseCase` inside `AppModule`
- * so startup fails immediately when `FRAUD_SERVICE_TOKEN` or `FraudRule` rows are
+ * so startup fails immediately when `FRAUD_SERVICE_TOKEN` is missing, when
+ * `FRAUD_TEST_HOOKS=true` under `NODE_ENV=production`, or when `FraudRule` rows are
  * invalid. Does not register `RiskAssessmentController` on the public listener;
  * the controller is mounted only on `RiskInternalModule` (`ANTI_FRAUD_INTERNAL_PORT`).
  */
@@ -75,6 +76,8 @@ export interface RiskInternalProviders {
 /**
  * Internal HTTP module mounted on the separate `ANTI_FRAUD_INTERNAL_PORT`
  * listener (never on the public `PORT` listener).
+ * `ServiceTokenGuard` is registered once here, as `APP_GUARD`. The controller
+ * does not add `@UseGuards`, and `createInternalApp` does not call `useGlobalGuards`.
  */
 @Module({})
 export class RiskInternalModule {
@@ -100,16 +103,14 @@ export class RiskInternalModule {
 export async function createInternalApp(
   parent: INestApplicationContext,
 ): Promise<INestApplication> {
-  const serviceTokenGuard = parent.get(ServiceTokenGuard);
   const internalApp = await NestFactory.create(
     RiskInternalModule.register({
       scoreRiskUseCase: parent.get(ScoreRiskUseCase),
-      serviceTokenGuard,
+      serviceTokenGuard: parent.get(ServiceTokenGuard),
       riskConfig: parent.get<RiskConfig>(RISK_CONFIG),
     }),
     { bufferLogs: true },
   );
   internalApp.useGlobalFilters(new ProblemExceptionFilter());
-  internalApp.useGlobalGuards(serviceTokenGuard);
   return internalApp;
 }
